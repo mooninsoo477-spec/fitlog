@@ -16,6 +16,20 @@
   const readSync = () => safeJson(localStorage.getItem(SYNC_KEY), {}) || {};
   const validSync = (config = readSync()) => Boolean(config.url && config.key);
 
+  function stableJson(value) {
+    if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+    if (value && typeof value === 'object') {
+      return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(',')}}`;
+    }
+    return JSON.stringify(value);
+  }
+
+  function stateSignature(raw) {
+    const state = normalizeBackup(raw);
+    const { lastSaved, syncedAt, ...content } = state;
+    return stableJson(content);
+  }
+
   function normalizeBackup(raw) {
     const source = raw?.state || raw || {};
     const oldProfile = source.profile || {};
@@ -38,8 +52,8 @@
 
   function mergeItems(cloudItems = [], localItems = []) {
     const map = new Map();
-    [...cloudItems, ...localItems].forEach((item, index) => {
-      const key = item.id || `${item.name || item.meal || 'item'}:${item.kcal || ''}:${index}`;
+    [...cloudItems, ...localItems].forEach(item => {
+      const key = item.id ? `id:${item.id}` : `legacy:${stableJson(item)}`;
       map.set(key, item);
     });
     return [...map.values()];
@@ -63,15 +77,19 @@
     [...(cloud.inbody || []), ...(local.inbody || [])].forEach(item => {
       inbodyMap.set(`${item.date || ''}:${item.weight || ''}:${item.pbf || item.bodyFat || ''}`, item);
     });
-    return {
+    const merged = {
       ...(cloudNewer ? local : cloud),
       ...(cloudNewer ? cloud : local),
       profile: cloudNewer ? cloud.profile : local.profile,
       logs,
-      inbody: [...inbodyMap.values()],
-      lastSaved: new Date().toISOString(),
-      syncedAt: new Date().toISOString()
+      inbody: [...inbodyMap.values()]
     };
+    const savedAt = [local.lastSaved, cloud.lastSaved]
+      .filter(Boolean)
+      .sort((a, b) => Date.parse(b) - Date.parse(a))[0];
+    if (savedAt) merged.lastSaved = savedAt;
+    delete merged.syncedAt;
+    return merged;
   }
 
   async function request(config, method, path, body, extraHeaders = {}) {
@@ -159,13 +177,13 @@
       const local = readState();
       const cloud = await readCloud(config);
       const merged = cloud ? mergeStates(local, cloud) : normalizeBackup(local);
-      const before = JSON.stringify(normalizeBackup(local));
-      const after = JSON.stringify(normalizeBackup(merged));
-      nativeSetItem.call(localStorage, STATE_KEY, JSON.stringify(merged));
-      await writeCloud(config, merged);
+      const localChanged = stateSignature(local) !== stateSignature(merged);
+      const cloudChanged = !cloud || stateSignature(cloud) !== stateSignature(merged);
+      if (localChanged) nativeSetItem.call(localStorage, STATE_KEY, JSON.stringify(merged));
+      if (cloudChanged) await writeCloud(config, merged);
       setStatus(`동기화됨 · ${new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}`, 'ok');
       renderArchive();
-      if (reload && before !== after) {
+      if (reload && localChanged) {
         sessionStorage.setItem('fitlog:notice', '다른 기기의 기록을 합쳐 불러왔어요.');
         location.reload();
       }
