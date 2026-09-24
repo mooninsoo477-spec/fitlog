@@ -3,6 +3,7 @@
 
   const STATE_KEY = 'fitlog:dashboard:v3';
   const AI_KEY = 'fitlog-ai-settings';
+  const SYNC_KEY = 'fitlog-sync';
   const $ = (selector, root = document) => root.querySelector(selector);
   const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
   const parse = (value, fallback = null) => { try { return JSON.parse(value); } catch { return fallback; } };
@@ -231,17 +232,17 @@
   async function imagePayload(file) {
     if (!file) return null;
     const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, 1280 / Math.max(bitmap.width, bitmap.height));
+    const scale = Math.min(1, 768 / Math.max(bitmap.width, bitmap.height));
     const canvas = document.createElement('canvas');
     canvas.width = Math.round(bitmap.width * scale);
     canvas.height = Math.round(bitmap.height * scale);
     canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.86);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.78);
     return { mimeType: 'image/jpeg', data: dataUrl.split(',')[1], preview: dataUrl };
   }
 
   function nutritionPrompt(mealType, text) {
-    return `당신은 한국 식단 기록 전문 영양 분석가다. 사용자가 적은 설명과 사진을 함께 분석하라. 설명에 적힌 제품명, 중량, 개수는 사진 추정보다 우선한다. 사진에서는 그릇 크기, 밥 양, 소스와 조리유, 실제 먹을 수 있는 부분을 고려하고 같은 음식을 중복 계산하지 않는다. 여러 음식이면 합산한다. 불확실해도 가장 가능성 높은 1회 섭취량을 선택해 바로 기록 가능한 하나의 결과를 만든다.\n끼니: ${mealType}\n사용자 기록: ${text || '사진만 제공'}\n반드시 JSON 하나만 반환: {"name":"음식 요약","amount":"추정 섭취량","kcal":숫자,"protein":숫자,"carbs":숫자,"fat":숫자,"confidence":"높음|보통|낮음"}. kcal과 영양소는 전체 섭취량 기준이며 현실적인 숫자로 교차 검산한다.`;
+    return `한국 식단의 1회 실제 섭취량을 분석한다. 텍스트의 제품명·중량·개수를 사진 추정보다 우선하고 밥, 소스, 조리유와 먹을 수 있는 부분을 포함해 중복 없이 합산한다. 끼니: ${mealType}. 기록: ${text || '사진만 제공'}.`;
   }
 
   function extractJson(text) {
@@ -253,34 +254,28 @@
   }
 
   async function analyzeWithAi(settings, prompt) {
-    const provider = settings.provider || 'gemini';
-    if (provider === 'gemini') {
-      const model = settings.model || 'gemini-2.5-flash';
-      const parts = [{ text: prompt }];
-      if (photoData) parts.unshift({ inlineData: { mimeType: photoData.mimeType, data: photoData.data } });
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': settings.key },
-        body: JSON.stringify({ contents: [{ role: 'user', parts }], generationConfig: { responseMimeType: 'application/json', temperature: 0.15 } })
-      });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error?.message || 'Gemini 분석에 실패했어요.');
-      return extractJson(body.candidates?.[0]?.content?.parts?.map(part => part.text || '').join(''));
-    }
-    if (provider === 'claude') {
-      const content = [];
-      if (photoData) content.push({ type: 'image', source: { type: 'base64', media_type: photoData.mimeType, data: photoData.data } });
-      content.push({ type: 'text', text: prompt });
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': settings.key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({ model: settings.model || 'claude-sonnet-4-5', max_tokens: 700, temperature: 0.1, messages: [{ role: 'user', content }] })
-      });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error?.message || 'Claude 분석에 실패했어요.');
-      return extractJson(body.content?.map(part => part.text || '').join(''));
-    }
-    throw new Error('현재는 Gemini 또는 Claude를 선택해 주세요.');
+    const sync = parse(localStorage.getItem(SYNC_KEY), {}) || {};
+    if (!sync.url || !sync.key) throw new Error('더보기에서 여러 기기 동기화를 먼저 연결해 주세요.');
+    if (!settings.token) throw new Error('더보기에서 AI 연결 토큰을 입력해 주세요.');
+    const headers = {
+      'Content-Type': 'application/json',
+      apikey: sync.key,
+      'x-fitlog-token': settings.token
+    };
+    if (String(sync.key).startsWith('eyJ')) headers.Authorization = `Bearer ${sync.key}`;
+    const response = await fetch(`${String(sync.url).replace(/\/+$/, '')}/functions/v1/analyze-meal`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        prompt,
+        hasText: Boolean($('#aiMealText')?.value.trim()),
+        photo: photoData ? { mimeType: photoData.mimeType, data: photoData.data } : null,
+        model: settings.model || 'gpt-5.6-luna'
+      })
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `GPT 분석에 실패했어요. (${response.status})`);
+    return body;
   }
 
   function installMealComposer() {
@@ -325,8 +320,8 @@
         return;
       }
       const settings = parse(localStorage.getItem(AI_KEY), {}) || {};
-      if (!settings.key) {
-        notice.innerHTML = 'AI API 연결이 필요해요. <button class="inline-link" data-go="more">더보기에서 연결하기</button>';
+      if (!settings.token) {
+        notice.innerHTML = 'GPT 연결 설정이 필요해요. <button class="inline-link" data-go="more">더보기에서 연결하기</button>';
         return;
       }
       button.disabled = true;

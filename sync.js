@@ -220,15 +220,14 @@
   }
 
   function renderAiStatus() {
-    const settings = safeJson(localStorage.getItem(AI_KEY), {}) || window.FITLOG_AI || {};
-    const configured = Boolean(settings.key);
+    const settings = safeJson(localStorage.getItem(AI_KEY), {}) || {};
+    const configured = Boolean(settings.token && validSync());
     $('#aiStatus').textContent = configured
-      ? `자동 감지됨 · ${settings.provider || 'gemini'} · ${settings.model || '기본 모델'}`
-      : '이 기기에는 저장된 AI API 키가 없어요.';
+      ? `OpenAI GPT 연결 준비됨 · ${settings.model || 'gpt-5.6-luna'}`
+      : '동기화 연결과 AI 연결 토큰을 설정해 주세요.';
     $('#aiStatus').dataset.tone = configured ? 'ok' : '';
-    $('#aiProvider').value = settings.provider || 'gemini';
-    $('#aiModel').value = settings.model || '';
-    $('#aiKey').value = settings.key || '';
+    $('#aiModel').value = settings.model || 'gpt-5.6-luna';
+    $('#aiToken').value = settings.token || '';
   }
 
   function installUi() {
@@ -248,14 +247,13 @@
         <div class="sync-actions"><button class="primary mint" id="saveSync">연결 확인</button><button class="primary" id="syncNow">지금 동기화</button></div>
         <p id="syncStatus" class="sync-status" role="status"></p>
       </section>
-      <div class="section-head"><h2>AI API 연결</h2></div>
+      <div class="section-head"><h2>OpenAI GPT 연결</h2></div>
       <section class="card sync-card">
         <p id="aiStatus" class="sync-status"></p>
-        <label class="field"><span>제공자</span><select class="select" id="aiProvider"><option value="gemini">Google Gemini</option><option value="claude">Claude</option><option value="custom">학교·기관 API</option></select></label>
-        <label class="field"><span>모델</span><input class="input" id="aiModel" placeholder="예: gemini-flash-latest"></label>
-        <label class="field"><span>API 키</span><input class="input" id="aiKey" type="password" autocomplete="off" placeholder="이 기기에만 저장"></label>
-        <button class="primary mint full" id="saveAi">이 기기에 API 설정 저장</button>
-        <p class="sync-help">보안을 위해 AI 키는 기기 간 자동 동기화하지 않습니다.</p>
+        <label class="field"><span>모델</span><select class="select" id="aiModel"><option value="gpt-5.6-luna">GPT-5.6 Luna · 추천/절약형</option><option value="gpt-5.6-terra">GPT-5.6 Terra · 균형형</option><option value="gpt-5.6-sol">GPT-5.6 Sol · 고성능</option></select></label>
+        <label class="field"><span>AI 연결 토큰</span><input class="input" id="aiToken" type="password" autocomplete="off" placeholder="Supabase 함수에 설정한 토큰"></label>
+        <button class="primary mint full" id="saveAi">GPT 연결 설정 저장</button>
+        <p class="sync-help">OpenAI API 키는 휴대폰에 저장하지 않고 Supabase 함수에만 보관합니다.</p>
       </section>`;
     more.insertBefore(panel, dataHeading || null);
 
@@ -288,13 +286,13 @@
       const current = safeJson(localStorage.getItem(AI_KEY), {}) || {};
       const next = {
         ...current,
-        provider: $('#aiProvider').value,
-        model: $('#aiModel').value.trim(),
-        key: $('#aiKey').value.trim()
+        provider: 'openai',
+        model: $('#aiModel').value,
+        token: $('#aiToken').value.trim()
       };
       nativeSetItem.call(localStorage, AI_KEY, JSON.stringify(next));
       renderAiStatus();
-      sessionStorage.setItem('fitlog:notice', next.key ? 'AI API 설정을 이 기기에 저장했어요.' : 'AI API 키를 비웠어요.');
+      sessionStorage.setItem('fitlog:notice', next.token ? 'GPT 연결 설정을 이 기기에 저장했어요.' : 'AI 연결 토큰을 비웠어요.');
       location.reload();
     };
   }
