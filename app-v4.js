@@ -255,7 +255,7 @@
     return JSON.parse(cleaned.slice(start, end + 1));
   }
 
-  async function analyzeWithAi(settings, prompt) {
+  async function analyzeWithAi(settings, prompt, mode = 'analyze') {
     const sync = parse(localStorage.getItem(SYNC_KEY), {}) || {};
     if (!sync.url || !sync.key) throw new Error('더보기에서 여러 기기 동기화를 먼저 연결해 주세요.');
     if (!settings.token) throw new Error('더보기에서 AI 연결 토큰을 입력해 주세요.');
@@ -271,6 +271,7 @@
       method: 'POST',
       headers,
       body: JSON.stringify({
+        mode,
         prompt,
         hasText: Boolean($('#aiMealText')?.value.trim()),
         photo: photoData ? { mimeType: photoData.mimeType, data: photoData.data } : null,
@@ -280,6 +281,67 @@
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error || `GPT 분석에 실패했어요. (${response.status})`);
     return body;
+  }
+
+  function remainingMealTypes(meals) {
+    const hour = new Date().getHours();
+    const recorded = new Set(meals.map(item => item.meal));
+    const result = [];
+    if (hour < 10 && !recorded.has('아침')) result.push('아침');
+    if (hour < 15 && !recorded.has('점심')) result.push(hour >= 10 && !recorded.has('아침') ? '아점' : '점심');
+    if (hour < 21 && !recorded.has('저녁')) result.push('저녁');
+    if (!recorded.has('간식')) result.push('간식');
+    return result.length ? result : ['가벼운 간식'];
+  }
+
+  function installMealRecommendation() {
+    const trigger = $('#recommend');
+    const mealPhoto = $('[data-view="meals"] .photo');
+    if (!trigger || !mealPhoto || $('#mealRecommendation')) return;
+    const panel = document.createElement('section');
+    panel.id = 'mealRecommendation';
+    panel.className = 'card meal-recommendation';
+    panel.innerHTML = '<div class="recommend-loading"><strong>남은 끼니 추천</strong><span>홈에서 추천받기를 눌러주세요.</span></div>';
+    mealPhoto.insertAdjacentElement('afterend', panel);
+
+    trigger.onclick = async () => {
+      location.hash = 'meals';
+      document.querySelectorAll('.view').forEach(view => view.classList.toggle('active', view.dataset.view === 'meals'));
+      document.querySelectorAll('.nav [data-go]').forEach(button => button.classList.toggle('active', button.dataset.go === 'meals'));
+      const state = readState();
+      const today = dateKey(new Date());
+      const meals = state.logs?.[today]?.meals || [];
+      const eaten = meals.reduce((sum, item) => ({
+        kcal: sum.kcal + (+item.kcal || 0), protein: sum.protein + (+item.protein || 0),
+        carbs: sum.carbs + (+item.carbs || 0), fat: sum.fat + (+item.fat || 0)
+      }), { kcal: 0, protein: 0, carbs: 0, fat: 0 });
+      const targets = state.profile?.targets || { kcal: 2200, protein: 153, carbs: 260, fat: 61 };
+      const types = remainingMealTypes(meals);
+      const settings = parse(localStorage.getItem(AI_KEY), {}) || {};
+      panel.classList.add('show');
+      panel.innerHTML = '<div class="recommend-loading"><span class="spinner dark"></span><strong>남은 끼니를 맞추는 중…</strong><span>오늘 기록과 목표를 함께 계산하고 있어요.</span></div>';
+      panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      try {
+        const prompt = `현재 시간 ${new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}. 오늘 먹은 음식: ${meals.map(item => `${item.meal} ${item.name} ${item.kcal}kcal`).join(', ') || '없음'}. 섭취 합계: ${Math.round(eaten.kcal)}kcal, 단백질 ${Math.round(eaten.protein)}g, 탄수 ${Math.round(eaten.carbs)}g, 지방 ${Math.round(eaten.fat)}g. 하루 목표: ${targets.kcal}kcal, 단백질 ${targets.protein}g, 탄수 ${targets.carbs}g, 지방 ${targets.fat}g. 추천할 남은 끼니: ${types.join(', ')}. 목표를 과하게 넘지 않는 현실적인 한국식 메뉴를 끼니별로 추천한다.`;
+        const result = await analyzeWithAi(settings, prompt, 'recommend');
+        const suggestions = Array.isArray(result.meals) ? result.meals : [];
+        panel.innerHTML = `<div class="recommend-head"><div><span>오늘의 남은 끼니</span><strong>${esc(result.title || '가볍고 든든하게')}</strong></div><small>${esc(result.summary || '')}</small></div>
+          <div class="recommend-list">${suggestions.map((item, index) => `<article><div><span>${esc(item.mealType)}</span><strong>${esc(item.name)}</strong><small>${esc(item.portion)} · ${Math.round(+item.kcal || 0)} kcal</small></div><button type="button" data-use-recommend="${index}">입력</button><p>${esc(item.reason || '')}</p></article>`).join('')}</div>`;
+        panel.querySelectorAll('[data-use-recommend]').forEach(button => {
+          button.onclick = () => {
+            const item = suggestions[+button.dataset.useRecommend];
+            const text = $('#aiMealText');
+            if (text) text.value = `${item.name} ${item.portion}`;
+            const radio = $(`[name="aiMealType"][value="${item.mealType}"]`);
+            if (radio) radio.checked = true;
+            $('#aiMealComposer')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          };
+        });
+      } catch (error) {
+        panel.innerHTML = `<div class="recommend-loading bad"><strong>추천을 불러오지 못했어요.</strong><span>${esc(error.message || '잠시 후 다시 시도해 주세요.')}</span><button type="button" id="retryRecommend">다시 시도</button></div>`;
+        $('#retryRecommend').onclick = () => trigger.click();
+      }
+    };
   }
 
   function normalizedMealItems(result) {
@@ -505,6 +567,7 @@
       .calendar-card{padding:15px}.calendar-head{display:grid;grid-template-columns:38px 1fr 38px;align-items:center;text-align:center}.calendar-head button{width:34px;height:34px;border:0;border-radius:12px;background:#f2f7f5;font-size:24px}.calendar-weekdays,.calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}.calendar-weekdays{margin:13px 0 6px;color:var(--sub);font-size:9px;text-align:center}.calendar-day{position:relative;min-width:0;height:55px;padding:4px 0;border:0;border-radius:13px;background:transparent;display:grid;place-items:center;align-content:start;gap:2px}.calendar-day>span{font-size:10px}.calendar-day.today>span{width:20px;height:20px;display:grid;place-items:center;border-radius:8px;background:#17372c;color:#fff}.calendar-day.selected{background:#f3f8f6;box-shadow:inset 0 0 0 2px #98d9c2}.activity-ring{position:relative;width:29px;height:29px;border-radius:50%;background:conic-gradient(var(--red) var(--move),#f2dddd 0);display:grid;place-items:center}.activity-ring:before{content:"";width:22px;height:22px;border-radius:50%;background:conic-gradient(#65cba5 var(--meal),#deeee8 0)}.activity-ring:after{content:"";position:absolute;width:15px;height:15px;border-radius:50%;background:conic-gradient(#ffb35f var(--kcal),#f3e7d7 0)}.activity-ring i{position:absolute;z-index:1;width:8px;height:8px;border-radius:50%;background:#fff}.empty-dot{width:4px;height:4px;margin-top:8px;border-radius:50%;background:#dce9e4}.ring-legend{display:flex;justify-content:center;gap:12px;margin:12px 0;color:var(--sub);font-size:9px}.ring-legend i{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:4px}.ring-legend .red{background:var(--red)}.ring-legend .green{background:#65cba5}.ring-legend .orange{background:#ffb35f}.day-summary{padding:14px;border-radius:17px;background:#f7fbf9}.summary-head{display:flex;justify-content:space-between;align-items:center}.summary-head span,.summary-head strong{display:block}.summary-head span{color:var(--sub);font-size:10px}.summary-head strong{font-size:19px;margin-top:2px}.summary-count{display:flex;gap:5px}.summary-count span{padding:6px 8px;border-radius:10px;background:#fff;color:var(--ink)}.day-block{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}.day-block h3{margin:0 0 6px;font-size:11px}.day-block div{display:grid;grid-template-columns:35px 1fr;gap:6px;margin:5px 0}.day-block b,.day-block span,.day-block p{font-size:10px}.day-block span,.day-block p{margin:0;color:var(--sub);line-height:1.5}.summary-empty strong,.summary-empty span{display:block}.summary-empty span{margin-top:3px;color:var(--sub);font-size:10px}
       .meal-type-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:13px}.meal-type-tabs input{position:absolute;opacity:0}.meal-type-tabs span{min-height:42px;border:1px solid var(--line);border-radius:13px;background:#f7fbf9;display:grid;place-items:center;font-size:11px;font-weight:850}.meal-type-tabs input:checked+span{background:#17372c;color:#fff;border-color:#17372c}.meal-free-text{min-height:112px;line-height:1.55}.photo-analyzer{position:relative;margin:10px 0;min-height:82px}.photo-picker{min-height:82px;padding:12px;border:1px dashed #9ecdbc;border-radius:17px;background:#f0faf6;display:grid;grid-template-columns:42px 1fr;align-items:center;column-gap:9px;cursor:pointer}.photo-picker>span{grid-row:1/3;width:42px;height:42px;border-radius:14px;background:#fff;display:grid;place-items:center;font-size:20px}.photo-picker strong,.photo-picker small{display:block}.photo-picker strong{font-size:12px}.photo-picker small{color:var(--sub);font-size:9px}.photo-picker.has-photo{padding-right:92px}.photo-analyzer img{display:none;position:absolute;right:7px;top:7px;width:68px;height:68px;object-fit:cover;border-radius:13px}.photo-analyzer img.show{display:block}.ai-save{background:linear-gradient(135deg,#f26b63,#ff9a6d);box-shadow:0 8px 18px #e2644930}.ai-save span{margin-right:5px}.ai-save:disabled{opacity:.7}.ai-notice{line-height:1.5}.inline-link{border:0;background:transparent;color:#2f8467;font-weight:900;text-decoration:underline}.spinner{display:inline-block;width:14px;height:14px;border:2px solid #ffffff66;border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
       .analysis-preview{display:none;margin-top:10px;padding:14px}.analysis-preview.show{display:block}.analysis-head{display:flex;justify-content:space-between;align-items:end;gap:8px;margin-bottom:10px}.analysis-head span,.analysis-head strong{display:block}.analysis-head span,.analysis-head small{color:var(--sub);font-size:9px}.analysis-head strong{margin-top:2px;font-size:15px}.analysis-item{padding:12px;margin-bottom:9px;border-radius:16px;background:#f5faf8;border:1px solid #dcebe5}.analysis-item>label{display:block;margin-bottom:8px}.analysis-item>label span,.nutrition-edit span,.portion-row span{display:block;margin-bottom:4px;color:var(--sub);font-size:9px}.analysis-item .input{padding:9px 10px;font-size:13px}.portion-row{display:flex;align-items:center;justify-content:space-between;margin:9px 0}.portion-row strong{font-size:17px}.portion-stepper{display:grid;grid-template-columns:42px 42px;gap:6px}.portion-stepper button{height:36px;border:0;border-radius:12px;background:#fff;font-size:20px;font-weight:900}.nutrition-edit{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}.nutrition-edit input{width:100%;min-width:0;padding:8px 4px;border:1px solid var(--line);border-radius:10px;background:#fff;text-align:center;font-size:11px}.analysis-total{margin:9px 0 0;color:var(--sub);font-size:10px}.analysis-total b{color:var(--ink)}.edit-meal{align-self:center;border:0;border-radius:11px;background:#e7f6f0;color:#28765d;padding:6px 9px;font-weight:800}.item:has(.edit-meal){grid-template-columns:1fr auto auto}
+      .meal-recommendation{display:none;margin:10px 0;padding:14px;background:linear-gradient(145deg,#fff8df,#eefaf5)}.meal-recommendation.show{display:block}.recommend-loading{min-height:92px;display:grid;place-items:center;align-content:center;gap:6px;text-align:center}.recommend-loading strong,.recommend-loading span{display:block}.recommend-loading span{color:var(--sub);font-size:10px}.recommend-loading.bad strong{color:#a65341}.recommend-loading button{border:0;border-radius:11px;background:#17372c;color:#fff;padding:8px 12px;font-weight:800}.spinner.dark{border-color:#17372c33;border-top-color:#17372c}.recommend-head{display:flex;justify-content:space-between;align-items:end;gap:10px;margin-bottom:10px}.recommend-head span,.recommend-head strong{display:block}.recommend-head span{color:#6d827b;font-size:9px}.recommend-head strong{margin-top:2px;font-size:16px}.recommend-head small{max-width:48%;color:#6d827b;font-size:9px;text-align:right}.recommend-list article{display:grid;grid-template-columns:1fr auto;gap:6px;padding:11px;margin-top:7px;border-radius:15px;background:#fff}.recommend-list span,.recommend-list strong,.recommend-list small{display:block}.recommend-list span{color:#378d70;font-size:9px;font-weight:900}.recommend-list strong{margin:2px 0;font-size:13px}.recommend-list small,.recommend-list p{color:var(--sub);font-size:9px}.recommend-list p{grid-column:1/-1;margin:0;line-height:1.45}.recommend-list button{border:0;border-radius:11px;background:#e1f8ef;color:#25755a;padding:7px 10px;font-weight:900}
       @media(max-width:360px){.welcome{padding-right:118px}.welcome img{width:120px;height:120px}.calendar-grid,.calendar-weekdays{gap:2px}.calendar-day{height:52px}.activity-ring{width:26px;height:26px}.activity-ring:before{width:20px;height:20px}.activity-ring:after{width:14px;height:14px}.mascot-stats span{font-size:7px}}
     `;
     document.head.appendChild(style);
@@ -519,6 +582,7 @@
   refreshIcons();
   installCalendar();
   installMealComposer();
+  installMealRecommendation();
   removeDuplicateArchive();
   $('#saveWorkout')?.addEventListener('click', () => setTimeout(updateMascot, 850));
   window.addEventListener('hashchange', () => {
