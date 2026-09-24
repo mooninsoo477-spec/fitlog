@@ -294,6 +294,81 @@
     return result.length ? result : ['가벼운 간식'];
   }
 
+  function profileContextText(state) {
+    const info = state.profile?.recommendationContext || {};
+    const latest = (state.inbody || []).filter(item => !item.excluded).at(-1) || {};
+    return [
+      info.sex && `성별 ${info.sex}`,
+      info.birthYear && `출생연도 ${info.birthYear}`,
+      (info.height || state.profile?.height) && `키 ${info.height || state.profile.height}cm`,
+      (info.weight || latest.weight) && `체중 ${info.weight || latest.weight}kg`,
+      (info.bodyFat || latest.pbf || latest.bodyFat) && `체지방률 ${info.bodyFat || latest.pbf || latest.bodyFat}%`,
+      info.goal && `목표 ${info.goal}`,
+      info.experience && `운동경력 ${info.experience}`,
+      info.activity && `일상 활동량 ${info.activity}`,
+      info.schedule && `운동 가능 일정 ${info.schedule}`,
+      info.injuries && `부상·주의사항 ${info.injuries}`,
+      info.diet && `식단 취향·알레르기 ${info.diet}`
+    ].filter(Boolean).join(', ') || '추가 정보 없음';
+  }
+
+  function showToast(message) {
+    const toast = $('#toast');
+    if (!toast) return;
+    toast.textContent = message;
+    toast.classList.add('show');
+    clearTimeout(showToast.timer);
+    showToast.timer = setTimeout(() => toast.classList.remove('show'), 2600);
+  }
+
+  function installUserContext() {
+    const more = $('[data-view="more"] .content');
+    const firstCard = more?.querySelector('.card.form');
+    if (!more || !firstCard || $('#recommendationProfile')) return;
+    const state = readState();
+    const info = state.profile?.recommendationContext || {};
+    const section = document.createElement('section');
+    section.id = 'recommendationProfile';
+    section.className = 'recommendation-profile';
+    section.innerHTML = `
+      <div class="section-head"><div><h2>추천용 나의 정보</h2><small>운동·식단 추천에만 참고해요.</small></div></div>
+      <div class="card form profile-detail-grid">
+        <label class="field"><span>성별</span><select class="select" id="ctxSex"><option value="">선택 안 함</option><option ${info.sex === '남성' ? 'selected' : ''}>남성</option><option ${info.sex === '여성' ? 'selected' : ''}>여성</option><option ${info.sex === '기타·비공개' ? 'selected' : ''}>기타·비공개</option></select></label>
+        <label class="field"><span>출생연도</span><input class="input" id="ctxBirth" inputmode="numeric" value="${esc(info.birthYear || '')}" placeholder="예: 1995"></label>
+        <label class="field"><span>키 cm</span><input class="input" id="ctxHeight" inputmode="decimal" value="${esc(info.height || '')}" placeholder="예: 175"></label>
+        <label class="field"><span>현재 체중 kg</span><input class="input" id="ctxWeight" inputmode="decimal" value="${esc(info.weight || '')}" placeholder="예: 72.5"></label>
+        <label class="field"><span>현재 체지방률 %</span><input class="input" id="ctxBodyFat" inputmode="decimal" value="${esc(info.bodyFat || '')}" placeholder="예: 18"></label>
+        <label class="field"><span>목표</span><select class="select" id="ctxGoal"><option value="">선택 안 함</option>${['체지방 감량','근육 증가','체중 유지','체력 향상','경기력 향상'].map(value => `<option ${info.goal === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label>
+        <label class="field"><span>일상 활동량</span><select class="select" id="ctxActivity"><option value="">선택 안 함</option>${['낮음','보통','높음'].map(value => `<option ${info.activity === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label>
+        <label class="field full-field"><span>운동 경력과 일상 활동량</span><input class="input" id="ctxExperience" value="${esc(info.experience || '')}" placeholder="예: 웨이트 2년, 사무직"></label>
+        <label class="field full-field"><span>운동 가능한 요일·시간</span><input class="input" id="ctxSchedule" value="${esc(info.schedule || '')}" placeholder="예: 월·화·목·금, 회당 60분"></label>
+        <label class="field full-field"><span>부상·통증·피해야 할 운동</span><textarea class="textarea compact" id="ctxInjuries" placeholder="예: 오른쪽 무릎 통증">${esc(info.injuries || '')}</textarea></label>
+        <label class="field full-field"><span>식단 취향·알레르기·피하는 음식</span><textarea class="textarea compact" id="ctxDiet" placeholder="예: 유제품 알레르기, 생선 선호">${esc(info.diet || '')}</textarea></label>
+        <button type="button" class="primary mint full full-field" id="saveRecommendationProfile">나의 정보 저장</button>
+      </div>`;
+    firstCard.insertAdjacentElement('afterend', section);
+    $('#saveRecommendationProfile').onclick = () => {
+      const next = readState();
+      next.profile ||= {};
+      next.profile.recommendationContext = {
+        sex: $('#ctxSex').value,
+        birthYear: $('#ctxBirth').value.trim(),
+        height: $('#ctxHeight').value.trim(),
+        weight: $('#ctxWeight').value.trim(),
+        bodyFat: $('#ctxBodyFat').value.trim(),
+        goal: $('#ctxGoal').value,
+        activity: $('#ctxActivity').value,
+        experience: $('#ctxExperience').value.trim(),
+        schedule: $('#ctxSchedule').value.trim(),
+        injuries: $('#ctxInjuries').value.trim(),
+        diet: $('#ctxDiet').value.trim()
+      };
+      writeState(next);
+      window.dispatchEvent(new CustomEvent('fitlog:state-updated'));
+      showToast('추천용 나의 정보를 저장했어요.');
+    };
+  }
+
   function installMealRecommendation() {
     const trigger = $('#recommend');
     const mealPhoto = $('[data-view="meals"] .photo');
@@ -322,7 +397,7 @@
       panel.innerHTML = '<div class="recommend-loading"><span class="spinner dark"></span><strong>남은 끼니를 맞추는 중…</strong><span>오늘 기록과 목표를 함께 계산하고 있어요.</span></div>';
       panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
       try {
-        const prompt = `현재 시간 ${new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}. 오늘 먹은 음식: ${meals.map(item => `${item.meal} ${item.name} ${item.kcal}kcal`).join(', ') || '없음'}. 섭취 합계: ${Math.round(eaten.kcal)}kcal, 단백질 ${Math.round(eaten.protein)}g, 탄수 ${Math.round(eaten.carbs)}g, 지방 ${Math.round(eaten.fat)}g. 하루 목표: ${targets.kcal}kcal, 단백질 ${targets.protein}g, 탄수 ${targets.carbs}g, 지방 ${targets.fat}g. 추천할 남은 끼니: ${types.join(', ')}. 목표를 과하게 넘지 않는 현실적인 한국식 메뉴를 끼니별로 추천한다.`;
+        const prompt = `사용자 정보: ${profileContextText(state)}. 현재 시간 ${new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}. 오늘 먹은 음식: ${meals.map(item => `${item.meal} ${item.name} ${item.kcal}kcal`).join(', ') || '없음'}. 섭취 합계: ${Math.round(eaten.kcal)}kcal, 단백질 ${Math.round(eaten.protein)}g, 탄수 ${Math.round(eaten.carbs)}g, 지방 ${Math.round(eaten.fat)}g. 하루 목표: ${targets.kcal}kcal, 단백질 ${targets.protein}g, 탄수 ${targets.carbs}g, 지방 ${targets.fat}g. 추천할 남은 끼니: ${types.join(', ')}. 목표, 알레르기, 부상과 취향을 지키면서 목표를 과하게 넘지 않는 현실적인 한국식 메뉴를 끼니별로 추천한다.`;
         const result = await analyzeWithAi(settings, prompt, 'recommend');
         const suggestions = Array.isArray(result.meals) ? result.meals : [];
         panel.innerHTML = `<div class="recommend-head"><div><span>오늘의 남은 끼니</span><strong>${esc(result.title || '가볍고 든든하게')}</strong></div><small>${esc(result.summary || '')}</small></div>
@@ -568,6 +643,7 @@
       .meal-type-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:13px}.meal-type-tabs input{position:absolute;opacity:0}.meal-type-tabs span{min-height:42px;border:1px solid var(--line);border-radius:13px;background:#f7fbf9;display:grid;place-items:center;font-size:11px;font-weight:850}.meal-type-tabs input:checked+span{background:#17372c;color:#fff;border-color:#17372c}.meal-free-text{min-height:112px;line-height:1.55}.photo-analyzer{position:relative;margin:10px 0;min-height:82px}.photo-picker{min-height:82px;padding:12px;border:1px dashed #9ecdbc;border-radius:17px;background:#f0faf6;display:grid;grid-template-columns:42px 1fr;align-items:center;column-gap:9px;cursor:pointer}.photo-picker>span{grid-row:1/3;width:42px;height:42px;border-radius:14px;background:#fff;display:grid;place-items:center;font-size:20px}.photo-picker strong,.photo-picker small{display:block}.photo-picker strong{font-size:12px}.photo-picker small{color:var(--sub);font-size:9px}.photo-picker.has-photo{padding-right:92px}.photo-analyzer img{display:none;position:absolute;right:7px;top:7px;width:68px;height:68px;object-fit:cover;border-radius:13px}.photo-analyzer img.show{display:block}.ai-save{background:linear-gradient(135deg,#f26b63,#ff9a6d);box-shadow:0 8px 18px #e2644930}.ai-save span{margin-right:5px}.ai-save:disabled{opacity:.7}.ai-notice{line-height:1.5}.inline-link{border:0;background:transparent;color:#2f8467;font-weight:900;text-decoration:underline}.spinner{display:inline-block;width:14px;height:14px;border:2px solid #ffffff66;border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
       .analysis-preview{display:none;margin-top:10px;padding:14px}.analysis-preview.show{display:block}.analysis-head{display:flex;justify-content:space-between;align-items:end;gap:8px;margin-bottom:10px}.analysis-head span,.analysis-head strong{display:block}.analysis-head span,.analysis-head small{color:var(--sub);font-size:9px}.analysis-head strong{margin-top:2px;font-size:15px}.analysis-item{padding:12px;margin-bottom:9px;border-radius:16px;background:#f5faf8;border:1px solid #dcebe5}.analysis-item>label{display:block;margin-bottom:8px}.analysis-item>label span,.nutrition-edit span,.portion-row span{display:block;margin-bottom:4px;color:var(--sub);font-size:9px}.analysis-item .input{padding:9px 10px;font-size:13px}.portion-row{display:flex;align-items:center;justify-content:space-between;margin:9px 0}.portion-row strong{font-size:17px}.portion-stepper{display:grid;grid-template-columns:42px 42px;gap:6px}.portion-stepper button{height:36px;border:0;border-radius:12px;background:#fff;font-size:20px;font-weight:900}.nutrition-edit{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}.nutrition-edit input{width:100%;min-width:0;padding:8px 4px;border:1px solid var(--line);border-radius:10px;background:#fff;text-align:center;font-size:11px}.analysis-total{margin:9px 0 0;color:var(--sub);font-size:10px}.analysis-total b{color:var(--ink)}.edit-meal{align-self:center;border:0;border-radius:11px;background:#e7f6f0;color:#28765d;padding:6px 9px;font-weight:800}.item:has(.edit-meal){grid-template-columns:1fr auto auto}
       .meal-recommendation{display:none;margin:10px 0;padding:14px;background:linear-gradient(145deg,#fff8df,#eefaf5)}.meal-recommendation.show{display:block}.recommend-loading{min-height:92px;display:grid;place-items:center;align-content:center;gap:6px;text-align:center}.recommend-loading strong,.recommend-loading span{display:block}.recommend-loading span{color:var(--sub);font-size:10px}.recommend-loading.bad strong{color:#a65341}.recommend-loading button{border:0;border-radius:11px;background:#17372c;color:#fff;padding:8px 12px;font-weight:800}.spinner.dark{border-color:#17372c33;border-top-color:#17372c}.recommend-head{display:flex;justify-content:space-between;align-items:end;gap:10px;margin-bottom:10px}.recommend-head span,.recommend-head strong{display:block}.recommend-head span{color:#6d827b;font-size:9px}.recommend-head strong{margin-top:2px;font-size:16px}.recommend-head small{max-width:48%;color:#6d827b;font-size:9px;text-align:right}.recommend-list article{display:grid;grid-template-columns:1fr auto;gap:6px;padding:11px;margin-top:7px;border-radius:15px;background:#fff}.recommend-list span,.recommend-list strong,.recommend-list small{display:block}.recommend-list span{color:#378d70;font-size:9px;font-weight:900}.recommend-list strong{margin:2px 0;font-size:13px}.recommend-list small,.recommend-list p{color:var(--sub);font-size:9px}.recommend-list p{grid-column:1/-1;margin:0;line-height:1.45}.recommend-list button{border:0;border-radius:11px;background:#e1f8ef;color:#25755a;padding:7px 10px;font-weight:900}
+      .recommendation-profile>.section-head{margin-top:18px}.recommendation-profile .section-head small{display:block;margin-top:3px;color:var(--sub);font-size:9px}.profile-detail-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:0 8px}.profile-detail-grid .full-field{grid-column:1/-1}.textarea.compact{min-height:68px}
       @media(max-width:360px){.welcome{padding-right:118px}.welcome img{width:120px;height:120px}.calendar-grid,.calendar-weekdays{gap:2px}.calendar-day{height:52px}.activity-ring{width:26px;height:26px}.activity-ring:before{width:20px;height:20px}.activity-ring:after{width:14px;height:14px}.mascot-stats span{font-size:7px}}
     `;
     document.head.appendChild(style);
@@ -583,6 +659,7 @@
   installCalendar();
   installMealComposer();
   installMealRecommendation();
+  installUserContext();
   removeDuplicateArchive();
   $('#saveWorkout')?.addEventListener('click', () => setTimeout(updateMascot, 850));
   window.addEventListener('hashchange', () => {
