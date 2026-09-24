@@ -227,6 +227,7 @@
       : '동기화 연결과 AI 연결 토큰을 설정해 주세요.';
     $('#aiStatus').dataset.tone = configured ? 'ok' : '';
     $('#aiModel').value = settings.model || 'gpt-5.6-luna';
+    $('#aiFunction').value = settings.functionName || 'analyze-meal';
     $('#aiToken').value = settings.token || '';
   }
 
@@ -250,6 +251,7 @@
       <div class="section-head"><h2>OpenAI GPT 연결</h2></div>
       <section class="card sync-card">
         <p id="aiStatus" class="sync-status"></p>
+        <label class="field"><span>Supabase 함수 이름</span><input class="input" id="aiFunction" value="analyze-meal" placeholder="예: analyze-meal"></label>
         <label class="field"><span>모델</span><select class="select" id="aiModel"><option value="gpt-5.6-luna">GPT-5.6 Luna · 추천/절약형</option><option value="gpt-5.6-terra">GPT-5.6 Terra · 균형형</option><option value="gpt-5.6-sol">GPT-5.6 Sol · 고성능</option></select></label>
         <label class="field"><span>AI 연결 토큰</span><input class="input" id="aiToken" type="password" autocomplete="off" placeholder="Supabase 함수에 설정한 토큰"></label>
         <button class="primary mint full" id="saveAi">GPT 연결 설정 저장</button>
@@ -287,6 +289,7 @@
       const next = {
         ...current,
         provider: 'openai',
+        functionName: $('#aiFunction').value.trim() || 'analyze-meal',
         model: $('#aiModel').value,
         token: $('#aiToken').value.trim()
       };
