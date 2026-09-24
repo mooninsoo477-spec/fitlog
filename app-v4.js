@@ -263,8 +263,9 @@
       'x-fitlog-token': settings.token
     };
     if (String(sync.key).startsWith('eyJ')) headers.Authorization = `Bearer ${sync.key}`;
-    const functionName = settings.functionName || 'analyze-meal';
-    const response = await fetch(`${String(sync.url).replace(/\/+$/, '')}/functions/v1/${encodeURIComponent(functionName)}`, {
+    const functionName = settings.functionName || 'smart-endpoint';
+    const projectOrigin = new URL(sync.url).origin;
+    const response = await fetch(`${projectOrigin}/functions/v1/${encodeURIComponent(functionName)}`, {
       method: 'POST',
       headers,
       body: JSON.stringify({
