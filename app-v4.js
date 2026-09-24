@@ -297,12 +297,22 @@
   function profileContextText(state) {
     const info = state.profile?.recommendationContext || {};
     const latest = (state.inbody || []).filter(item => !item.excluded).at(-1) || {};
+    const goals = state.profile?.bodyGoals || {};
     return [
       info.sex && `성별 ${info.sex}`,
       info.birthYear && `출생연도 ${info.birthYear}`,
       (info.height || state.profile?.height) && `키 ${info.height || state.profile.height}cm`,
       (info.weight || latest.weight) && `체중 ${info.weight || latest.weight}kg`,
       (info.bodyFat || latest.pbf || latest.bodyFat) && `체지방률 ${info.bodyFat || latest.pbf || latest.bodyFat}%`,
+      latest.smm && `골격근량 ${latest.smm}kg`,
+      latest.bodyFatMass && `체지방량 ${latest.bodyFatMass}kg`,
+      latest.bmi && `BMI ${latest.bmi}`,
+      latest.visceralFat && `내장지방레벨 ${latest.visceralFat}`,
+      latest.bmr && `기초대사량 ${latest.bmr}kcal`,
+      goals.targetWeight && `목표 체중 ${goals.targetWeight}kg`,
+      goals.targetSmm && `목표 골격근량 ${goals.targetSmm}kg`,
+      goals.targetBodyFat && `목표 체지방률 ${goals.targetBodyFat}%`,
+      goals.targetDate && `목표일 ${goals.targetDate}`,
       info.goal && `목표 ${info.goal}`,
       info.experience && `운동경력 ${info.experience}`,
       info.activity && `일상 활동량 ${info.activity}`,
@@ -310,6 +320,81 @@
       info.injuries && `부상·주의사항 ${info.injuries}`,
       info.diet && `식단 취향·알레르기 ${info.diet}`
     ].filter(Boolean).join(', ') || '추가 정보 없음';
+  }
+
+  function installBodyGoals() {
+    const host = $('#recommendationProfile');
+    if (!host || $('#bodyGoalPanel')) return;
+    const state = readState();
+    const latest = (state.inbody || []).filter(item => !item.excluded).at(-1) || {};
+    const goals = state.profile?.bodyGoals || {};
+    const panel = document.createElement('section');
+    panel.id = 'bodyGoalPanel';
+    panel.innerHTML = `
+      <div class="section-head"><div><h2>인바디 기록과 목표</h2><small>최근 측정값을 기준으로 영양·운동 추천을 맞춰요.</small></div></div>
+      <div class="card body-profile-card">
+        <div class="body-score"><div><span>BODY PROFILE</span><strong>${esc(latest.score || '기록 전')}</strong></div><small>${latest.date ? `최근 측정 ${esc(latest.date)}` : '첫 측정값을 입력해 주세요'}</small></div>
+        <div class="body-input-grid">
+          <label class="field"><span>측정일</span><input class="input" id="ibDate" type="date" value="${esc(latest.date || dateKey(new Date()))}"></label>
+          <label class="field"><span>체중 kg</span><input class="input" id="ibWeight" inputmode="decimal" value="${esc(latest.weight || '')}"></label>
+          <label class="field"><span>골격근량 kg</span><input class="input" id="ibSmm" inputmode="decimal" value="${esc(latest.smm || '')}"></label>
+          <label class="field"><span>체지방량 kg</span><input class="input" id="ibFatMass" inputmode="decimal" value="${esc(latest.bodyFatMass || '')}"></label>
+          <label class="field"><span>체지방률 %</span><input class="input" id="ibPbf" inputmode="decimal" value="${esc(latest.pbf || latest.bodyFat || '')}"></label>
+          <label class="field"><span>BMI</span><input class="input" id="ibBmi" inputmode="decimal" value="${esc(latest.bmi || '')}"></label>
+          <label class="field"><span>내장지방 레벨</span><input class="input" id="ibVisceral" inputmode="decimal" value="${esc(latest.visceralFat || '')}"></label>
+          <label class="field"><span>기초대사량 kcal</span><input class="input" id="ibBmr" inputmode="numeric" value="${esc(latest.bmr || '')}"></label>
+        </div>
+        <button type="button" class="primary mint full" id="saveInbody">측정값 저장</button>
+      </div>
+      <div class="card body-goal-card">
+        <div class="goal-heading"><span>나의 목표</span><strong>현재보다 나아질 방향을 숫자로 정해요.</strong></div>
+        <div class="body-input-grid">
+          <label class="field"><span>목표 체중 kg</span><input class="input" id="goalWeight" inputmode="decimal" value="${esc(goals.targetWeight || '')}"></label>
+          <label class="field"><span>목표 골격근량 kg</span><input class="input" id="goalSmm" inputmode="decimal" value="${esc(goals.targetSmm || '')}"></label>
+          <label class="field"><span>목표 체지방률 %</span><input class="input" id="goalPbf" inputmode="decimal" value="${esc(goals.targetBodyFat || state.profile?.targetFat || '')}"></label>
+          <label class="field"><span>목표일</span><input class="input" id="goalDate" type="date" value="${esc(goals.targetDate || '')}"></label>
+        </div>
+        <button type="button" class="primary full" id="saveBodyGoals">목표 저장하고 추천에 반영</button>
+      </div>`;
+    host.insertAdjacentElement('afterend', panel);
+    $('#saveInbody').onclick = () => {
+      const next = readState();
+      next.inbody ||= [];
+      const item = { date: $('#ibDate').value || dateKey(new Date()), weight: +$('#ibWeight').value || null, smm: +$('#ibSmm').value || null, bodyFatMass: +$('#ibFatMass').value || null, pbf: +$('#ibPbf').value || null, bmi: +$('#ibBmi').value || null, visceralFat: +$('#ibVisceral').value || null, bmr: +$('#ibBmr').value || null };
+      const index = next.inbody.findIndex(value => value.date === item.date);
+      if (index >= 0) next.inbody[index] = { ...next.inbody[index], ...item }; else next.inbody.push(item);
+      next.inbody.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+      writeState(next); window.dispatchEvent(new CustomEvent('fitlog:state-updated')); showToast('인바디 측정값을 저장했어요.');
+    };
+    $('#saveBodyGoals').onclick = () => {
+      const next = readState(); next.profile ||= {};
+      next.profile.bodyGoals = { targetWeight: +$('#goalWeight').value || null, targetSmm: +$('#goalSmm').value || null, targetBodyFat: +$('#goalPbf').value || null, targetDate: $('#goalDate').value };
+      if (next.profile.bodyGoals.targetBodyFat) next.profile.targetFat = next.profile.bodyGoals.targetBodyFat;
+      writeState(next); window.dispatchEvent(new CustomEvent('fitlog:state-updated')); showToast('목표를 모든 추천에 반영했어요.');
+    };
+  }
+
+  function installWeeklyCoach() {
+    const report = $('[data-view="report"] .content');
+    const firstChart = report?.querySelector('.chart-card');
+    if (!report || !firstChart || $('#weeklyCoach')) return;
+    const coach = document.createElement('section');
+    coach.id = 'weeklyCoach'; coach.className = 'card weekly-coach';
+    coach.innerHTML = `<div class="coach-title"><span>FITLOG WEEKLY COACH</span><strong>지난 7일을 함께 읽어볼까요?</strong><small>운동·영양 기록과 신체 목표를 함께 분석해요.</small></div><button type="button" class="primary full" id="runWeeklyCoach">주간 코칭 받기</button>`;
+    firstChart.insertAdjacentElement('afterend', coach);
+    $('#runWeeklyCoach').onclick = async () => {
+      const state = readState(); const button = $('#runWeeklyCoach');
+      const dates = Array.from({length:7}, (_, i) => { const d=new Date(); d.setDate(d.getDate()-6+i); return dateKey(d); });
+      const rows = dates.map(date => { const log=state.logs?.[date] || {}; const meals=log.meals || []; const workouts=log.workouts || []; return { date, kcal: meals.reduce((s,m)=>s+(+m.kcal||0),0), protein: meals.reduce((s,m)=>s+(+m.protein||0),0), workouts: workouts.map(w=>w.group||w.type||w.name||'운동') }; });
+      const prompt = `사용자 정보와 목표: ${profileContextText(state)}. 최근 7일 기록: ${JSON.stringify(rows)}. 하루 영양 목표: ${JSON.stringify(state.profile?.targets || {})}. 주간 운동 목표: ${state.profile?.workoutGoal || 5}회. 기록이 없는 날은 섭취 0이 아니라 미기록으로 처리한다. 영양학과 운동생리학 관점에서 과장 없이 분석하고, 잘한 점 2개, 조정할 점 2개, 다음 7일 실행계획 3개를 한국어로 짧고 구체적으로 제시한다. 질병 진단이나 치료 지시는 하지 않는다.`;
+      const settings = parse(localStorage.getItem(AI_KEY), {}) || {};
+      button.disabled = true; button.textContent = '기록을 분석하는 중…';
+      try {
+        const result = await analyzeWithAi(settings, prompt, 'coach');
+        coach.innerHTML = `<div class="coach-title"><span>이번 주 코치 노트</span><strong>${esc(result.headline || '꾸준함을 이어갈 한 주')}</strong><small>${esc(result.summary || '')}</small></div><div class="coach-columns"><div><b>잘한 점</b>${(result.strengths||[]).map(x=>`<p>✓ ${esc(x)}</p>`).join('')}</div><div><b>조정할 점</b>${(result.adjustments||[]).map(x=>`<p>• ${esc(x)}</p>`).join('')}</div></div><div class="coach-plan"><b>다음 7일 실행 계획</b>${(result.nextActions||[]).map((x,i)=>`<p><span>${i+1}</span>${esc(x)}</p>`).join('')}</div><small class="coach-note">기록 기반 일반 코칭이며 의료 진단을 대신하지 않아요.</small><button type="button" class="link" id="refreshCoach">다시 분석</button>`;
+        $('#refreshCoach').onclick = () => { coach.remove(); installWeeklyCoach(); $('#runWeeklyCoach').click(); };
+      } catch (error) { button.disabled=false; button.textContent='다시 시도'; showToast(error.message || '코칭을 불러오지 못했어요.'); }
+    };
   }
 
   function showToast(message) {
@@ -644,6 +729,7 @@
       .analysis-preview{display:none;margin-top:10px;padding:14px}.analysis-preview.show{display:block}.analysis-head{display:flex;justify-content:space-between;align-items:end;gap:8px;margin-bottom:10px}.analysis-head span,.analysis-head strong{display:block}.analysis-head span,.analysis-head small{color:var(--sub);font-size:9px}.analysis-head strong{margin-top:2px;font-size:15px}.analysis-item{padding:12px;margin-bottom:9px;border-radius:16px;background:#f5faf8;border:1px solid #dcebe5}.analysis-item>label{display:block;margin-bottom:8px}.analysis-item>label span,.nutrition-edit span,.portion-row span{display:block;margin-bottom:4px;color:var(--sub);font-size:9px}.analysis-item .input{padding:9px 10px;font-size:13px}.portion-row{display:flex;align-items:center;justify-content:space-between;margin:9px 0}.portion-row strong{font-size:17px}.portion-stepper{display:grid;grid-template-columns:42px 42px;gap:6px}.portion-stepper button{height:36px;border:0;border-radius:12px;background:#fff;font-size:20px;font-weight:900}.nutrition-edit{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}.nutrition-edit input{width:100%;min-width:0;padding:8px 4px;border:1px solid var(--line);border-radius:10px;background:#fff;text-align:center;font-size:11px}.analysis-total{margin:9px 0 0;color:var(--sub);font-size:10px}.analysis-total b{color:var(--ink)}.edit-meal{align-self:center;border:0;border-radius:11px;background:#e7f6f0;color:#28765d;padding:6px 9px;font-weight:800}.item:has(.edit-meal){grid-template-columns:1fr auto auto}
       .meal-recommendation{display:none;margin:10px 0;padding:14px;background:linear-gradient(145deg,#fff8df,#eefaf5)}.meal-recommendation.show{display:block}.recommend-loading{min-height:92px;display:grid;place-items:center;align-content:center;gap:6px;text-align:center}.recommend-loading strong,.recommend-loading span{display:block}.recommend-loading span{color:var(--sub);font-size:10px}.recommend-loading.bad strong{color:#a65341}.recommend-loading button{border:0;border-radius:11px;background:#17372c;color:#fff;padding:8px 12px;font-weight:800}.spinner.dark{border-color:#17372c33;border-top-color:#17372c}.recommend-head{display:flex;justify-content:space-between;align-items:end;gap:10px;margin-bottom:10px}.recommend-head span,.recommend-head strong{display:block}.recommend-head span{color:#6d827b;font-size:9px}.recommend-head strong{margin-top:2px;font-size:16px}.recommend-head small{max-width:48%;color:#6d827b;font-size:9px;text-align:right}.recommend-list article{display:grid;grid-template-columns:1fr auto;gap:6px;padding:11px;margin-top:7px;border-radius:15px;background:#fff}.recommend-list span,.recommend-list strong,.recommend-list small{display:block}.recommend-list span{color:#378d70;font-size:9px;font-weight:900}.recommend-list strong{margin:2px 0;font-size:13px}.recommend-list small,.recommend-list p{color:var(--sub);font-size:9px}.recommend-list p{grid-column:1/-1;margin:0;line-height:1.45}.recommend-list button{border:0;border-radius:11px;background:#e1f8ef;color:#25755a;padding:7px 10px;font-weight:900}
       .recommendation-profile>.section-head{margin-top:18px}.recommendation-profile .section-head small{display:block;margin-top:3px;color:var(--sub);font-size:9px}.profile-detail-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:0 8px}.profile-detail-grid .full-field{grid-column:1/-1}.textarea.compact{min-height:68px}
+      .nutrition .cal-line strong{display:flex;align-items:baseline;gap:5px}.nutrition #kcal{font-size:34px;line-height:1;font-weight:950;letter-spacing:-1.5px}.nutrition .cal-line strong{font-size:20px}.nutrition .cal-line strong+span,.nutrition .cal-line>div>span{color:var(--sub);font-size:11px}.body-profile-card,.body-goal-card,.weekly-coach{padding:16px;margin-top:10px}.body-score,.goal-heading{display:flex;justify-content:space-between;align-items:end;margin-bottom:13px}.body-score span,.goal-heading span{display:block;color:#3a8b70;font-size:9px;font-weight:950;letter-spacing:.8px}.body-score strong,.goal-heading strong{display:block;margin-top:3px;font-size:18px}.body-score small{color:var(--sub);font-size:9px}.body-input-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:0 8px}.body-profile-card .primary,.body-goal-card .primary{margin-top:5px}.body-goal-card{background:linear-gradient(145deg,#f1fff9,#fff9df)}.goal-heading{display:block}.weekly-coach{margin:12px 0;background:linear-gradient(145deg,#eef9ff,#f2fff7 55%,#fff7dc)}.coach-title span,.coach-title strong,.coach-title small{display:block}.coach-title span{color:#477e9d;font-size:9px;font-weight:950;letter-spacing:.8px}.coach-title strong{margin:5px 0;font-size:18px}.coach-title small,.coach-note{color:var(--sub);font-size:9px;line-height:1.5}.weekly-coach>.primary{margin-top:13px}.coach-columns{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:13px}.coach-columns>div,.coach-plan{padding:11px;border-radius:14px;background:#fff}.coach-columns b,.coach-plan b{font-size:11px}.coach-columns p,.coach-plan p{margin:7px 0 0;color:var(--sub);font-size:10px;line-height:1.45}.coach-plan{margin-top:7px}.coach-plan p{display:grid;grid-template-columns:20px 1fr;gap:5px}.coach-plan p span{width:18px;height:18px;border-radius:7px;background:#dff4ec;color:#28765d;display:grid;place-items:center;font-weight:900}.coach-note{display:block;margin-top:9px}
       @media(max-width:360px){.welcome{padding-right:118px}.welcome img{width:120px;height:120px}.calendar-grid,.calendar-weekdays{gap:2px}.calendar-day{height:52px}.activity-ring{width:26px;height:26px}.activity-ring:before{width:20px;height:20px}.activity-ring:after{width:14px;height:14px}.mascot-stats span{font-size:7px}}
     `;
     document.head.appendChild(style);
@@ -660,6 +746,8 @@
   installMealComposer();
   installMealRecommendation();
   installUserContext();
+  installBodyGoals();
+  installWeeklyCoach();
   removeDuplicateArchive();
   $('#saveWorkout')?.addEventListener('click', () => setTimeout(updateMascot, 850));
   window.addEventListener('hashchange', () => {
