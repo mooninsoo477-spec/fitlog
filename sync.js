@@ -146,6 +146,26 @@
     el.dataset.tone = tone;
   }
 
+  function showSyncNotice(message) {
+    const toast = $('#toast');
+    if (!toast) return;
+    toast.textContent = message;
+    toast.classList.add('show');
+    clearTimeout(showSyncNotice.timer);
+    showSyncNotice.timer = setTimeout(() => toast.classList.remove('show'), 3200);
+  }
+
+  function applyMergedState(state) {
+    const serialized = JSON.stringify(state);
+    nativeSetItem.call(localStorage, STATE_KEY, serialized);
+    window.dispatchEvent(new StorageEvent('storage', {
+      key: STATE_KEY,
+      newValue: serialized,
+      storageArea: localStorage
+    }));
+    window.dispatchEvent(new CustomEvent('fitlog:state-updated'));
+  }
+
   function describeState(state) {
     const logs = Object.values(state.logs || {});
     return {
@@ -179,14 +199,11 @@
       const merged = cloud ? mergeStates(local, cloud) : normalizeBackup(local);
       const localChanged = stateSignature(local) !== stateSignature(merged);
       const cloudChanged = !cloud || stateSignature(cloud) !== stateSignature(merged);
-      if (localChanged) nativeSetItem.call(localStorage, STATE_KEY, JSON.stringify(merged));
+      if (localChanged) applyMergedState(merged);
       if (cloudChanged) await writeCloud(config, merged);
       setStatus(`동기화됨 · ${new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}`, 'ok');
       renderArchive();
-      if (reload && localChanged) {
-        sessionStorage.setItem('fitlog:notice', '다른 기기의 기록을 합쳐 불러왔어요.');
-        location.reload();
-      }
+      if (reload && localChanged) showSyncNotice('다른 기기의 기록을 조용히 반영했어요.');
       return true;
     } catch (error) {
       setStatus(error.message || '동기화하지 못했어요.', 'bad');

@@ -388,4 +388,8 @@
     if (location.hash === '#workout') renderCalendar();
     removeDuplicateArchive();
   });
+  window.addEventListener('fitlog:state-updated', () => {
+    updateMascot();
+    renderCalendar();
+  });
 })();
