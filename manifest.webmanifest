@@ -1,0 +1,14 @@
+{
+  "name": "FitLog 운동·식단 기록",
+  "short_name": "FitLog",
+  "description": "운동, 식단, 인바디와 주간 코칭을 한곳에서 기록합니다.",
+  "start_url": "./#home",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4fbf7",
+  "theme_color": "#72d1ae",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

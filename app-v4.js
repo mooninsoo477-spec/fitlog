@@ -482,6 +482,27 @@
     };
   }
 
+  function installPwaPanel() {
+    const more = $('[data-view="more"] .content');
+    const syncPanel = $('#syncPanel');
+    if (!more || $('#pwaPanel')) return;
+    const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+    const isiOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const panel = document.createElement('section');
+    panel.id = 'pwaPanel'; panel.className = 'card pwa-panel';
+    panel.innerHTML = standalone
+      ? '<div class="pwa-copy"><span>FITLOG APP</span><strong>앱으로 실행 중이에요</strong><small>AI 식단과 코칭을 사용할 수 있습니다.</small></div>'
+      : `<div class="pwa-copy"><span>FITLOG APP</span><strong>홈 화면에 앱으로 설치</strong><small>${isiOS ? 'Safari 공유 버튼 → 홈 화면에 추가를 눌러주세요.' : '설치하면 전체 화면으로 빠르게 실행돼요.'}</small></div><button type="button" class="primary mint full" id="installFitlog">${isiOS ? '아이폰 설치 방법 보기' : 'FitLog 앱 설치'}</button>`;
+    if (syncPanel) syncPanel.insertAdjacentElement('beforebegin', panel); else more.appendChild(panel);
+    let installPrompt = null;
+    addEventListener('beforeinstallprompt', event => { event.preventDefault(); installPrompt = event; });
+    $('#installFitlog')?.addEventListener('click', async () => {
+      if (isiOS) return showToast('Safari 아래 공유 버튼을 누른 뒤 “홈 화면에 추가”를 선택하세요.');
+      if (!installPrompt) return showToast('Chrome 메뉴에서 “앱 설치” 또는 “홈 화면에 추가”를 선택하세요.');
+      installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null;
+    });
+  }
+
   function showToast(message) {
     const toast = $('#toast');
     if (!toast) return;
@@ -815,6 +836,7 @@
       .meal-recommendation{display:none;margin:10px 0;padding:14px;background:linear-gradient(145deg,#fff8df,#eefaf5)}.meal-recommendation.show{display:block}.recommend-loading{min-height:92px;display:grid;place-items:center;align-content:center;gap:6px;text-align:center}.recommend-loading strong,.recommend-loading span{display:block}.recommend-loading span{color:var(--sub);font-size:10px}.recommend-loading.bad strong{color:#a65341}.recommend-loading button{border:0;border-radius:11px;background:#17372c;color:#fff;padding:8px 12px;font-weight:800}.spinner.dark{border-color:#17372c33;border-top-color:#17372c}.recommend-head{display:flex;justify-content:space-between;align-items:end;gap:10px;margin-bottom:10px}.recommend-head span,.recommend-head strong{display:block}.recommend-head span{color:#6d827b;font-size:9px}.recommend-head strong{margin-top:2px;font-size:16px}.recommend-head small{max-width:48%;color:#6d827b;font-size:9px;text-align:right}.recommend-list article{display:grid;grid-template-columns:1fr auto;gap:6px;padding:11px;margin-top:7px;border-radius:15px;background:#fff}.recommend-list span,.recommend-list strong,.recommend-list small{display:block}.recommend-list span{color:#378d70;font-size:9px;font-weight:900}.recommend-list strong{margin:2px 0;font-size:13px}.recommend-list small,.recommend-list p{color:var(--sub);font-size:9px}.recommend-list p{grid-column:1/-1;margin:0;line-height:1.45}.recommend-list button{border:0;border-radius:11px;background:#e1f8ef;color:#25755a;padding:7px 10px;font-weight:900}
       .recommendation-profile>.section-head{margin-top:18px}.recommendation-profile .section-head small{display:block;margin-top:3px;color:var(--sub);font-size:9px}.profile-detail-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:0 8px}.profile-detail-grid .full-field{grid-column:1/-1}.textarea.compact{min-height:68px}
       .nutrition .cal-line strong{display:flex;align-items:baseline;gap:5px}.nutrition #kcal{font-size:34px;line-height:1;font-weight:950;letter-spacing:-1.5px}.nutrition .cal-line strong{font-size:20px}.nutrition .cal-line strong+span,.nutrition .cal-line>div>span{color:var(--sub);font-size:11px}.body-profile-card,.body-goal-card,.weekly-coach{padding:16px;margin-top:10px}.body-score,.goal-heading{display:flex;justify-content:space-between;align-items:end;margin-bottom:13px}.body-score span,.goal-heading span{display:block;color:#3a8b70;font-size:9px;font-weight:950;letter-spacing:.8px}.body-score strong,.goal-heading strong{display:block;margin-top:3px;font-size:18px}.body-score small{color:var(--sub);font-size:9px}.body-input-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:0 8px}.body-profile-card .primary,.body-goal-card .primary{margin-top:5px}.body-goal-card{background:linear-gradient(145deg,#f1fff9,#fff9df)}.goal-heading{display:block}.weekly-coach{margin:12px 0;background:linear-gradient(145deg,#eef9ff,#f2fff7 55%,#fff7dc)}.coach-title span,.coach-title strong,.coach-title small{display:block}.coach-title span{color:#477e9d;font-size:9px;font-weight:950;letter-spacing:.8px}.coach-title strong{margin:5px 0;font-size:18px}.coach-title small,.coach-note{color:var(--sub);font-size:9px;line-height:1.5}.weekly-coach>.primary{margin-top:13px}.coach-columns{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:13px}.coach-columns>div,.coach-plan{padding:11px;border-radius:14px;background:#fff}.coach-columns b,.coach-plan b{font-size:11px}.coach-columns p,.coach-plan p{margin:7px 0 0;color:var(--sub);font-size:10px;line-height:1.45}.coach-plan{margin-top:7px}.coach-plan p{display:grid;grid-template-columns:20px 1fr;gap:5px}.coach-plan p span{width:18px;height:18px;border-radius:7px;background:#dff4ec;color:#28765d;display:grid;place-items:center;font-weight:900}.coach-note{display:block;margin-top:9px}
+      .pwa-panel{margin:18px 0 10px;padding:16px;background:linear-gradient(135deg,#e1f8ef,#fff7cf)}.pwa-copy span,.pwa-copy strong,.pwa-copy small{display:block}.pwa-copy span{color:#378d70;font-size:9px;font-weight:950;letter-spacing:.8px}.pwa-copy strong{margin:4px 0;font-size:17px}.pwa-copy small{color:var(--sub);font-size:10px;line-height:1.5}.pwa-panel .primary{margin-top:12px}
       @media(max-width:360px){.welcome{padding-right:118px}.welcome img{width:120px;height:120px}.calendar-grid,.calendar-weekdays{gap:2px}.calendar-day{height:52px}.activity-ring{width:26px;height:26px}.activity-ring:before{width:20px;height:20px}.activity-ring:after{width:14px;height:14px}.mascot-stats span{font-size:7px}}
     `;
     document.head.appendChild(style);
@@ -833,6 +855,7 @@
   installUserContext();
   installBodyGoals();
   installWeeklyCoach();
+  installPwaPanel();
   renderRealReportCharts();
   removeDuplicateArchive();
   $('#saveWorkout')?.addEventListener('click', () => setTimeout(updateMascot, 850));
