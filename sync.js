@@ -13,7 +13,20 @@
     try { return JSON.parse(value); } catch { return fallback; }
   };
   const readState = () => safeJson(localStorage.getItem(STATE_KEY), { profile: {}, logs: {}, inbody: [] });
-  const readSync = () => safeJson(localStorage.getItem(SYNC_KEY), {}) || {};
+  const normalizeProjectUrl = value => String(value || '')
+    .trim()
+    .replace('woyrhbvvizsjgxtlaclq.supabase.co', 'woyrhbvvizsjgxtlaclg.supabase.co')
+    .replace(/\/rest\/v1\/?$/i, '')
+    .replace(/\/+$/, '');
+  const readSync = () => {
+    const config = safeJson(localStorage.getItem(SYNC_KEY), {}) || {};
+    const corrected = normalizeProjectUrl(config.url);
+    if (corrected && corrected !== config.url) {
+      config.url = corrected;
+      nativeSetItem.call(localStorage, SYNC_KEY, JSON.stringify(config));
+    }
+    return config;
+  };
   const validSync = (config = readSync()) => Boolean(config.url && config.key);
 
   function stableJson(value) {
@@ -271,7 +284,7 @@
     renderAiStatus();
 
     $('#saveSync').onclick = async () => {
-      const next = { url: $('#syncUrl').value.trim().replace(/\/+$/, ''), key: $('#syncKeyInput').value.trim() };
+      const next = { url: normalizeProjectUrl($('#syncUrl').value), key: $('#syncKeyInput').value.trim() };
       if (!next.url || !next.key) return setStatus('프로젝트 URL과 anon public 키를 모두 입력해 주세요.', 'bad');
       try {
         setStatus('연결을 확인하는 중…');

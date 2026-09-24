@@ -9,6 +9,7 @@
   const parse = (value, fallback = null) => { try { return JSON.parse(value); } catch { return fallback; } };
   const pad = value => String(value).padStart(2, '0');
   const dateKey = date => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  const normalizeProjectUrl = value => String(value || '').trim().replace('woyrhbvvizsjgxtlaclq.supabase.co', 'woyrhbvvizsjgxtlaclg.supabase.co').replace(/\/rest\/v1\/?$/i, '').replace(/\/+$/, '');
   const validDate = value => /^\d{4}-\d{2}-\d{2}$/.test(value);
   let calendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
   let selectedDate = dateKey(new Date());
@@ -257,6 +258,8 @@
 
   async function analyzeWithAi(settings, prompt, mode = 'analyze') {
     const sync = parse(localStorage.getItem(SYNC_KEY), {}) || {};
+    sync.url = normalizeProjectUrl(sync.url);
+    if (sync.url) localStorage.setItem(SYNC_KEY, JSON.stringify(sync));
     if (!sync.url || !sync.key) throw new Error('더보기에서 여러 기기 동기화를 먼저 연결해 주세요.');
     if (!settings.token) throw new Error('더보기에서 AI 연결 토큰을 입력해 주세요.');
     const headers = {
