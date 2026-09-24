@@ -267,20 +267,93 @@
     if (String(sync.key).startsWith('eyJ')) headers.Authorization = `Bearer ${sync.key}`;
     const functionName = settings.functionName || 'smart-endpoint';
     const projectOrigin = new URL(sync.url).origin;
-    const response = await fetch(`${projectOrigin}/functions/v1/${encodeURIComponent(functionName)}`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        mode,
-        prompt,
-        hasText: Boolean($('#aiMealText')?.value.trim()),
-        photo: photoData ? { mimeType: photoData.mimeType, data: photoData.data } : null,
-        model: settings.model || 'gpt-5.6-luna'
-      })
-    });
+    let response;
+    try {
+      response = await fetch(`${projectOrigin}/functions/v1/${encodeURIComponent(functionName)}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          mode,
+          prompt,
+          hasText: Boolean($('#aiMealText')?.value.trim()),
+          photo: photoData ? { mimeType: photoData.mimeType, data: photoData.data } : null,
+          model: settings.model || 'gpt-5.6-luna'
+        })
+      });
+    } catch {
+      throw new Error('AI 서버에 연결하지 못했어요. Supabase 함수 배포와 함수 이름을 확인해 주세요.');
+    }
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error || `GPT 분석에 실패했어요. (${response.status})`);
     return body;
+  }
+
+  const shortDate = value => {
+    const parts = String(value || '').split('-');
+    return parts.length === 3 ? `${+parts[1]}/${+parts[2]}` : String(value || '').slice(5).replace('-', '/');
+  };
+
+  function svgEmpty(message) {
+    return `<div class="chart-empty"><span>📊</span><strong>${message}</strong><small>기록을 추가하면 최근 10회 흐름이 자동으로 나타나요.</small></div>`;
+  }
+
+  function linePath(values, min, max) {
+    const range = Math.max(.01, max - min);
+    return values.map((value, index) => `${24 + index * (312 / Math.max(1, values.length - 1))},${16 + (max - value) / range * 76}`).join(' ');
+  }
+
+  function lineChart(records) {
+    if (!records.length) return svgEmpty('아직 인바디 측정 기록이 없어요.');
+    const series = [
+      ['weight', '#67aef2'], ['pbf', '#ff8f78'], ['smm', '#54bb93']
+    ];
+    const lines = series.map(([key, color]) => {
+      const present = records.map((item, index) => ({ index, value: +(key === 'pbf' ? item.pbf ?? item.bodyFat : item[key]) })).filter(item => Number.isFinite(item.value) && item.value > 0);
+      if (!present.length) return '';
+      const min = Math.min(...present.map(item => item.value)); const max = Math.max(...present.map(item => item.value));
+      const range = Math.max(.01, max - min);
+      const points = present.map(item => `${24 + item.index * (312 / Math.max(1, records.length - 1))},${16 + (max - item.value) / range * 76}`).join(' ');
+      return `<polyline points="${points}" fill="none" stroke="${color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>${present.map(item => `<circle cx="${24 + item.index * (312 / Math.max(1, records.length - 1))}" cy="${16 + (max - item.value) / range * 76}" r="3" fill="${color}"><title>${item.value}</title></circle>`).join('')}`;
+    }).join('');
+    return `<svg class="chart real-chart" viewBox="0 0 360 126" role="img" aria-label="최근 인바디 변화"><line class="grid" x1="24" y1="92" x2="336" y2="92"/>${lines}${records.map((item,index)=>`<text x="${24 + index * (312 / Math.max(1, records.length - 1))}" y="116" text-anchor="middle">${shortDate(item.date)}</text>`).join('')}</svg>`;
+  }
+
+  function workoutVolume(workout) {
+    const direct = +(workout.totalVolume ?? workout.volume ?? workout.trainingVolume);
+    if (direct > 0) return direct;
+    if (Array.isArray(workout.exercises)) return workout.exercises.reduce((sum, exercise) => sum + (+(exercise.volume) || (+exercise.weight || 0) * (+exercise.reps || 0) * (+exercise.sets || 0)), 0);
+    return (+workout.weight || 0) * (+workout.reps || 0) * (+workout.sets || 0);
+  }
+
+  function cardioCalories(workout) {
+    const group = String(workout.group || workout.type || workout.name || '').toLowerCase();
+    const cardio = /유산소|축구|러닝|달리기|걷기|사이클|수영|cardio|run|soccer/.test(group);
+    return cardio ? +(workout.kcal ?? workout.calories ?? workout.burnedCalories ?? workout.calorie) || 0 : 0;
+  }
+
+  function barChart(records, color, unit, target = 0) {
+    if (!records.length) return svgEmpty('표시할 실제 기록이 없어요.');
+    const max = Math.max(target, ...records.map(item => item.value), 1);
+    const width = 260 / Math.max(1, records.length); const barWidth = Math.min(22, width * .62);
+    return `<svg class="chart real-chart" viewBox="0 0 360 132" role="img"><line class="grid" x1="38" y1="96" x2="338" y2="96"/>${target ? `<line x1="38" y1="${96-target/max*76}" x2="338" y2="${96-target/max*76}" stroke="#9db4aa" stroke-dasharray="4 4"/><text x="336" y="${90-target/max*76}" text-anchor="end">목표</text>` : ''}${records.map((item,index)=>{const x=46+index*(284/Math.max(1,records.length-1))-barWidth/2; const h=Math.max(2,item.value/max*76); return `<rect x="${x}" y="${96-h}" width="${barWidth}" height="${h}" rx="5" fill="${color}"><title>${Math.round(item.value).toLocaleString()} ${unit}</title></rect><text x="${x+barWidth/2}" y="116" text-anchor="middle">${shortDate(item.date)}</text>`}).join('')}</svg>`;
+  }
+
+  function renderRealReportCharts() {
+    const report = $('[data-view="report"] .content'); if (!report) return;
+    const state = readState(); const cards = [...report.querySelectorAll('.chart-card')]; if (cards.length < 3) return;
+    const inbody = (state.inbody || []).filter(item => !item.excluded && item.date).sort((a,b)=>String(a.date).localeCompare(String(b.date))).slice(-10);
+    cards[0].querySelector('.chart-head').innerHTML = `<div><span>신체 변화</span><br><strong>최근 인바디 측정 ${inbody.length}회</strong></div><span>최대 10회</span>`;
+    const oldBodyChart = cards[0].querySelector('.chart, .chart-empty'); if (oldBodyChart) oldBodyChart.outerHTML = lineChart(inbody);
+    const logRows = Object.entries(state.logs || {}).sort(([a],[b])=>a.localeCompare(b));
+    const volumeRows = logRows.map(([date,log])=>({date,value:(log.workouts||[]).reduce((sum,w)=>sum+workoutVolume(w),0)})).filter(item=>item.value>0).slice(-10);
+    cards[1].querySelector('.chart-head').innerHTML = `<strong>근력운동 총 볼륨</strong><span>최근 ${volumeRows.length}회 · kg</span>`;
+    const oldVolume = cards[1].querySelector('.chart, .chart-empty'); if (oldVolume) oldVolume.outerHTML = barChart(volumeRows, '#67aef2', 'kg');
+    const legend = cards[1].querySelector('.legend'); if (legend) legend.innerHTML = '<span><i style="background:#67aef2"></i>중량 × 횟수 × 세트 합계</span>';
+    const kcalTarget = +(state.profile?.targets?.kcal || 2200);
+    const calorieRows = logRows.map(([date,log])=>({date,value:calories(log), meals:(log.meals||[]).length})).filter(item=>item.meals>0).slice(-10);
+    cards[2].querySelector('.chart-head').innerHTML = `<strong>하루 섭취 칼로리</strong><span>최근 ${calorieRows.length}일 · kcal</span>`;
+    const oldCalories = cards[2].querySelector('.chart, .chart-empty'); if (oldCalories) oldCalories.outerHTML = barChart(calorieRows, '#ff9e82', 'kcal', kcalTarget);
+    const header = report.querySelector('.eyebrow'); if (header) header.textContent = '실제 기록 기준 · 최근 10회';
   }
 
   function remainingMealTypes(meals) {
@@ -393,7 +466,16 @@
         const result = await analyzeWithAi(settings, prompt, 'coach');
         coach.innerHTML = `<div class="coach-title"><span>이번 주 코치 노트</span><strong>${esc(result.headline || '꾸준함을 이어갈 한 주')}</strong><small>${esc(result.summary || '')}</small></div><div class="coach-columns"><div><b>잘한 점</b>${(result.strengths||[]).map(x=>`<p>✓ ${esc(x)}</p>`).join('')}</div><div><b>조정할 점</b>${(result.adjustments||[]).map(x=>`<p>• ${esc(x)}</p>`).join('')}</div></div><div class="coach-plan"><b>다음 7일 실행 계획</b>${(result.nextActions||[]).map((x,i)=>`<p><span>${i+1}</span>${esc(x)}</p>`).join('')}</div><small class="coach-note">기록 기반 일반 코칭이며 의료 진단을 대신하지 않아요.</small><button type="button" class="link" id="refreshCoach">다시 분석</button>`;
         $('#refreshCoach').onclick = () => { coach.remove(); installWeeklyCoach(); $('#runWeeklyCoach').click(); };
-      } catch (error) { button.disabled=false; button.textContent='다시 시도'; showToast(error.message || '코칭을 불러오지 못했어요.'); }
+      } catch (error) {
+        const recorded = rows.filter(row => row.kcal > 0); const active = rows.filter(row => row.workouts.length);
+        const target = +(state.profile?.targets?.kcal || 2200);
+        const average = recorded.length ? Math.round(recorded.reduce((sum,row)=>sum+row.kcal,0)/recorded.length) : 0;
+        const strengths = [active.length ? `${active.length}일 운동 기록을 남겨 흐름을 확인할 수 있어요.` : '운동 기록을 시작하면 훈련 흐름을 더 정확히 볼 수 있어요.', recorded.length >= 4 ? `${recorded.length}일 식단을 기록해 섭취 패턴이 잘 보입니다.` : '기록한 식단은 다음 계획을 조정하는 좋은 기준이 됩니다.'];
+        const adjustments = [average && average > target ? `기록일 평균이 목표보다 ${average-target}kcal 높아 간식과 음료부터 조정해 보세요.` : '칼로리뿐 아니라 매 끼니 단백질과 채소 구성을 함께 확인해 보세요.', active.length < +(state.profile?.workoutGoal || 5) ? `주간 목표까지 ${Math.max(0, +(state.profile?.workoutGoal || 5)-active.length)}회 남았어요. 짧은 운동도 기록해 보세요.` : '훈련량이 충분하니 수면과 회복 상태도 함께 살펴보세요.'];
+        const nextActions = ['운동하는 날에는 근력운동 총 볼륨을 입력해 증가 폭을 확인하기', '식사는 빠뜨리지 않고 기록하되 미기록일을 억지로 0kcal로 채우지 않기', '다음 인바디 측정은 비슷한 시간과 상태에서 진행하기'];
+        coach.innerHTML = `<div class="coach-title"><span>기록 기반 코치 노트</span><strong>${active.length >= 3 ? '좋은 흐름을 꾸준히 이어가요' : '이번 주는 기록과 루틴부터 단단하게'}</strong><small>AI 서버 연결이 원활하지 않아 저장된 기록으로 기본 코칭을 만들었어요.</small></div><div class="coach-columns"><div><b>잘한 점</b>${strengths.map(x=>`<p>✓ ${esc(x)}</p>`).join('')}</div><div><b>조정할 점</b>${adjustments.map(x=>`<p>• ${esc(x)}</p>`).join('')}</div></div><div class="coach-plan"><b>다음 7일 실행 계획</b>${nextActions.map((x,i)=>`<p><span>${i+1}</span>${esc(x)}</p>`).join('')}</div><small class="coach-note">연결 오류: ${esc(error.message || 'AI 서버 연결 실패')} · 의료 진단을 대신하지 않아요.</small><button type="button" class="link" id="refreshCoach">AI 코칭 다시 시도</button>`;
+        $('#refreshCoach').onclick = () => { coach.remove(); installWeeklyCoach(); $('#runWeeklyCoach').click(); };
+      }
     };
   }
 
@@ -748,14 +830,17 @@
   installUserContext();
   installBodyGoals();
   installWeeklyCoach();
+  renderRealReportCharts();
   removeDuplicateArchive();
   $('#saveWorkout')?.addEventListener('click', () => setTimeout(updateMascot, 850));
   window.addEventListener('hashchange', () => {
     if (location.hash === '#workout') renderCalendar();
+    if (location.hash === '#report') renderRealReportCharts();
     removeDuplicateArchive();
   });
   window.addEventListener('fitlog:state-updated', () => {
     updateMascot();
     renderCalendar();
+    renderRealReportCharts();
   });
 })();
