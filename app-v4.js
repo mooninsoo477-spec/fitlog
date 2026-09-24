@@ -13,6 +13,8 @@
   let calendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
   let selectedDate = dateKey(new Date());
   let photoData = null;
+  let pendingMealItems = [];
+  let editingMealId = null;
 
   function readState() {
     return parse(localStorage.getItem(STATE_KEY), { profile: {}, logs: {}, inbody: [] }) || { profile: {}, logs: {}, inbody: [] };
@@ -242,7 +244,7 @@
   }
 
   function nutritionPrompt(mealType, text) {
-    return `한국 식단의 1회 실제 섭취량을 분석한다. 텍스트의 제품명·중량·개수를 사진 추정보다 우선하고 밥, 소스, 조리유와 먹을 수 있는 부분을 포함해 중복 없이 합산한다. 끼니: ${mealType}. 기록: ${text || '사진만 제공'}.`;
+    return `한국 식단의 실제 섭취량을 음식별로 분리해 분석한다. 입력에 음식이 여러 개면 절대 합쳐 이름을 만들지 말고 각각 별도 항목으로 반환한다. "밥 갈비 1/3"이면 밥과 갈비를 나누고 1/3은 갈비에 적용한다. 텍스트의 제품명·중량·개수를 사진보다 우선한다. 각 음식마다 급식 또는 일반 식사의 현실적인 추천 1인분 기준량과, 사용자가 먹은 양을 0.25 단위 servings로 추정한다. kcal과 영양소는 추천 1인분 기준값으로 반환한다. 끼니: ${mealType}. 기록: ${text || '사진만 제공'}.`;
   }
 
   function extractJson(text) {
@@ -280,6 +282,88 @@
     return body;
   }
 
+  function normalizedMealItems(result) {
+    const source = Array.isArray(result?.items) ? result.items : [result];
+    return source.filter(Boolean).map((item, index) => ({
+      key: `${Date.now()}-${index}`,
+      name: String(item.name || `음식 ${index + 1}`),
+      referenceAmount: String(item.referenceAmount || item.amount || '추천 1인분'),
+      servings: Math.max(.25, Math.round((+item.servings || 1) * 4) / 4),
+      kcalPerServing: Math.max(0, +item.kcalPerServing || +item.kcal || 0),
+      proteinPerServing: Math.max(0, +item.proteinPerServing || +item.protein || 0),
+      carbsPerServing: Math.max(0, +item.carbsPerServing || +item.carbs || 0),
+      fatPerServing: Math.max(0, +item.fatPerServing || +item.fat || 0),
+      confidence: item.confidence || '보통'
+    }));
+  }
+
+  const actualNutrition = item => ({
+    kcal: Math.round(item.kcalPerServing * item.servings),
+    protein: Math.round(item.proteinPerServing * item.servings * 10) / 10,
+    carbs: Math.round(item.carbsPerServing * item.servings * 10) / 10,
+    fat: Math.round(item.fatPerServing * item.servings * 10) / 10
+  });
+
+  function renderMealPreview() {
+    const preview = $('#aiMealPreview');
+    if (!preview) return;
+    if (!pendingMealItems.length) {
+      preview.classList.remove('show');
+      preview.innerHTML = '';
+      return;
+    }
+    preview.classList.add('show');
+    preview.innerHTML = `
+      <div class="analysis-head"><div><span>음식별 분석 결과</span><strong>${pendingMealItems.length}개 음식</strong></div><small>각 항목을 수정한 뒤 저장하세요.</small></div>
+      <div class="analysis-items">${pendingMealItems.map((item, index) => {
+        const value = actualNutrition(item);
+        return `<article class="analysis-item" data-analysis-index="${index}">
+          <label><span>음식 이름</span><input class="input" data-meal-field="name" value="${esc(item.name)}"></label>
+          <label><span>추천 기준량</span><input class="input" data-meal-field="referenceAmount" value="${esc(item.referenceAmount)}"></label>
+          <div class="portion-row"><div><span>먹은 양</span><strong>${item.servings}인분</strong></div><div class="portion-stepper"><button type="button" data-portion="-.25">−</button><button type="button" data-portion=".25">＋</button></div></div>
+          <div class="nutrition-edit">
+            <label><span>1인분 kcal</span><input inputmode="decimal" data-meal-field="kcalPerServing" value="${item.kcalPerServing}"></label>
+            <label><span>단백질 g</span><input inputmode="decimal" data-meal-field="proteinPerServing" value="${item.proteinPerServing}"></label>
+            <label><span>탄수 g</span><input inputmode="decimal" data-meal-field="carbsPerServing" value="${item.carbsPerServing}"></label>
+            <label><span>지방 g</span><input inputmode="decimal" data-meal-field="fatPerServing" value="${item.fatPerServing}"></label>
+          </div>
+          <p class="analysis-total">현재 양 기준 <b>${value.kcal} kcal</b> · 단백질 ${value.protein}g · 탄수 ${value.carbs}g · 지방 ${value.fat}g</p>
+        </article>`;
+      }).join('')}</div>
+      <button type="button" class="primary mint full" id="saveAnalyzedMeals">${editingMealId ? '수정 내용 저장' : `${pendingMealItems.length}개 음식 저장`}</button>`;
+  }
+
+  function mealRecord(item, meal, id) {
+    const value = actualNutrition(item);
+    return {
+      id: id || crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`,
+      meal,
+      name: item.name,
+      amount: `${item.servings}인분 · ${item.referenceAmount}`,
+      servings: item.servings,
+      referenceAmount: item.referenceAmount,
+      kcalPerServing: item.kcalPerServing,
+      proteinPerServing: item.proteinPerServing,
+      carbsPerServing: item.carbsPerServing,
+      fatPerServing: item.fatPerServing,
+      ...value,
+      src: 'ai',
+      confidence: item.confidence || '보통'
+    };
+  }
+
+  function enhanceMealList() {
+    $('#mealList')?.querySelectorAll('[data-del-meal]').forEach(button => {
+      if (button.parentElement.querySelector('[data-edit-meal]')) return;
+      const edit = document.createElement('button');
+      edit.type = 'button';
+      edit.className = 'edit-meal';
+      edit.dataset.editMeal = button.dataset.delMeal;
+      edit.textContent = '수정';
+      button.before(edit);
+    });
+  }
+
   function installMealComposer() {
     const oldForm = $('#saveMeal')?.closest('.form');
     if (!oldForm || $('#aiMealComposer')) return;
@@ -294,8 +378,9 @@
         <input class="hidden" id="mealPhoto" type="file" accept="image/*" capture="environment">
         <img id="mealPhotoPreview" alt="선택한 식사 사진 미리보기">
       </div>
-      <button class="primary ai-save full" id="analyzeMeal"><span>✦</span> AI 분석 후 바로 기록</button>
+      <button class="primary ai-save full" id="analyzeMeal"><span>✦</span> AI로 음식별 분석</button>
       <p class="notice ai-notice" id="aiMealNotice">설명과 사진을 함께 쓰면 양을 더 정확하게 계산해요.</p>`;
+    oldForm.insertAdjacentHTML('afterend', '<section class="card analysis-preview" id="aiMealPreview"></section>');
 
     if ($('#focusMeal')) $('#focusMeal').onclick = () => $('#aiMealText')?.focus();
 
@@ -331,32 +416,86 @@
       notice.textContent = '양과 조리법까지 반영해 계산하고 있어요.';
       try {
         const result = await analyzeWithAi(settings, nutritionPrompt(meal, text));
-        const state = readState();
-        const today = dateKey(new Date());
-        state.logs ||= {};
-        state.logs[today] ||= { meals: [], workouts: [] };
-        state.logs[today].meals ||= [];
-        state.logs[today].meals.push({
-          id: crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`,
-          meal,
-          name: result.name || text || '사진 식단',
-          amount: result.amount || '',
-          kcal: Math.max(0, Math.round(+result.kcal || 0)),
-          protein: Math.max(0, +result.protein || 0),
-          carbs: Math.max(0, +result.carbs || 0),
-          fat: Math.max(0, +result.fat || 0),
-          src: 'ai',
-          confidence: result.confidence || '보통'
-        });
-        writeState(state);
-        sessionStorage.setItem('fitlog:notice', `${meal} 기록 완료 · ${Math.round(+result.kcal || 0)} kcal`);
-        location.reload();
+        editingMealId = null;
+        pendingMealItems = normalizedMealItems(result);
+        renderMealPreview();
+        notice.textContent = `${pendingMealItems.length}개 음식으로 나눴어요. 양과 수치를 확인해 주세요.`;
+        button.disabled = false;
+        button.innerHTML = '<span>✦</span> 다시 분석';
+        $('#aiMealPreview')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       } catch (error) {
         notice.textContent = error.message || '분석하지 못했어요. 잠시 후 다시 시도해 주세요.';
         button.disabled = false;
-        button.innerHTML = '<span>✦</span> AI 분석 후 바로 기록';
+        button.innerHTML = '<span>✦</span> AI로 음식별 분석';
       }
     };
+
+    $('#aiMealPreview').addEventListener('click', event => {
+      const card = event.target.closest('[data-analysis-index]');
+      const portion = event.target.closest('[data-portion]');
+      if (card && portion) {
+        const item = pendingMealItems[+card.dataset.analysisIndex];
+        item.servings = Math.min(5, Math.max(.25, Math.round((item.servings + +portion.dataset.portion) * 4) / 4));
+        renderMealPreview();
+        return;
+      }
+      if (event.target.closest('#saveAnalyzedMeals')) {
+        const state = readState();
+        const today = dateKey(new Date());
+        const meal = $('[name="aiMealType"]:checked')?.value || '아침';
+        state.logs ||= {};
+        state.logs[today] ||= { meals: [], workouts: [] };
+        state.logs[today].meals ||= [];
+        if (editingMealId) {
+          const index = state.logs[today].meals.findIndex(item => item.id === editingMealId);
+          if (index >= 0) state.logs[today].meals[index] = mealRecord(pendingMealItems[0], meal, editingMealId);
+        } else {
+          pendingMealItems.forEach(item => state.logs[today].meals.push(mealRecord(item, meal)));
+        }
+        writeState(state);
+        sessionStorage.setItem('fitlog:notice', editingMealId ? '식사 기록을 수정했어요.' : `${pendingMealItems.length}개 음식을 각각 저장했어요.`);
+        location.reload();
+      }
+    });
+
+    $('#aiMealPreview').addEventListener('input', event => {
+      const card = event.target.closest('[data-analysis-index]');
+      const field = event.target.dataset.mealField;
+      if (!card || !field) return;
+      const item = pendingMealItems[+card.dataset.analysisIndex];
+      item[field] = ['name', 'referenceAmount'].includes(field) ? event.target.value : Math.max(0, +event.target.value || 0);
+      const total = card.querySelector('.analysis-total');
+      const value = actualNutrition(item);
+      total.innerHTML = `현재 양 기준 <b>${value.kcal} kcal</b> · 단백질 ${value.protein}g · 탄수 ${value.carbs}g · 지방 ${value.fat}g`;
+    });
+
+    document.addEventListener('click', event => {
+      const button = event.target.closest('[data-edit-meal]');
+      if (!button) return;
+      const state = readState();
+      const today = dateKey(new Date());
+      const meal = state.logs?.[today]?.meals?.find(item => item.id === button.dataset.editMeal);
+      if (!meal) return;
+      editingMealId = meal.id;
+      const servings = Math.max(.25, +meal.servings || 1);
+      pendingMealItems = normalizedMealItems({
+        ...meal,
+        servings,
+        referenceAmount: meal.referenceAmount || meal.amount || '기록 기준 1인분',
+        kcalPerServing: +meal.kcalPerServing || (+meal.kcal || 0) / servings,
+        proteinPerServing: +meal.proteinPerServing || (+meal.protein || 0) / servings,
+        carbsPerServing: +meal.carbsPerServing || (+meal.carbs || 0) / servings,
+        fatPerServing: +meal.fatPerServing || (+meal.fat || 0) / servings
+      });
+      const radio = $(`[name="aiMealType"][value="${meal.meal}"]`);
+      if (radio) radio.checked = true;
+      renderMealPreview();
+      $('#aiMealPreview')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
+    enhanceMealList();
+    const mealList = $('#mealList');
+    if (mealList) new MutationObserver(enhanceMealList).observe(mealList, { childList: true, subtree: true });
   }
 
   function injectStyles() {
@@ -365,6 +504,7 @@
       :root{--red:#f25f5c;--soft-red:#ffe1d8;--violet:#8f7ee7}.welcome{background:linear-gradient(135deg,#fff0eb,#fff9dc 62%,#ddf7ed);padding-right:148px}.welcome img{width:145px;height:145px;right:-2px;bottom:-8px;transform-origin:55% 85%}.welcome.mascot-level-5{background:linear-gradient(135deg,#fff0d2,#ffe0d2 55%,#fff5b5)}.welcome.mascot-level-5 img{animation:mascotKick .62s ease-in-out infinite alternate}.welcome.mascot-level-4 img{animation:mascotRun .85s ease-in-out infinite alternate}.welcome.mascot-level-3 img{animation:mascotBreathe 2.4s ease-in-out infinite}.welcome.mascot-level-2 img{animation:mascotSlow 2.2s ease-in-out infinite}.welcome.mascot-level-1 img{animation:mascotDroop 3s ease-in-out infinite}.mascot-meter{margin-top:9px;padding:12px 14px;border:1px solid var(--line);border-radius:18px;background:#fff;box-shadow:0 7px 20px #2666500d}.mascot-meter-head{display:flex;align-items:center;justify-content:space-between;gap:8px}.mascot-meter-head span{color:var(--sub);font-size:10px}.mascot-meter-head strong{font-size:13px}.mascot-levels{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin:8px 0}.mascot-levels i{height:6px;border-radius:9px;background:#e6eeeb}.mascot-levels i.on:nth-child(1){background:#aebac0}.mascot-levels i.on:nth-child(2){background:#9dc9bd}.mascot-levels i.on:nth-child(3){background:#72d1ae}.mascot-levels i.on:nth-child(4){background:#ffb45f}.mascot-levels i.on:nth-child(5){background:#f25f5c}.mascot-meter p{margin:0 0 10px;color:var(--sub);font-size:10px}.mascot-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.mascot-stats span{padding:7px 5px;border-radius:11px;background:#f5faf8;color:var(--sub);font-size:8px;text-align:center}.mascot-stats b{display:block;margin-bottom:2px;color:var(--ink);font-size:11px}@keyframes mascotKick{from{transform:translate(-3px,2px) rotate(-2deg) scale(.98)}to{transform:translate(4px,-5px) rotate(2deg) scale(1.03)}}@keyframes mascotRun{from{transform:translateX(-3px) rotate(-1deg)}to{transform:translate(4px,-3px) rotate(2deg)}}@keyframes mascotBreathe{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-2px) scale(1.015)}}@keyframes mascotSlow{0%,100%{transform:translateX(-1px) rotate(-1deg)}50%{transform:translateX(2px) rotate(1deg)}}@keyframes mascotDroop{0%,100%{transform:translateY(1px) rotate(0)}50%{transform:translateY(4px) rotate(-1deg)}}.bottom{border-top:1px solid #e5ece9;box-shadow:0 -8px 25px #17372c0b}.nav button{gap:3px}.nav button>span:last-child{font-size:9px}.nav-bubble{width:35px;height:35px;border-radius:13px;background:var(--bubble);display:grid;place-items:center;transition:.2s transform}.nav-bubble svg{width:20px;height:20px;fill:none;stroke:#29483e;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.nav button.active .nav-bubble{transform:translateY(-2px);box-shadow:0 5px 12px #17372c18}.nav .plus .nav-bubble{width:46px;height:46px;margin-top:-20px;border-radius:17px;background:#fff09c;box-shadow:0 8px 18px #c7a92435}.quick button{display:grid;place-items:center;gap:7px}.quick-icon{width:43px;height:43px;display:grid;place-items:center;border-radius:15px;font-size:21px}.quick-icon.peach{background:#ffe1d8}.quick-icon.mint{background:#d9f5e8}.quick-icon.lilac{background:#e5ddff}.quick button strong{font-size:11px}
       .calendar-card{padding:15px}.calendar-head{display:grid;grid-template-columns:38px 1fr 38px;align-items:center;text-align:center}.calendar-head button{width:34px;height:34px;border:0;border-radius:12px;background:#f2f7f5;font-size:24px}.calendar-weekdays,.calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}.calendar-weekdays{margin:13px 0 6px;color:var(--sub);font-size:9px;text-align:center}.calendar-day{position:relative;min-width:0;height:55px;padding:4px 0;border:0;border-radius:13px;background:transparent;display:grid;place-items:center;align-content:start;gap:2px}.calendar-day>span{font-size:10px}.calendar-day.today>span{width:20px;height:20px;display:grid;place-items:center;border-radius:8px;background:#17372c;color:#fff}.calendar-day.selected{background:#f3f8f6;box-shadow:inset 0 0 0 2px #98d9c2}.activity-ring{position:relative;width:29px;height:29px;border-radius:50%;background:conic-gradient(var(--red) var(--move),#f2dddd 0);display:grid;place-items:center}.activity-ring:before{content:"";width:22px;height:22px;border-radius:50%;background:conic-gradient(#65cba5 var(--meal),#deeee8 0)}.activity-ring:after{content:"";position:absolute;width:15px;height:15px;border-radius:50%;background:conic-gradient(#ffb35f var(--kcal),#f3e7d7 0)}.activity-ring i{position:absolute;z-index:1;width:8px;height:8px;border-radius:50%;background:#fff}.empty-dot{width:4px;height:4px;margin-top:8px;border-radius:50%;background:#dce9e4}.ring-legend{display:flex;justify-content:center;gap:12px;margin:12px 0;color:var(--sub);font-size:9px}.ring-legend i{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:4px}.ring-legend .red{background:var(--red)}.ring-legend .green{background:#65cba5}.ring-legend .orange{background:#ffb35f}.day-summary{padding:14px;border-radius:17px;background:#f7fbf9}.summary-head{display:flex;justify-content:space-between;align-items:center}.summary-head span,.summary-head strong{display:block}.summary-head span{color:var(--sub);font-size:10px}.summary-head strong{font-size:19px;margin-top:2px}.summary-count{display:flex;gap:5px}.summary-count span{padding:6px 8px;border-radius:10px;background:#fff;color:var(--ink)}.day-block{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}.day-block h3{margin:0 0 6px;font-size:11px}.day-block div{display:grid;grid-template-columns:35px 1fr;gap:6px;margin:5px 0}.day-block b,.day-block span,.day-block p{font-size:10px}.day-block span,.day-block p{margin:0;color:var(--sub);line-height:1.5}.summary-empty strong,.summary-empty span{display:block}.summary-empty span{margin-top:3px;color:var(--sub);font-size:10px}
       .meal-type-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:13px}.meal-type-tabs input{position:absolute;opacity:0}.meal-type-tabs span{min-height:42px;border:1px solid var(--line);border-radius:13px;background:#f7fbf9;display:grid;place-items:center;font-size:11px;font-weight:850}.meal-type-tabs input:checked+span{background:#17372c;color:#fff;border-color:#17372c}.meal-free-text{min-height:112px;line-height:1.55}.photo-analyzer{position:relative;margin:10px 0;min-height:82px}.photo-picker{min-height:82px;padding:12px;border:1px dashed #9ecdbc;border-radius:17px;background:#f0faf6;display:grid;grid-template-columns:42px 1fr;align-items:center;column-gap:9px;cursor:pointer}.photo-picker>span{grid-row:1/3;width:42px;height:42px;border-radius:14px;background:#fff;display:grid;place-items:center;font-size:20px}.photo-picker strong,.photo-picker small{display:block}.photo-picker strong{font-size:12px}.photo-picker small{color:var(--sub);font-size:9px}.photo-picker.has-photo{padding-right:92px}.photo-analyzer img{display:none;position:absolute;right:7px;top:7px;width:68px;height:68px;object-fit:cover;border-radius:13px}.photo-analyzer img.show{display:block}.ai-save{background:linear-gradient(135deg,#f26b63,#ff9a6d);box-shadow:0 8px 18px #e2644930}.ai-save span{margin-right:5px}.ai-save:disabled{opacity:.7}.ai-notice{line-height:1.5}.inline-link{border:0;background:transparent;color:#2f8467;font-weight:900;text-decoration:underline}.spinner{display:inline-block;width:14px;height:14px;border:2px solid #ffffff66;border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+      .analysis-preview{display:none;margin-top:10px;padding:14px}.analysis-preview.show{display:block}.analysis-head{display:flex;justify-content:space-between;align-items:end;gap:8px;margin-bottom:10px}.analysis-head span,.analysis-head strong{display:block}.analysis-head span,.analysis-head small{color:var(--sub);font-size:9px}.analysis-head strong{margin-top:2px;font-size:15px}.analysis-item{padding:12px;margin-bottom:9px;border-radius:16px;background:#f5faf8;border:1px solid #dcebe5}.analysis-item>label{display:block;margin-bottom:8px}.analysis-item>label span,.nutrition-edit span,.portion-row span{display:block;margin-bottom:4px;color:var(--sub);font-size:9px}.analysis-item .input{padding:9px 10px;font-size:13px}.portion-row{display:flex;align-items:center;justify-content:space-between;margin:9px 0}.portion-row strong{font-size:17px}.portion-stepper{display:grid;grid-template-columns:42px 42px;gap:6px}.portion-stepper button{height:36px;border:0;border-radius:12px;background:#fff;font-size:20px;font-weight:900}.nutrition-edit{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}.nutrition-edit input{width:100%;min-width:0;padding:8px 4px;border:1px solid var(--line);border-radius:10px;background:#fff;text-align:center;font-size:11px}.analysis-total{margin:9px 0 0;color:var(--sub);font-size:10px}.analysis-total b{color:var(--ink)}.edit-meal{align-self:center;border:0;border-radius:11px;background:#e7f6f0;color:#28765d;padding:6px 9px;font-weight:800}.item:has(.edit-meal){grid-template-columns:1fr auto auto}
       @media(max-width:360px){.welcome{padding-right:118px}.welcome img{width:120px;height:120px}.calendar-grid,.calendar-weekdays{gap:2px}.calendar-day{height:52px}.activity-ring{width:26px;height:26px}.activity-ring:before{width:20px;height:20px}.activity-ring:after{width:14px;height:14px}.mascot-stats span{font-size:7px}}
     `;
     document.head.appendChild(style);
