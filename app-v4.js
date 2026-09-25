@@ -145,37 +145,318 @@
     return (log?.meals || []).reduce((sum, meal) => sum + (+meal.kcal || 0), 0);
   }
 
+  // ---- 운동 기록 해석: "티바로우 30kg 20 40kg 14/14/14/14" → 세트 목록 ----
+  const RPE_LABELS = { 5: '여유 많음', 6: '4회 이상 더 가능', 7: '2~3회 더 가능', 8: '1~2회 더 가능', 9: '1회 더 가능', 10: '한계까지' };
+  const CONDITIONS = { 1: ['😫', '나쁨'], 2: ['😕', '별로'], 3: ['🙂', '보통'], 4: ['😊', '좋음'], 5: ['🔥', '최고'] };
+  const CARDIO_METS = [[/축구|풋살/, 7], [/러닝|달리기|조깅|run/i, 8.3], [/걷기|산책|walk/i, 3.5], [/사이클|자전거|스피닝|bike/i, 7], [/수영|swim/i, 7], [/줄넘기/, 11], [/등산|하이킹/, 6.5], [/인터벌|hiit|서킷/i, 8], [/계단|스텝밀|천국의/, 8], [/로잉|rowing/i, 7]];
+  const BODY_PARTS = [
+    ['코어', /플랭크|크런치|복근|레그\s*레이즈|싯업|윗몸|러시안|행잉|ab\s*롤|코어/i],
+    ['하체', /스쿼트|레그|런지|힙|카프|글루트|핵|스텝업|루마니안|굿모닝|어덕션|앱덕션|하체/],
+    ['가슴', /벤치|체스트|푸쉬업|푸시업|팔굽|딥스|플라이|펙덱|크로스오버|가슴/],
+    ['등', /로우|풀다운|풀업|턱걸이|랫|데드|친업|풀오버|하이퍼|백\s*익스|등/],
+    ['어깨', /숄더|오버헤드|밀리터리|레터럴|사이드|리어|페이스\s*풀|업라이트|프론트|아놀드|어깨/],
+    ['팔', /컬|이두|삼두|트라이셉|푸쉬다운|푸시다운|해머|스컬|킥백|팔/]
+  ];
+  const PART_ORDER = ['가슴', '등', '어깨', '하체', '팔', '코어'];
+  const exerciseKey = name => String(name || '').replace(/\s+/g, '').toLowerCase();
+  const round5 = value => Math.round(value / 5) * 5;
+
+  function cardioMet(name) {
+    return CARDIO_METS.find(([pattern]) => pattern.test(name || ''))?.[1] || 0;
+  }
+
+  function exercisePart(name, group = '') {
+    const found = BODY_PARTS.find(([, pattern]) => pattern.test(name || ''));
+    if (found) return found[0];
+    if (/밀기/.test(group)) return '가슴';
+    if (/당기기/.test(group)) return '등';
+    if (/하체/.test(group)) return '하체';
+    return '기타';
+  }
+
+  function parseSetSpec(spec, weight) {
+    const text = spec.replace(/[()]/g, ' ').trim();
+    if (!text) return [];
+    const repeat = (reps, sets) => Array.from({ length: Math.min(20, Math.max(1, sets)) }, () => ({ weight, reps }));
+    const cross = text.match(/(\d+)\s*회?\s*[x×*]\s*(\d+)/i);
+    if (cross) return repeat(+cross[1], +cross[2]);
+    const setCount = text.match(/(\d+)\s*(?:세트|sets?)/i);
+    if (setCount) {
+      const reps = text.replace(setCount[0], ' ').match(/(\d+)/);
+      return repeat(reps ? +reps[1] : 0, +setCount[1]);
+    }
+    return (text.match(/\d+/g) || []).slice(0, 20).map(value => ({ weight, reps: +value }));
+  }
+
+  function parseWorkoutLine(line, group) {
+    const first = line.search(/\d/);
+    const name = (first < 0 ? line : line.slice(0, first)).replace(/[:\-–·]+\s*$/, '').trim() || line.trim();
+    let rest = first < 0 ? '' : line.slice(first);
+    let minutes = 0;
+    rest = rest.replace(/(\d+(?:\.\d+)?)\s*(km|킬로미터)/gi, ' ');
+    rest = rest.replace(/(\d+(?:\.\d+)?)\s*(시간|분|mins?|minutes?)/gi, (_, value, unit) => { minutes += /시간/.test(unit) ? +value * 60 : +value; return ' '; });
+    const tokens = [...rest.matchAll(/(\d+(?:\.\d+)?)\s*(kg|키로|킬로|lbs?|파운드)/gi)];
+    let setList = [];
+    if (!tokens.length) setList = parseSetSpec(rest, 0);
+    tokens.forEach((token, index) => {
+      const weight = Math.round((/lb|파운드/i.test(token[2]) ? +token[1] * 0.4536 : +token[1]) * 10) / 10;
+      const start = token.index + token[0].length;
+      const sets = parseSetSpec(rest.slice(start, tokens[index + 1]?.index ?? rest.length), weight);
+      setList.push(...(sets.length ? sets : [{ weight, reps: 0 }]));
+    });
+    setList = setList.filter(set => set.reps > 0 || set.weight > 0);
+    const top = setList.reduce((best, set) => (set.weight > best.weight || (set.weight === best.weight && set.reps > best.reps) ? set : best), { weight: 0, reps: 0 });
+    const cardio = !setList.length && (minutes > 0 || cardioMet(name) > 0);
+    return {
+      name, weight: top.weight, reps: top.reps, sets: setList.length, setList,
+      volume: Math.round(setList.reduce((sum, set) => sum + set.weight * set.reps, 0)),
+      minutes: Math.round(minutes), cardio, part: cardio ? '유산소' : exercisePart(name, group)
+    };
+  }
+
+  function parseWorkoutText(text, group = '') {
+    return String(text || '').replace(/(\d)\s*,\s*(?=\d)/g, '$1/').split(/\n|;|,/).map(line => line.trim()).filter(Boolean).map(line => parseWorkoutLine(line, group));
+  }
+
+  // 예전 기록(세트 수만 있는 형식, 메모만 있는 형식)도 같은 구조로 맞춘다.
+  function normalizeExercise(raw, group = '') {
+    const setList = Array.isArray(raw.setList) && raw.setList.length ? raw.setList
+      : raw.sets > 0 ? Array.from({ length: Math.min(20, +raw.sets) }, () => ({ weight: +raw.weight || 0, reps: +raw.reps || 0 })) : [];
+    const volume = +raw.volume || Math.round(setList.reduce((sum, set) => sum + set.weight * set.reps, 0));
+    return { ...raw, setList, sets: setList.length, volume, part: raw.part || (raw.cardio ? '유산소' : exercisePart(raw.name, group)) };
+  }
+
+  function workoutExercises(workout) {
+    const group = workout.group || workout.type || '';
+    if (Array.isArray(workout.exercises) && workout.exercises.length) return workout.exercises.map(item => normalizeExercise(item, group));
+    return parseWorkoutText(workout.note || '', group);
+  }
+
+  function setSummary(exercise) {
+    if (exercise.cardio || !exercise.setList?.length) return exercise.minutes ? `${exercise.minutes}분` : '기록만';
+    const groups = [];
+    exercise.setList.forEach(set => {
+      const last = groups.at(-1);
+      if (last && last.weight === set.weight) last.reps.push(set.reps); else groups.push({ weight: set.weight, reps: [set.reps] });
+    });
+    const text = groups.map(item => {
+      const same = item.reps.every(rep => rep === item.reps[0]);
+      const reps = same ? `${item.reps[0]}회${item.reps.length > 1 ? ` × ${item.reps.length}` : ''}` : `${item.reps.join('/')}회`;
+      return item.weight ? `${item.weight}kg ${reps}` : reps;
+    }).join(' · ');
+    return exercise.minutes ? `${text} · ${exercise.minutes}분` : text;
+  }
+
+  function latestBodyWeight(state) {
+    const dates = Object.keys(state.logs || {}).sort().reverse();
+    for (const date of dates) if (+state.logs[date]?.weight > 20) return +state.logs[date].weight;
+    const inbody = (state.inbody || []).filter(item => !item.excluded && +item.weight > 0).sort((a, b) => String(a.date).localeCompare(String(b.date))).at(-1);
+    return +inbody?.weight || +state.profile?.recommendationContext?.weight || 70;
+  }
+
+  // MET × 체중 × 시간. 근력은 세트당 약 2.5분(수행+휴식), RPE가 높을수록 MET를 올린다.
+  function estimateWorkout(exercises, { minutes = 0, rpe = null, groups = [], manualCardioKcal = 0, bodyWeight = 70 } = {}) {
+    const strengthSets = exercises.filter(item => !item.cardio).reduce((sum, item) => sum + (item.sets || 0), 0);
+    const cardioLines = exercises.filter(item => item.cardio);
+    const cardioGroup = groups.some(group => /유산소|축구/.test(group));
+    let cardioMin = cardioLines.reduce((sum, item) => sum + (item.minutes || 0), 0);
+    let strengthMin = strengthSets * 2.5;
+    if (minutes > 0) {
+      if (!strengthSets && !cardioMin && cardioGroup) cardioMin = minutes;
+      strengthMin = strengthSets || !cardioMin ? Math.max(0, minutes - cardioMin) : 0;
+    }
+    const strengthMet = rpe ? 3 + rpe * 0.3 : 5;
+    const strengthKcal = strengthMet * bodyWeight * strengthMin / 60;
+    let cardioKcal = cardioLines.reduce((sum, item) => sum + (cardioMet(item.name) || 6) * bodyWeight * (item.minutes || 0) / 60, 0);
+    if (!cardioLines.some(item => item.minutes) && cardioMin) cardioKcal = (cardioMet(groups.join(' ')) || 7) * bodyWeight * cardioMin / 60;
+    if (manualCardioKcal > 0) cardioKcal = manualCardioKcal;
+    return {
+      kcal: round5(strengthKcal + cardioKcal), strengthKcal: round5(strengthKcal), cardioKcal: round5(cardioKcal),
+      minutes: Math.round(strengthMin + cardioMin), estimatedTime: !(minutes > 0), strengthSets, bodyWeight
+    };
+  }
+
+  function exerciseHistory(state, uptoDate, excludeId) {
+    const map = new Map();
+    Object.keys(state.logs || {}).filter(validDate).sort().forEach(date => {
+      if (date > uptoDate) return;
+      (state.logs[date].workouts || []).forEach(workout => {
+        if (workout.id === excludeId) return;
+        workoutExercises(workout).forEach(exercise => {
+          if (exercise.cardio || !exercise.sets) return;
+          const key = exerciseKey(exercise.name);
+          if (!map.has(key)) map.set(key, []);
+          map.get(key).push({ date, rpe: workout.rpe, ...exercise });
+        });
+      });
+    });
+    return map;
+  }
+
+  function exerciseProgress(exercise, history) {
+    if (exercise.cardio || !exercise.sets) return null;
+    const past = history.get(exerciseKey(exercise.name)) || [];
+    if (!past.length) return { first: true };
+    const prev = past.at(-1);
+    const totalReps = item => (item.setList || []).reduce((sum, set) => sum + set.reps, 0);
+    const bestWeight = Math.max(...past.map(item => +item.weight || 0));
+    return {
+      prevDate: prev.date,
+      weightDiff: Math.round(((+exercise.weight || 0) - (+prev.weight || 0)) * 10) / 10,
+      volumePct: prev.volume > 0 && exercise.volume > 0 ? Math.round((exercise.volume - prev.volume) / prev.volume * 100) : null,
+      repsDiff: !exercise.weight && !prev.weight ? totalReps(exercise) - totalReps(prev) : null,
+      pr: exercise.weight > 0 && exercise.weight > bestWeight
+    };
+  }
+
+  function progressBadges(progress) {
+    if (!progress) return '';
+    if (progress.first) return '<i class="badge">첫 기록</i>';
+    const badges = [];
+    if (progress.pr) badges.push('<i class="badge pr">🏆 PR</i>');
+    if (progress.weightDiff) badges.push(`<i class="badge ${progress.weightDiff > 0 ? 'up' : 'down'}">${progress.weightDiff > 0 ? '+' : ''}${progress.weightDiff}kg ${progress.weightDiff > 0 ? '↑' : '↓'}</i>`);
+    if (progress.volumePct) badges.push(`<i class="badge ${progress.volumePct > 0 ? 'up' : 'down'}">볼륨 ${progress.volumePct > 0 ? '+' : ''}${progress.volumePct}%</i>`);
+    if (progress.repsDiff) badges.push(`<i class="badge ${progress.repsDiff > 0 ? 'up' : 'down'}">${progress.repsDiff > 0 ? '+' : ''}${progress.repsDiff}회</i>`);
+    if (!badges.length) badges.push('<i class="badge">지난번과 동일</i>');
+    return badges.join('');
+  }
+
+  const conditionText = value => CONDITIONS[value] ? `${CONDITIONS[value][0]} ${CONDITIONS[value][1]}` : (value ? String(value) : '');
+  const addDays = (key, days) => { const date = new Date(`${key}T12:00:00`); date.setDate(date.getDate() + days); return dateKey(date); };
+  const mondayKey = (date = new Date()) => dateKey(new Date(date.getFullYear(), date.getMonth(), date.getDate() - ((date.getDay() + 6) % 7)));
+  const weekdayName = key => ['일', '월', '화', '수', '목', '금', '토'][new Date(`${key}T12:00:00`).getDay()];
+
+  // ---- AI에 넘길 기록 요약 ----
+  function recentLogText(state, days = 14, endKey = dateKey(new Date())) {
+    const lines = [];
+    for (let offset = days - 1; offset >= 0; offset--) {
+      const date = addDays(endKey, -offset);
+      const log = state.logs?.[date];
+      if (!log) continue;
+      const parts = [];
+      if (+log.weight) parts.push(`공복 ${log.weight}kg`);
+      if (+log.sleep) parts.push(`수면 ${log.sleep}h`);
+      if (log.condition) parts.push(`컨디션 ${CONDITIONS[log.condition]?.[1] || log.condition}`);
+      const meals = log.meals || [];
+      if (meals.length) parts.push(`섭취 ${Math.round(calories(log))}kcal·단백질 ${Math.round(meals.reduce((sum, meal) => sum + (+meal.protein || 0), 0))}g`);
+      (log.workouts || []).forEach(workout => {
+        const exercises = workoutExercises(workout).map(item => `${item.name} ${setSummary(item)}`).join(', ');
+        parts.push(`운동[${workout.group || '운동'}] ${exercises || workout.note || ''}${workout.minutes ? ` ${workout.minutes}분` : ''}${workout.rpe ? ` RPE${workout.rpe}` : ''}${workout.burnKcal ? ` 소모${workout.burnKcal}kcal` : ''}${workout.comment ? ` 메모:"${workout.comment}"` : ''}`);
+      });
+      if (parts.length) lines.push(`${date.slice(5)}(${weekdayName(date)}) ${parts.join(' / ')}`);
+    }
+    return lines.join('\n') || '기록 없음';
+  }
+
+  function exerciseHistoryText(state, sessions = 3) {
+    const history = exerciseHistory(state, dateKey(new Date()));
+    return [...history.values()].map(items => {
+      const recent = items.slice(-sessions);
+      return `${recent[0].name}: ${recent.map(item => `${item.date.slice(5)} ${setSummary(item)}${item.rpe ? ` RPE${item.rpe}` : ''}`).join(' | ')}`;
+    }).slice(0, 25).join('\n') || '종목 기록 없음';
+  }
+
+  function partSets(state, endKey = dateKey(new Date()), days = 7) {
+    const sets = Object.fromEntries(PART_ORDER.map(part => [part, 0]));
+    for (let offset = 0; offset < days; offset++) {
+      (state.logs?.[addDays(endKey, -offset)]?.workouts || []).forEach(workout => workoutExercises(workout).forEach(exercise => {
+        if (!exercise.cardio && exercise.part in sets) sets[exercise.part] += exercise.sets || 0;
+      }));
+    }
+    return sets;
+  }
+
+  function weeklyMetrics(state, endKey = dateKey(new Date()), days = 7) {
+    const dates = Array.from({ length: days }, (_, index) => addDays(endKey, index - days + 1));
+    const prevDates = dates.map(date => addDays(date, -days));
+    const logs = dates.map(date => state.logs?.[date] || {});
+    const volumeOf = list => list.reduce((sum, date) => sum + (state.logs?.[date]?.workouts || []).reduce((acc, workout) => acc + workoutVolume(workout), 0), 0);
+    const mealLogs = logs.filter(log => (log.meals || []).length);
+    const average = values => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+    const targets = state.profile?.targets || { kcal: 2200, protein: 153 };
+    const weights = dates.map(date => +state.logs?.[date]?.weight).filter(value => value > 20);
+    const plans = [state.profile?.weeklyPlan, ...(state.profile?.planHistory || [])].filter(Boolean);
+    const plannedDays = dates.filter(date => date < dateKey(new Date()) || date === endKey).map(date => plans.map(plan => (plan.days || []).find(day => day.date === date)).find(Boolean)).filter(day => day && !day.rest);
+    const volume = volumeOf(dates);
+    const prevVolume = volumeOf(prevDates);
+    const workouts = logs.flatMap(log => log.workouts || []);
+    return {
+      start: dates[0], end: endKey,
+      workoutDays: logs.filter(log => (log.workouts || []).length).length,
+      goal: +(state.profile?.workoutGoal || 4),
+      planned: plannedDays.length,
+      plannedDone: plannedDays.filter(day => (state.logs?.[day.date]?.workouts || []).length).length,
+      volume, prevVolume, volumeChange: prevVolume > 0 ? Math.round((volume - prevVolume) / prevVolume * 100) : null,
+      burnKcal: workouts.reduce((sum, workout) => sum + (+workout.burnKcal || 0), 0),
+      rpe: average(workouts.map(workout => +workout.rpe).filter(Boolean)),
+      mealDays: mealLogs.length,
+      kcal: average(mealLogs.map(log => calories(log))),
+      protein: average(mealLogs.map(log => (log.meals || []).reduce((sum, meal) => sum + (+meal.protein || 0), 0))),
+      kcalTarget: +targets.kcal || 2200, proteinTarget: +targets.protein || 150,
+      sleep: average(logs.map(log => +log.sleep).filter(Boolean)),
+      condition: average(logs.map(log => +log.condition).filter(Boolean)),
+      weightStart: weights[0] ?? null, weightEnd: weights.at(-1) ?? null,
+      parts: partSets(state, endKey, days)
+    };
+  }
+
+  function metricsText(metrics) {
+    const fixed = (value, digits = 0) => value == null ? '기록 없음' : Number(value).toFixed(digits);
+    return [
+      `기간 ${metrics.start}~${metrics.end}`,
+      `운동 ${metrics.workoutDays}일(목표 주 ${metrics.goal}회${metrics.planned ? `, 계획 ${metrics.planned}회 중 ${metrics.plannedDone}회 수행` : ''})`,
+      `총 볼륨 ${Math.round(metrics.volume)}kg(지난주 ${Math.round(metrics.prevVolume)}kg${metrics.volumeChange != null ? `, ${metrics.volumeChange > 0 ? '+' : ''}${metrics.volumeChange}%` : ''})`,
+      `운동 소모 ${metrics.burnKcal}kcal, 평균 RPE ${fixed(metrics.rpe, 1)}`,
+      `식단 기록 ${metrics.mealDays}일, 평균 섭취 ${fixed(metrics.kcal)}kcal(목표 ${metrics.kcalTarget}), 평균 단백질 ${fixed(metrics.protein)}g(목표 ${metrics.proteinTarget})`,
+      `평균 수면 ${fixed(metrics.sleep, 1)}h, 평균 컨디션 ${fixed(metrics.condition, 1)}/5`,
+      `공복 체중 ${metrics.weightStart ?? '기록 없음'}→${metrics.weightEnd ?? '기록 없음'}kg`,
+      `부위별 세트 ${PART_ORDER.map(part => `${part}${metrics.parts[part]}`).join(' ')}`
+    ].join('\n');
+  }
+
   function updatePlanHero() {
     const hero = $('.hero');
     if (!hero) return;
     const state = readState();
     const info = state.profile?.recommendationContext || {};
     const goal = info.goalStatement || info.goal || '';
-    if (!goal && !state.profile?.targetUpdatedAt) {
+    if (!goal && !state.profile?.targetUpdatedAt && !currentPlan(state)) {
       hero.className = 'hero onboard';
       hero.innerHTML = `<span class="tag">시작하기</span><h2>나에게 맞는 목표부터 정해요</h2>
         <ol><li>키·체중 같은 기본 정보</li><li>원하는 변화를 내 말로 한 줄</li><li>운동 가능한 요일과 시간</li></ol>
         <div class="hero-actions"><button class="primary" data-go="more" data-open="recommendationProfile">목표 설정하기</button><button class="ghost" data-go="workout">먼저 기록해보기</button></div>`;
       return;
     }
-    const coach = state.profile?.weeklyCoach || {};
-    const intensity = state.profile?.trainingIntensity || '중간';
+    const today = dateKey(new Date());
     const weeklyGoal = +(state.profile?.workoutGoal || 4);
-    const now = new Date();
-    const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7));
+    const monday = mondayKey();
     let doneDays = 0;
-    for (const date = new Date(monday); date <= now; date.setDate(date.getDate() + 1)) {
-      if ((state.logs?.[dateKey(date)]?.workouts || []).length) doneDays++;
-    }
-    const doneToday = (state.logs?.[dateKey(now)]?.workouts || []).length > 0;
-    const title = goal || '내 목표 기준으로 진행 중';
-    const action = coach.nextActions?.[0] || `주 ${weeklyGoal}회, 회복 상태를 보며 진행해요.`;
+    for (let key = monday; key <= today; key = addDays(key, 1)) if ((state.logs?.[key]?.workouts || []).length) doneDays++;
+    const todayWorkouts = state.logs?.[today]?.workouts || [];
+    const burned = todayWorkouts.reduce((sum, workout) => sum + (+workout.burnKcal || 0), 0);
+    const volume = todayWorkouts.reduce((sum, workout) => sum + workoutVolume(workout), 0);
+    const day = planDay(state, today);
+    const nextDay = (currentPlan(state)?.days || []).find(item => item.date > today && !item.rest);
+    const progress = `<div class="hero-progress"><div class="track"><i style="width:${Math.min(100, doneDays / Math.max(1, weeklyGoal) * 100)}%"></i></div><b>이번 주 ${doneDays}/${weeklyGoal}회</b></div>`;
     hero.className = 'hero';
-    hero.innerHTML = `<span class="tag">${state.profile?.targetReason ? 'AI 목표' : '내 목표'} · ${esc(intensity)} 강도</span>
-      <h2>${esc(title.length > 24 ? `${title.slice(0, 24)}…` : title)}</h2>
-      <p>${esc(action)}</p>
-      <div class="hero-progress"><div class="track"><i style="width:${Math.min(100, doneDays / Math.max(1, weeklyGoal) * 100)}%"></i></div><b>이번 주 ${doneDays}/${weeklyGoal}회</b></div>
-      <div class="hero-actions">${doneToday ? '<button class="ghost" data-go="workout">오늘 운동 완료 ✓</button>' : '<button class="primary" data-go="workout">오늘 운동 기록하기</button>'}</div>`;
+    if (todayWorkouts.length) {
+      hero.innerHTML = `<span class="tag">오늘 운동 완료 ✓</span>
+        <h2>${burned ? `약 ${burned.toLocaleString()}kcal 소모` : '오늘도 해냈어요'}</h2>
+        <p>${[volume ? `총 볼륨 ${Math.round(volume).toLocaleString()}kg` : '', nextDay ? `다음 운동 ${weekdayName(nextDay.date)}요일 · ${nextDay.focus}` : '충분히 먹고 푹 자는 것도 훈련이에요.'].filter(Boolean).join(' · ')}</p>
+        ${progress}<div class="hero-actions"><button class="ghost" data-go="workout">기록 보기</button></div>`;
+    } else if (day && !day.rest) {
+      hero.innerHTML = `<span class="tag">오늘의 운동 · ${esc(shortFocus(day))}</span>
+        <h2>${esc(day.focus)}</h2>
+        <ul class="hero-list">${day.exercises.slice(0, 3).map(exercise => `<li><span>${esc(exercise.name)}</span><b>${exercise.weight ? `${exercise.weight}kg · ` : ''}${esc(exercise.reps)}회 × ${exercise.sets}</b></li>`).join('')}${day.exercises.length > 3 ? `<li class="more">외 ${day.exercises.length - 3}종목</li>` : ''}</ul>
+        ${progress}<div class="hero-actions"><button class="primary" data-plan-action="log" data-date="${today}">이 계획으로 기록하기</button><button class="ghost" data-go="workout">전체 계획</button></div>`;
+    } else if (day?.rest) {
+      hero.innerHTML = `<span class="tag">오늘은 회복일</span><h2>쉬는 것도 계획의 일부예요</h2><p>${esc(day.tip || '가벼운 걷기와 스트레칭으로 회복해요.')}</p>
+        ${progress}<div class="hero-actions"><button class="ghost" data-go="workout">그래도 운동 기록하기</button></div>`;
+    } else {
+      hero.innerHTML = `<span class="tag">AI 코치 · ${esc(state.profile?.trainingIntensity || '중간')} 강도</span><h2>이번 주 ${doneDays}회 완료</h2>
+        <p>AI 주간 계획을 받으면 오늘 할 종목과 무게를 알려드려요.</p>
+        ${progress}<div class="hero-actions">${planBusy ? '<button class="primary" disabled>계획을 짜는 중…</button>' : '<button class="primary" data-plan-action="week">이번 주 계획 받기</button>'}<button class="ghost" data-go="workout">운동 기록</button></div>`;
+    }
   }
 
   function removeLegacyDemoMeals() {
@@ -311,16 +592,23 @@
       const names = meals.filter(item => item.meal === group).map(item => item.name).filter(Boolean);
       return names.length ? `<div><b>${group}</b><span>${esc(names.join(' · '))}</span></div>` : '';
     }).join('');
-    const workoutNames = workouts.map(item => item.name || item.note || item.group || item.type || '운동').filter(Boolean);
+    const workoutBlocks = workouts.map(workout => {
+      const history = exerciseHistory(state, selectedDate, workout.id);
+      const exercises = workoutExercises(workout);
+      const meta = [workout.minutes ? `${workout.minutesEstimated ? '약 ' : ''}${workout.minutes}분` : '', workout.rpe ? `RPE ${workout.rpe}` : '', workout.burnKcal ? `약 ${workout.burnKcal}kcal` : '', workoutVolume(workout) ? `볼륨 ${Math.round(workoutVolume(workout)).toLocaleString()}kg` : ''].filter(Boolean).join(' · ');
+      return `<div class="day-workout"><b>${esc(workout.group || workout.type || '운동')}</b>${meta ? `<small>${meta}</small>` : ''}
+        ${exercises.length ? `<ul>${exercises.map(exercise => `<li><span>${esc(exercise.name)} <em>${esc(setSummary(exercise))}</em></span><span class="badges">${progressBadges(exerciseProgress(exercise, history))}</span></li>`).join('')}</ul>` : `<p>${esc(workout.note || workout.name || '')}</p>`}
+        ${workout.comment ? `<p class="day-comment">💬 ${esc(workout.comment)}</p>` : ''}</div>`;
+    });
     const extras = [
-      log.weight ? `체중 ${log.weight}kg` : '', log.bodyFat ? `체지방 ${log.bodyFat}%` : '',
-      log.sleep ? `수면 ${log.sleep}시간` : '', log.condition ? `컨디션 ${log.condition}` : '', log.stress ? `스트레스 ${log.stress}` : ''
+      log.weight ? `공복 체중 ${log.weight}kg` : '', log.bodyFat ? `체지방 ${log.bodyFat}%` : '',
+      log.sleep ? `수면 ${log.sleep}시간` : '', log.condition ? `컨디션 ${conditionText(log.condition)}` : '', log.stress ? `스트레스 ${log.stress}` : ''
     ].filter(Boolean);
     target.innerHTML = `
       <div class="summary-head"><div><span>${pretty}</span><strong>${kcal.toLocaleString()} kcal</strong></div><div class="summary-count"><span>🍽 ${meals.length}</span><span>🏃 ${workouts.length}</span></div></div>
       ${mealGroups ? `<section class="day-block"><h3>식단</h3>${mealGroups}</section>` : ''}
-      ${workoutNames.length ? `<section class="day-block"><h3>운동</h3><p>${esc(workoutNames.join(' · '))}</p></section>` : ''}
-      ${extras.length || log.workoutNote || log.eventNote ? `<section class="day-block"><h3>기타</h3><p>${esc([...extras, log.workoutNote, log.eventNote].filter(Boolean).join(' · '))}</p></section>` : ''}`;
+      ${workoutBlocks.length ? `<section class="day-block"><h3>운동</h3>${workoutBlocks.join('')}</section>` : ''}
+      ${extras.length || log.workoutNote || log.eventNote ? `<section class="day-block"><h3>체크인·기타</h3><p>${esc([...extras, log.workoutNote, log.eventNote].filter(Boolean).join(' · '))}</p></section>` : ''}`;
   }
 
   function installCalendar() {
@@ -429,84 +717,160 @@
     return `<div class="chart-empty"><span aria-hidden="true">📊</span><strong>${message}</strong><small>${hint}</small>${action}</div>`;
   }
 
-  function linePath(values, min, max) {
-    const range = Math.max(.01, max - min);
-    return values.map((value, index) => `${24 + index * (312 / Math.max(1, values.length - 1))},${16 + (max - value) / range * 76}`).join(' ');
-  }
+  // ---- 인바디 결과지형 신체 변화 ----
+  const fatMassOf = record => +record.bodyFatMass || (+record.weight && +(record.pbf ?? record.bodyFat) ? Math.round(record.weight * (record.pbf ?? record.bodyFat) / 10) / 10 : null);
+  const pbfOf = record => +(record.pbf ?? record.bodyFat) || null;
 
-  function lineChart(records) {
-    if (!records.length) return svgEmpty('아직 인바디 기록이 없어요', '측정값을 입력하면 체중·체지방·근육량 흐름을 보여드려요.', '<button type="button" class="primary mint" data-go="more" data-open="inbodyPanel">인바디 입력하기</button>');
-    const series = [
-      ['weight', '#67aef2'], ['pbf', '#ff8f78'], ['smm', '#54bb93']
+  function bodyComposition(records, state) {
+    if (!records.length) return svgEmpty('아직 인바디 기록이 없어요', '측정값을 입력하면 체중·골격근량·체지방을 결과지처럼 보여드려요.', '<button type="button" class="primary mint" data-go="more" data-open="inbodyPanel">인바디 입력하기</button>');
+    const info = state.profile?.recommendationContext || {};
+    const height = +(info.height || state.profile?.height) || 0;
+    const sex = info.sex;
+    const latest = records.at(-1);
+    const first = records[0];
+    const stdWeight = height ? 22 * (height / 100) ** 2 : 0;
+    const pbfRange = sex === '여성' ? [18, 28] : sex === '남성' ? [10, 20] : [14, 24];
+    const rows = [
+      { label: '체중', unit: 'kg', value: +latest.weight || null, std: stdWeight, scale: [55, 205], normal: [85, 115], color: '#67aef2' },
+      { label: '골격근량', unit: 'kg', value: +latest.smm || null, std: stdWeight * (sex === '여성' ? .415 : sex === '남성' ? .48 : .45), scale: [70, 170], normal: [90, 110], color: '#54bb93' },
+      { label: '체지방량', unit: 'kg', value: fatMassOf(latest), std: stdWeight * (sex === '여성' ? .23 : sex === '남성' ? .15 : .19), scale: [40, 520], normal: [80, 160], color: '#ff9e82' }
     ];
-    const lines = series.map(([key, color]) => {
-      const present = records.map((item, index) => ({ index, value: +(key === 'pbf' ? item.pbf ?? item.bodyFat : item[key]) })).filter(item => Number.isFinite(item.value) && item.value > 0);
-      if (!present.length) return '';
-      const min = Math.min(...present.map(item => item.value)); const max = Math.max(...present.map(item => item.value));
-      const range = Math.max(.01, max - min);
-      const points = present.map(item => `${24 + item.index * (312 / Math.max(1, records.length - 1))},${16 + (max - item.value) / range * 76}`).join(' ');
-      return `<polyline points="${points}" fill="none" stroke="${color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>${present.map(item => `<circle cx="${24 + item.index * (312 / Math.max(1, records.length - 1))}" cy="${16 + (max - item.value) / range * 76}" r="3" fill="${color}"><title>${item.value}</title></circle>`).join('')}`;
-    }).join('');
-    return `<svg class="chart real-chart" viewBox="0 0 360 126" role="img" aria-label="최근 인바디 변화"><line class="grid" x1="24" y1="92" x2="336" y2="92"/>${lines}${records.map((item,index)=>`<text x="${24 + index * (312 / Math.max(1, records.length - 1))}" y="116" text-anchor="middle">${shortDate(item.date)}</text>`).join('')}</svg>`;
+    const bar = row => {
+      if (row.value == null) return `<div class="ib-row"><span class="ib-label">${row.label}</span><div class="ib-track"></div><b class="ib-value">–</b></div>`;
+      let fill = 0; let band = null; let status = '';
+      if (row.std) {
+        const percent = row.value / row.std * 100;
+        const [lo, hi] = row.scale;
+        fill = Math.min(100, Math.max(3, (percent - lo) / (hi - lo) * 100));
+        band = [(row.normal[0] - lo) / (hi - lo) * 100, (row.normal[1] - row.normal[0]) / (hi - lo) * 100];
+        status = percent < row.normal[0] ? '표준 이하' : percent > row.normal[1] ? '표준 이상' : '표준';
+      } else {
+        const values = records.map(record => row.label === '체지방량' ? fatMassOf(record) : +record[row.label === '체중' ? 'weight' : 'smm']).filter(Boolean);
+        fill = row.value / (Math.max(...values) * 1.15) * 100;
+      }
+      return `<div class="ib-row"><span class="ib-label">${row.label}<small>${row.unit}</small></span><div class="ib-track">${band ? `<i class="ib-band" style="left:${band[0]}%;width:${band[1]}%"></i>` : ''}<i class="ib-fill" style="width:${fill}%;background:${row.color}"></i></div><b class="ib-value">${row.value}${status ? `<small class="${status === '표준' ? 'ok' : 'warn'}">${status}</small>` : ''}</b></div>`;
+    };
+    const pbf = pbfOf(latest);
+    const pbfRow = pbf ? `<div class="ib-row"><span class="ib-label">체지방률<small>%</small></span><div class="ib-track"><i class="ib-band" style="left:${pbfRange[0] / 45 * 100}%;width:${(pbfRange[1] - pbfRange[0]) / 45 * 100}%"></i><i class="ib-fill" style="width:${Math.min(100, pbf / 45 * 100)}%;background:#f2a65a"></i></div><b class="ib-value">${pbf}<small class="${pbf < pbfRange[0] || pbf > pbfRange[1] ? 'warn' : 'ok'}">${pbf < pbfRange[0] ? '표준 이하' : pbf > pbfRange[1] ? '표준 이상' : '표준'}</small></b></div>` : '';
+
+    const metrics = [
+      ['체중', record => +record.weight || null, 'kg', 0],
+      ['골격근량', record => +record.smm || null, 'kg', 1],
+      ['체지방량', fatMassOf, 'kg', -1],
+      ['체지방률', pbfOf, '%', -1]
+    ];
+    const history = `<div class="ib-history"><table><thead><tr><th></th>${records.map((record, index) => `<th class="${index === records.length - 1 ? 'latest' : ''}">${shortDate(record.date)}</th>`).join('')}</tr></thead><tbody>${metrics.map(([label, pick]) => {
+      const values = records.map(pick);
+      const present = values.filter(value => value != null);
+      const min = Math.min(...present); const max = Math.max(...present);
+      return `<tr><th>${label}</th>${values.map((value, index) => `<td class="${index === records.length - 1 ? 'latest' : ''}">${value == null ? '–' : `<b>${value}</b><i style="width:${max > min ? 30 + (value - min) / (max - min) * 70 : 100}%"></i>`}</td>`).join('')}</tr>`;
+    }).join('')}</tbody></table></div>`;
+
+    const changes = records.length > 1 ? metrics.slice(0, 3).map(([label, pick, unit, goodDirection]) => {
+      const a = pick(first); const b = pick(latest);
+      if (a == null || b == null) return '';
+      const diff = Math.round((b - a) * 10) / 10;
+      const tone = !diff || !goodDirection ? '' : diff * goodDirection > 0 ? 'good' : 'bad';
+      return `<span class="${tone}">${label} ${diff > 0 ? '+' : ''}${diff}${unit}</span>`;
+    }).filter(Boolean).join('') : '';
+    const targetFat = +(state.profile?.bodyGoals?.targetBodyFat || state.profile?.targetFat) || 0;
+    return `<div class="ib-section"><div class="ib-title"><strong>골격근·지방 분석</strong><span>${shortDate(latest.date)} 측정${stdWeight ? '' : ' · 키를 입력하면 표준 범위를 보여드려요'}</span></div>${rows.map(bar).join('')}${pbfRow}${stdWeight ? '<p class="ib-legend"><i></i>표준 범위 (키·성별 기준 추정)</p>' : ''}</div>
+      ${records.length > 1 ? `<div class="ib-section"><div class="ib-title"><strong>변화 기록</strong><span>${records.length}회 측정</span></div>${history}${changes ? `<div class="ib-changes"><em>첫 측정 대비</em>${changes}</div>` : ''}</div>` : ''}
+      ${targetFat && pbf ? `<p class="ib-target">🎯 목표 체지방률 ${targetFat}% · ${pbf > targetFat ? `${Math.round((pbf - targetFat) * 10) / 10}%p 남음` : '목표 달성!'}</p>` : ''}`;
   }
 
   function workoutVolume(workout) {
     const direct = +(workout.totalVolume ?? workout.volume ?? workout.trainingVolume);
     if (direct > 0) return direct;
-    if (Array.isArray(workout.exercises)) return workout.exercises.reduce((sum, exercise) => sum + (+(exercise.volume) || (+exercise.weight || 0) * (+exercise.reps || 0) * (+exercise.sets || 0)), 0);
-    return (+workout.weight || 0) * (+workout.reps || 0) * (+workout.sets || 0);
+    const exercises = workoutExercises(workout).reduce((sum, exercise) => sum + (exercise.volume || 0), 0);
+    return exercises || (+workout.weight || 0) * (+workout.reps || 0) * (+workout.sets || 0);
   }
 
   function cardioCalories(workout) {
+    if (+workout.cardioKcal > 0) return +workout.cardioKcal;
     const group = String(workout.group || workout.type || workout.name || '').toLowerCase();
     const cardio = /유산소|축구|러닝|달리기|걷기|사이클|수영|cardio|run|soccer/.test(group);
     return cardio ? +(workout.kcal ?? workout.calories ?? workout.burnedCalories ?? workout.calorie) || 0 : 0;
   }
 
+  // ---- 막대 차트 (y축 눈금 포함) ----
+  function niceMax(value) {
+    const safe = Math.max(1, value);
+    const exponent = 10 ** Math.floor(Math.log10(safe));
+    const fraction = safe / exponent;
+    return ([1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].find(step => fraction <= step) || 10) * exponent;
+  }
+
+  const axisLabel = value => value >= 1000 ? `${Math.round(value / 100) / 10}k`.replace('.0k', 'k') : String(Math.round(value));
+
   function barChart(records, color, unit, target = 0) {
     if (!records.length) return svgEmpty('아직 표시할 기록이 없어요');
-    const max = Math.max(target, ...records.map(item => item.value), 1);
-    const width = 260 / Math.max(1, records.length); const barWidth = Math.min(22, width * .62);
-    return `<svg class="chart real-chart" viewBox="0 0 360 132" role="img"><line class="grid" x1="38" y1="96" x2="338" y2="96"/>${target ? `<line x1="38" y1="${96-target/max*76}" x2="338" y2="${96-target/max*76}" stroke="#9db4aa" stroke-dasharray="4 4"/><text x="336" y="${90-target/max*76}" text-anchor="end">목표</text>` : ''}${records.map((item,index)=>{const x=46+index*(284/Math.max(1,records.length-1))-barWidth/2; const h=Math.max(2,item.value/max*76); return `<rect x="${x}" y="${96-h}" width="${barWidth}" height="${h}" rx="5" fill="${color}"><title>${Math.round(item.value).toLocaleString()} ${unit}</title></rect><text x="${x+barWidth/2}" y="116" text-anchor="middle">${shortDate(item.date)}</text>`}).join('')}</svg>`;
+    const max = niceMax(Math.max(target, ...records.map(item => item.value)) * 1.08);
+    const top = 16; const bottom = 98; const left = 44; const right = 350; const height = bottom - top;
+    const y = value => bottom - value / max * height;
+    const slot = (right - left) / records.length;
+    const barWidth = Math.min(24, slot * .6);
+    const ticks = [0, max / 2, max].map(value => `<line x1="${left}" y1="${y(value)}" x2="${right}" y2="${y(value)}" class="grid"/><text x="${left - 6}" y="${y(value) + 3}" text-anchor="end" class="axis">${axisLabel(value)}</text>`).join('');
+    const showValues = records.length <= 7;
+    return `<svg class="chart real-chart" viewBox="0 0 360 128" role="img" aria-label="${unit} 막대 차트">${ticks}
+      ${target ? `<line x1="${left}" y1="${y(target)}" x2="${right}" y2="${y(target)}" stroke="#7f9d92" stroke-dasharray="4 4"/><text x="${right}" y="${y(target) - 4}" text-anchor="end" class="axis">목표 ${axisLabel(target)}</text>` : ''}
+      ${records.map((item, index) => {
+        const x = left + slot * index + (slot - barWidth) / 2;
+        const h = Math.max(2, item.value / max * height);
+        return `<rect x="${x}" y="${bottom - h}" width="${barWidth}" height="${h}" rx="5" fill="${item.over ? '#ff9e82' : color}"><title>${Math.round(item.value).toLocaleString()} ${unit}</title></rect>${showValues ? `<text x="${x + barWidth / 2}" y="${bottom - h - 4}" text-anchor="middle" class="bar-value">${axisLabel(item.value)}</text>` : ''}<text x="${x + barWidth / 2}" y="${bottom + 15}" text-anchor="middle">${shortDate(item.date)}</text>`;
+      }).join('')}</svg>`;
+  }
+
+  function partSetsChart(state) {
+    const sets = partSets(state);
+    const total = Object.values(sets).reduce((sum, value) => sum + value, 0);
+    if (!total) return svgEmpty('최근 7일 근력 기록이 없어요', '종목 이름으로 부위를 자동 분류해 주간 세트 수를 보여드려요.');
+    const scale = Math.max(24, ...Object.values(sets));
+    return `<div class="part-bars">${PART_ORDER.map(part => {
+      const value = sets[part];
+      const tone = value >= 10 && value <= 20 ? 'ok' : value > 20 ? 'over' : 'under';
+      return `<div class="part-row"><span>${part}</span><div class="part-track"><i class="band" style="left:${10 / scale * 100}%;width:${10 / scale * 100}%"></i><i class="fill ${tone}" style="width:${value / scale * 100}%"></i></div><b>${value}세트</b></div>`;
+    }).join('')}</div><div class="legend"><span><i class="band-dot"></i>권장 주 10~20세트</span><span><i style="background:#72d1ae"></i>적정</span><span><i style="background:#9fb7c9"></i>부족</span><span><i style="background:#ffb35f"></i>많음</span></div>`;
   }
 
   function renderRealReportCharts() {
-    const report = $('[data-view="report"] .content'); if (!report) return;
-    const state = readState(); const cards = [...report.querySelectorAll('.chart-card')]; if (cards.length < 3) return;
-    const inbody = (state.inbody || []).filter(item => !item.excluded && item.date).sort((a,b)=>String(a.date).localeCompare(String(b.date))).slice(-10);
-    cards[0].querySelector('.chart-head').innerHTML = `<div><span>신체 변화</span><br><strong>${inbody.length ? `최근 인바디 측정 ${inbody.length}회` : '최근 인바디'}</strong></div><span>최대 10회</span>`;
-    const oldBodyChart = cards[0].querySelector('.chart, .chart-empty'); if (oldBodyChart) oldBodyChart.outerHTML = lineChart(inbody);
-    const stats = $('#stats');
-    if (stats && !inbody.length) stats.innerHTML = '';
-    cards[0].querySelector('.legend')?.classList.toggle('hidden', !inbody.length);
-    const bodyComment = [...report.querySelectorAll('.comment')].find(element => !element.id);
+    const report = $('[data-view="report"] .content');
+    if (!report || !$('#bodyCard')) return;
+    const state = readState();
+    const inbody = (state.inbody || []).filter(item => !item.excluded && item.date).sort((a, b) => String(a.date).localeCompare(String(b.date))).slice(-10);
+    $('#bodyCard .chart-head').innerHTML = `<div><span>신체 변화</span><br><strong>${inbody.length ? `인바디 측정 ${inbody.length}회` : '최근 인바디'}</strong></div><button type="button" class="link" data-go="more" data-open="inbodyPanel">측정값 입력</button>`;
+    $('#bodyComposition').innerHTML = bodyComposition(inbody, state);
+    const historyTable = $('#bodyComposition .ib-history');
+    if (historyTable) requestAnimationFrame(() => { historyTable.scrollLeft = historyTable.scrollWidth; });
+    const bodyComment = $('#bodyComment');
     if (bodyComment) {
-      bodyComment.textContent = inbody.length > 1 ? '실제 인바디 기록의 최근 변화입니다. 수치 하나보다 같은 조건에서 측정한 흐름을 함께 보세요.' : inbody.length ? '측정값이 더 쌓이면 변화 속도와 목표 방향을 함께 분석해요.' : '';
+      bodyComment.textContent = inbody.length > 1 ? '같은 시간대·조건에서 잰 값끼리 비교해야 정확해요. 한 번의 수치보다 흐름을 보세요.' : inbody.length ? '측정값이 더 쌓이면 변화 속도와 목표 방향을 함께 분석해요.' : '';
       bodyComment.classList.toggle('hidden', !inbody.length);
     }
-    const logRows = Object.entries(state.logs || {}).sort(([a],[b])=>a.localeCompare(b));
-    const volumeRows = logRows.map(([date,log])=>({date,value:(log.workouts||[]).reduce((sum,w)=>sum+workoutVolume(w),0)})).filter(item=>item.value>0).slice(-10);
-    cards[1].querySelector('.chart-head').innerHTML = `<strong>근력운동 총 볼륨</strong><span>${volumeRows.length ? `최근 ${volumeRows.length}회 · kg` : 'kg'}</span>`;
-    const oldVolume = cards[1].querySelector('.chart, .chart-empty'); if (oldVolume) oldVolume.outerHTML = volumeRows.length ? barChart(volumeRows, '#67aef2', 'kg') : svgEmpty('아직 볼륨 기록이 없어요', '운동 내용을 “스쿼트 60kg 10회 5세트”처럼 적으면 자동으로 계산돼요.', '<button type="button" class="primary mint" data-go="workout">운동 기록하기</button>');
-    const legend = cards[1].querySelector('.legend'); if (legend) { legend.innerHTML = '<span><i style="background:#67aef2"></i>중량 × 횟수 × 세트 합계</span>'; legend.classList.toggle('hidden', !volumeRows.length); }
+    const logRows = Object.entries(state.logs || {}).filter(([date]) => validDate(date)).sort(([a], [b]) => a.localeCompare(b));
+    const volumeRows = logRows.map(([date, log]) => ({ date, value: (log.workouts || []).reduce((sum, workout) => sum + workoutVolume(workout), 0) })).filter(item => item.value > 0).slice(-10);
+    $('#volumeCard .chart-head').innerHTML = `<strong>근력운동 총 볼륨</strong><span>${volumeRows.length ? `최근 ${volumeRows.length}회 · ` : ''}kg</span>`;
+    $('#volumeCard .chart-body').innerHTML = volumeRows.length ? `${barChart(volumeRows, '#67aef2', 'kg')}<div class="legend"><span><i style="background:#67aef2"></i>무게 × 횟수 합계</span></div>` : svgEmpty('아직 볼륨 기록이 없어요', '운동 내용을 “스쿼트 60kg 10회 5세트”처럼 적으면 자동으로 계산돼요.', '<button type="button" class="primary mint" data-go="workout">운동 기록하기</button>');
+    $('#partSetsCard .chart-body').innerHTML = partSetsChart(state);
     const kcalTarget = +(state.profile?.targets?.kcal || 2200);
-    const calorieRows = logRows.map(([date,log])=>({date,value:calories(log), meals:(log.meals||[]).length})).filter(item=>item.meals>0).slice(-10);
-    cards[2].querySelector('.chart-head').innerHTML = `<strong>하루 섭취 칼로리</strong><span>${calorieRows.length ? `최근 ${calorieRows.length}일 · ` : ''}목표 ${kcalTarget.toLocaleString()} kcal</span>`;
-    const oldCalories = cards[2].querySelector('.chart, .chart-empty'); if (oldCalories) oldCalories.outerHTML = calorieRows.length ? barChart(calorieRows, '#ff9e82', 'kcal', kcalTarget) : svgEmpty('아직 식단 기록이 없어요', '식사를 기록하면 목표 대비 하루 섭취량이 쌓여요.', '<button type="button" class="primary mint" data-go="meals">식사 기록하기</button>');
-    let cardioCard = $('#cardioReportCard');
-    const cardioRows = logRows.map(([date, log]) => ({ date, value: (log.workouts || []).reduce((sum, workout) => sum + cardioCalories(workout), 0) })).filter(item => item.value > 0).slice(-7);
-    if (cardioRows.length) {
-      if (!cardioCard) {
-        cardioCard = document.createElement('section');
-        cardioCard.id = 'cardioReportCard';
-        cardioCard.className = 'card chart-card';
-        cards[2].insertAdjacentElement('afterend', cardioCard);
+    const calorieRows = logRows.map(([date, log]) => ({ date, value: calories(log), meals: (log.meals || []).length })).filter(item => item.meals > 0).slice(-10).map(item => ({ ...item, over: item.value > kcalTarget * 1.05 }));
+    $('#calorieCard .chart-head').innerHTML = `<strong>하루 섭취 칼로리</strong><span>${calorieRows.length ? `최근 ${calorieRows.length}일 · ` : ''}kcal</span>`;
+    $('#calorieCard .chart-body').innerHTML = calorieRows.length ? `${barChart(calorieRows, '#72d1ae', 'kcal', kcalTarget)}<div class="legend"><span><i style="background:#72d1ae"></i>목표 이내</span><span><i style="background:#ff9e82"></i>목표 5% 초과</span></div>` : svgEmpty('아직 식단 기록이 없어요', '식사를 기록하면 목표 대비 하루 섭취량이 쌓여요.', '<button type="button" class="primary mint" data-go="meals">식사 기록하기</button>');
+    let burnCard = $('#cardioReportCard');
+    const burnRows = logRows.map(([date, log]) => ({ date, value: (log.workouts || []).reduce((sum, workout) => sum + (+workout.burnKcal || cardioCalories(workout)), 0) })).filter(item => item.value > 0).slice(-10);
+    if (burnRows.length) {
+      if (!burnCard) {
+        burnCard = document.createElement('section');
+        burnCard.id = 'cardioReportCard';
+        burnCard.className = 'card chart-card';
+        $('#calorieCard').insertAdjacentElement('afterend', burnCard);
       }
-      cardioCard.innerHTML = `<div class="chart-head"><strong>유산소 소모 칼로리</strong><span>최근 ${cardioRows.length}회 · kcal</span></div>${barChart(cardioRows, '#72d1ae', 'kcal')}<div class="legend"><span><i style="background:#72d1ae"></i>기록된 유산소만 표시</span></div>`;
-    } else if (cardioCard) {
-      cardioCard.remove();
+      burnCard.innerHTML = `<div class="chart-head"><strong>운동 소모 칼로리</strong><span>최근 ${burnRows.length}회 · kcal</span></div>${barChart(burnRows, '#ffb35f', 'kcal')}<div class="legend"><span><i style="background:#ffb35f"></i>체중·시간·강도 기준 추정치</span></div>`;
+    } else if (burnCard) {
+      burnCard.remove();
     }
-    const header = report.querySelector('.eyebrow'); if (header) header.textContent = '실제 기록 기준 · 최근 10회';
+    const header = report.querySelector('.eyebrow');
+    if (header) header.textContent = '실제 기록 기준 · 최근 10회';
   }
 
   function remainingMealTypes(meals) {
@@ -659,112 +1023,185 @@
     };
   }
 
+  // ---- 주간 리포트 · 특별 일정 조언 ----
+  function metricTiles(metrics) {
+    const percent = (value, target) => value != null && target ? Math.round(value / target * 100) : null;
+    const tile = (label, value, sub, tone = '') => `<div class="metric ${tone}"><span>${label}</span><b>${value}</b><small>${sub}</small></div>`;
+    const kcalPct = percent(metrics.kcal, metrics.kcalTarget);
+    const proteinPct = percent(metrics.protein, metrics.proteinTarget);
+    const doneRatio = metrics.workoutDays / Math.max(1, metrics.goal);
+    const partValues = PART_ORDER.map(part => [part, metrics.parts[part]]);
+    const balanced = partValues.filter(([, value]) => value >= 10 && value <= 20).length;
+    const lacking = partValues.filter(([, value]) => value < 10).map(([part]) => part);
+    const weightDiff = metrics.weightStart != null && metrics.weightEnd != null ? Math.round((metrics.weightEnd - metrics.weightStart) * 10) / 10 : null;
+    return `<div class="metric-grid">
+      ${tile('운동 수행', `${metrics.workoutDays}/${metrics.goal}회`, metrics.planned ? `AI 계획 ${metrics.plannedDone}/${metrics.planned}회 수행` : '주간 목표 대비', doneRatio >= .8 ? 'good' : 'warn')}
+      ${tile('총 볼륨', metrics.volume ? `${Math.round(metrics.volume).toLocaleString()}kg` : '–', metrics.volumeChange != null ? `지난주 대비 ${metrics.volumeChange > 0 ? '+' : ''}${metrics.volumeChange}%` : '비교할 기록 없음', metrics.volumeChange == null ? '' : metrics.volumeChange >= 0 ? 'good' : 'warn')}
+      ${tile('운동 소모', metrics.burnKcal ? `${metrics.burnKcal.toLocaleString()}kcal` : '–', metrics.rpe ? `평균 RPE ${metrics.rpe.toFixed(1)}` : '강도 기록 없음')}
+      ${tile('부위 균형', `${balanced}/6 적정`, lacking.length ? `부족: ${lacking.slice(0, 3).join('·')}` : '모든 부위 적정', balanced >= 4 ? 'good' : 'warn')}
+      ${tile('평균 섭취', metrics.kcal != null ? `${Math.round(metrics.kcal).toLocaleString()}kcal` : '–', kcalPct != null ? `목표의 ${kcalPct}% · ${metrics.mealDays}일 기록` : '식단 기록 없음', kcalPct == null ? '' : kcalPct >= 90 && kcalPct <= 105 ? 'good' : 'warn')}
+      ${tile('단백질', metrics.protein != null ? `${Math.round(metrics.protein)}g` : '–', proteinPct != null ? `목표의 ${proteinPct}%` : '식단 기록 없음', proteinPct == null ? '' : proteinPct >= 90 ? 'good' : 'warn')}
+      ${tile('수면·컨디션', metrics.sleep != null ? `${metrics.sleep.toFixed(1)}시간` : '–', metrics.condition != null ? `컨디션 ${metrics.condition.toFixed(1)}/5` : '체크인 기록 없음', metrics.sleep == null ? '' : metrics.sleep >= 7 ? 'good' : 'warn')}
+      ${tile('공복 체중', metrics.weightEnd != null ? `${metrics.weightEnd}kg` : '–', weightDiff ? `주간 ${weightDiff > 0 ? '+' : ''}${weightDiff}kg` : '체크인에 체중을 적어주세요')}
+    </div>`;
+  }
+
+  function fallbackReport(state, metrics, error) {
+    const kcalPct = metrics.kcal != null ? Math.round(metrics.kcal / metrics.kcalTarget * 100) : null;
+    const lacking = PART_ORDER.filter(part => metrics.parts[part] < 10);
+    return {
+      version: 2, fallback: true, error: error?.message || '',
+      headline: metrics.workoutDays >= metrics.goal ? '목표 횟수를 채운 한 주' : '루틴을 다시 세우는 한 주',
+      summary: `운동 ${metrics.workoutDays}일, 식단 ${metrics.mealDays}일을 기록했어요. AI 서버 연결이 원활하지 않아 저장된 수치로 기본 리포트를 만들었어요.`,
+      training: { status: metrics.rpe >= 9 ? '회복' : metrics.volumeChange != null && metrics.volumeChange < -15 ? '조정' : '유지', analysis: `총 볼륨 ${Math.round(metrics.volume).toLocaleString()}kg${metrics.volumeChange != null ? `(지난주 대비 ${metrics.volumeChange > 0 ? '+' : ''}${metrics.volumeChange}%)` : ''}. ${lacking.length ? `${lacking.join('·')} 세트가 주 10세트에 못 미쳐요.` : '부위별 세트가 고르게 분포했어요.'}` },
+      nutrition: kcalPct != null ? `기록한 날 평균 ${Math.round(metrics.kcal)}kcal로 목표의 ${kcalPct}%, 단백질은 평균 ${Math.round(metrics.protein || 0)}g이에요.` : '식단 기록이 없어 영양 분석을 하지 못했어요.',
+      recovery: metrics.sleep != null ? `평균 수면 ${metrics.sleep.toFixed(1)}시간${metrics.condition != null ? `, 컨디션 ${metrics.condition.toFixed(1)}/5` : ''}이에요.` : '아침 체크인을 남기면 회복 상태까지 분석해요.',
+      strengths: [metrics.workoutDays ? `${metrics.workoutDays}일 운동을 기록했어요.` : '기록을 시작한 것 자체가 좋은 출발이에요.', metrics.mealDays >= 4 ? `${metrics.mealDays}일 식단을 기록해 패턴이 보여요.` : '기록한 식단이 다음 계획의 기준이 돼요.'],
+      adjustments: [kcalPct != null && kcalPct > 105 ? `평균 섭취가 목표보다 ${Math.round(metrics.kcal - metrics.kcalTarget)}kcal 많아요. 간식과 음료부터 줄여보세요.` : '매 끼니 단백질 30g 이상을 먼저 채워보세요.', lacking.length ? `${lacking[0]} 운동을 주 2회 넣어 세트를 늘려보세요.` : '지금 볼륨을 유지하며 무게를 조금씩 올려보세요.'],
+      nextActions: ['운동 후 RPE와 메모를 남기기', '아침 체크인(공복 체중·수면·컨디션) 매일 기록하기', '같은 종목은 지난번보다 1회 또는 2.5kg 더 해보기']
+    };
+  }
+
+  function reportMarkup(saved, state) {
+    const end = saved.period?.end || dateKey(new Date(saved.createdAt || Date.now()));
+    const metrics = weeklyMetrics(state, end);
+    const statusTone = { 상향: 'up', 유지: 'keep', 조정: 'warn', 회복: 'rest' };
+    const score = Math.max(0, Math.min(100, Math.round(+saved.score || 0)));
+    const sections = saved.training ? `
+      <div class="report-section"><h4>훈련 <i class="status ${statusTone[saved.training.status] || 'keep'}">다음 주 ${esc(saved.training.status || '유지')}</i></h4><p>${esc(saved.training.analysis || '')}</p></div>
+      <div class="report-section"><h4>영양</h4><p>${esc(saved.nutrition || '')}</p></div>
+      <div class="report-section"><h4>회복</h4><p>${esc(saved.recovery || '')}</p></div>` : '';
+    return `<div class="report-top"><div class="coach-title"><span>${saved.auto ? '일요일 자동 주간 리포트' : 'WEEKLY REPORT'} · ${shortDate(metrics.start)}–${shortDate(metrics.end)}</span><strong>${esc(saved.headline || '이번 주 리포트')}</strong></div>${score ? `<div class="score-ring" style="--p:${score}"><b>${score}</b><small>점</small></div>` : ''}</div>
+      <p class="report-summary">${esc(saved.summary || '')}</p>
+      ${metricTiles(metrics)}
+      ${sections}
+      <div class="coach-columns"><div><b>잘한 점</b>${(saved.strengths || []).map(item => `<p>✓ ${esc(item)}</p>`).join('')}</div><div><b>조정할 점</b>${(saved.adjustments || []).map(item => `<p>• ${esc(item)}</p>`).join('')}</div></div>
+      <div class="coach-plan"><b>다음 7일 실행 계획</b>${(saved.nextActions || []).map((item, index) => `<p><span>${index + 1}</span>${esc(item)}</p>`).join('')}</div>
+      ${targetSummary(state)}
+      <small class="coach-note">${saved.fallback ? `AI 연결 오류: ${esc(saved.error || '연결 실패')} · ` : saved.createdAt ? `${new Date(saved.createdAt).toLocaleString('ko-KR')} 작성 · ` : ''}기록 기반 일반 코칭이며 의료 진단을 대신하지 않아요.</small>
+      <div class="coach-actions"><button type="button" class="link" data-coach-run>${saved.fallback ? 'AI 리포트 다시 시도' : '다시 분석'}</button><button type="button" class="link" data-go="workout">주간 운동 계획 보기 ›</button></div>`;
+  }
+
+  function adviceMarkup(state, open = false) {
+    const advice = state.profile?.eventAdvice;
+    const result = advice?.result;
+    return `<details class="event-advice" ${open ? 'open' : ''}><summary>특별 일정 조언받기 <b>＋</b></summary><div>
+      <textarea class="textarea compact" id="eventAdviceText" placeholder="예: 금요일 회식, 토요일 결혼식 뷔페가 있어요. 주말엔 운동을 못 해요.">${esc(advice?.text || '')}</textarea>
+      <button type="button" class="primary mint full" id="runEventAdvice">코치 조언 받기</button><p class="notice" id="eventAdviceNotice"></p>
+      ${result ? `<div class="advice-result"><strong>${esc(result.headline)}</strong><p>${esc(result.summary)}</p><ol>${(result.recommendations || []).map(item => `<li><b>${esc(item.title)}</b><span>${esc(item.detail)}</span></li>`).join('')}</ol>${(result.cautions || []).length ? `<div class="advice-cautions"><b>피하면 좋은 것</b>${result.cautions.map(item => `<p>• ${esc(item)}</p>`).join('')}</div>` : ''}<small>${new Date(advice.createdAt).toLocaleString('ko-KR')} 작성</small></div>` : ''}
+    </div></details>`;
+  }
+
   function installWeeklyCoach() {
-    const report = $('[data-view="report"] .content');
-    const firstChart = report?.querySelector('.chart-card');
-    if (!report || !firstChart || $('#weeklyCoach')) return;
+    const anchor = $('#bodyComment') || $('#bodyCard');
+    if (!anchor || $('#weeklyCoach')) return;
     const coach = document.createElement('section');
-    coach.id = 'weeklyCoach'; coach.className = 'card weekly-coach';
-    const saved = readState().profile?.weeklyCoach;
-    coach.innerHTML = saved ? weeklyCoachMarkup(saved) : `<div class="coach-title"><span>FITLOG WEEKLY COACH</span><strong>지난 7일을 함께 읽어볼까요?</strong><small>매주 일요일 밤 11시 이후 앱을 열면 기록·인바디·목표를 함께 분석해 다음 주 기준을 조정해요.</small></div><button type="button" class="primary full" id="runWeeklyCoach">지금 주간 코칭 받기</button>${adviceMarkup()}`;
-    firstChart.insertAdjacentElement('afterend', coach);
-    bindCoachActions();
+    coach.id = 'weeklyCoach';
+    coach.className = 'card weekly-coach';
+    anchor.insertAdjacentElement('afterend', coach);
+    let busy = false;
 
-    function weekRows(state) {
-      const dates = Array.from({length:7}, (_, i) => { const d=new Date(); d.setDate(d.getDate()-6+i); return dateKey(d); });
-      return dates.map(date => { const log=state.logs?.[date] || {}; const meals=log.meals || []; const workouts=log.workouts || []; return { date, recorded: Boolean(meals.length || workouts.length), kcal: meals.length ? meals.reduce((s,m)=>s+(+m.kcal||0),0) : null, protein: meals.length ? meals.reduce((s,m)=>s+(+m.protein||0),0) : null, workouts: workouts.map(w=>({type:w.group||w.type||w.name||'운동', volume:workoutVolume(w)||null, cardioKcal:cardioCalories(w)||null})) }; });
-    }
-
-    function weeklyCoachMarkup(savedCoach) {
-      return `<div class="coach-title"><span>${savedCoach.auto ? '일요일 자동 주간 리포트' : '이번 주 코치 노트'}</span><strong>${esc(savedCoach.headline || '꾸준함을 이어갈 한 주')}</strong><small>${esc(savedCoach.summary || '')}</small></div><div class="coach-columns"><div><b>잘한 점</b>${(savedCoach.strengths||[]).map(x=>`<p>✓ ${esc(x)}</p>`).join('')}</div><div><b>조정할 점</b>${(savedCoach.adjustments||[]).map(x=>`<p>• ${esc(x)}</p>`).join('')}</div></div><div class="coach-plan"><b>다음 7일 실행 계획</b>${(savedCoach.nextActions||[]).map((x,i)=>`<p><span>${i+1}</span>${esc(x)}</p>`).join('')}</div>${targetSummary(readState())}<small class="coach-note">${savedCoach.createdAt ? `${new Date(savedCoach.createdAt).toLocaleString('ko-KR')} 작성 · ` : ''}기록 기반 일반 코칭이며 의료 진단을 대신하지 않아요.</small><button type="button" class="link" id="refreshCoach">다시 분석</button>${adviceMarkup()}`;
-    }
-
-    function adviceMarkup() {
-      return `<details class="event-advice"><summary>특별 일정 조언하기 <b>＋</b></summary><div><textarea class="textarea compact" id="eventAdviceText" placeholder="예: 추석 연휴 동안 식사가 많았고 이번 주 운동은 2회만 가능해요."></textarea><button type="button" class="primary mint full" id="runEventAdvice">목표 kcal·운동강도만 조정</button><p class="notice" id="eventAdviceNotice"></p></div></details>`;
-    }
-
-    function bindCoachActions() {
-      $('#runWeeklyCoach')?.addEventListener('click', () => runWeeklyCoach(false));
-      $('#refreshCoach')?.addEventListener('click', () => runWeeklyCoach(false));
-      $('#runEventAdvice')?.addEventListener('click', runEventAdvice);
+    function render(temporary = null, adviceOpen = false) {
+      const state = readState();
+      const saved = temporary || state.profile?.weeklyCoach;
+      coach.innerHTML = (saved ? reportMarkup(saved, state) : `<div class="coach-title"><span>FITLOG WEEKLY REPORT</span><strong>지난 7일을 함께 읽어볼까요?</strong><small>운동·식단·체크인·메모를 종합해 점수와 다음 주 기준을 알려드려요. 매주 일요일 밤 11시 이후 앱을 열면 자동으로 만들어져요.</small></div>${metricTiles(weeklyMetrics(state))}<button type="button" class="primary full" data-coach-run>지금 주간 리포트 받기</button>`) + adviceMarkup(state, adviceOpen);
+      if (busy) coach.querySelectorAll('[data-coach-run]').forEach(button => { button.disabled = true; button.textContent = '기록을 분석하는 중…'; });
     }
 
     async function runWeeklyCoach(auto) {
       const state = readState();
-      const rows = weekRows(state);
-      const button = $('#runWeeklyCoach') || $('#refreshCoach');
-      const current = state.profile?.targets || { kcal: 2200, protein: 153, carbs: 260, fat: 61 };
-      const prompt = `대한민국 최고 수준의 스포츠영양·피트니스 코치처럼 분석한다. 현재 목표: ${JSON.stringify(current)}, 주 ${state.profile?.workoutGoal || 4}회, ${state.profile?.trainingIntensity || '중간'} 강도. 사용자: ${profileContextText(state)}. 최근 7일: ${JSON.stringify(rows)}. 미기록은 0kcal로 보지 않는다. 최신 인바디와 실제 기록으로 다음 7일 기준을 보수적으로 조정한다. kcal은 주당 최대 100, 운동은 최대 1회만 바꾸며 과식 후 굶기는 금지한다. 의료 진단은 하지 않는다.`;
       const settings = parse(localStorage.getItem(AI_KEY), {}) || {};
-      if (!settings.token) return showToast('더보기에서 AI 연결 토큰을 먼저 설정해 주세요.');
-      if (!rows.some(row => row.recorded)) return showToast('이번 주 기록이 생기면 주간 코칭을 만들 수 있어요.');
-      if (button) { button.disabled = true; button.textContent = '기록을 분석하는 중…'; }
+      if (!settings.token) { if (!auto) showToast('더보기에서 AI 연결 토큰을 먼저 설정해 주세요.'); return; }
+      const end = dateKey(new Date());
+      const metrics = weeklyMetrics(state, end);
+      if (!metrics.workoutDays && !metrics.mealDays && metrics.sleep == null) { if (!auto) showToast('이번 주 기록이 생기면 리포트를 만들 수 있어요.'); return; }
+      busy = true;
+      render();
+      const current = state.profile?.targets || { kcal: 2200, protein: 153, carbs: 260, fat: 61 };
+      const goal = +(state.profile?.workoutGoal || 4);
+      const plan = currentPlan(state);
+      const inbody = (state.inbody || []).filter(item => !item.excluded).slice(-3).map(item => `${item.date} 체중${item.weight} 골격근${item.smm} 체지방률${item.pbf ?? item.bodyFat}`).join(' | ');
+      const prompt = [
+        '지난 7일을 분석해 전문적인 주간 리포트를 작성한다.',
+        `사용자: ${profileContextText(state)}`,
+        `현재 목표: ${JSON.stringify(current)}, 주 ${goal}회, ${state.profile?.trainingIntensity || '중간'} 강도`,
+        `주간 지표:\n${metricsText(metrics)}`,
+        `일별 기록:\n${recentLogText(state, 7)}`,
+        `종목별 최근 수행:\n${exerciseHistoryText(state)}`,
+        plan ? `이번 주 계획: ${plan.title} / ${plan.principle} / ${plan.days.map(day => `${weekdayName(day.date)} ${day.rest ? '휴식' : day.focus}(${dayState(state, day) === 'done' ? '수행' : dayState(state, day) === 'missed' ? '놓침' : '예정'})`).join(', ')}` : '',
+        inbody ? `최근 인바디: ${inbody}` : '',
+        '작성 규칙: score는 0~100(운동 수행 35, 영양 30, 회복 20, 기록 충실도 15). training.status는 다음 주 부하 방향(상향/유지/조정/회복). training.analysis는 볼륨 변화·강도(RPE)·부위 균형·과부하 진행을 수치 근거로 2~3문장. nutrition과 recovery도 각각 수치를 근거로 2~3문장. strengths와 adjustments는 구체적인 행동 단위. nextActions는 다음 주에 바로 할 3가지. targets의 kcal은 현재에서 ±100 이내, workouts는 ±1 이내로 보수적으로. 미기록일은 0kcal로 보지 않는다. 의료 진단은 하지 않는다.'
+      ].filter(Boolean).join('\n\n');
       try {
-        const coaching = await analyzeCoachingSafely(settings, prompt, 'weekly');
-        const result = coaching.result;
+        const result = await analyzeWithAi(settings, prompt, 'report', false);
+        if (!result?.training || !result?.targets) throw new Error('AI 서버 함수가 이전 버전이에요. Supabase에 새 함수를 배포해 주세요.');
         const next = readState();
-        const proposed = coaching.plan ? {
-          kcal: clamp(coaching.plan.kcal, 1200, 4500, current.kcal),
-          protein: clamp(coaching.plan.protein, 40, 350, current.protein),
-          carbs: clamp(coaching.plan.carbs, 60, 650, current.carbs),
-          fat: clamp(coaching.plan.fat, 30, 180, current.fat),
-          workouts: clamp(coaching.plan.workouts, 1, 7, next.profile?.workoutGoal || 4),
-          intensity: ['낮음', '중간', '높음'].includes(coaching.plan.intensity) ? coaching.plan.intensity : (next.profile?.trainingIntensity || '중간')
-        } : null;
-        if (proposed) {
-          proposed.kcal = clamp(proposed.kcal, current.kcal - 100, current.kcal + 100, current.kcal);
-          proposed.workouts = clamp(proposed.workouts, Math.max(1, (next.profile?.workoutGoal || 4) - 1), Math.min(7, (next.profile?.workoutGoal || 4) + 1), next.profile?.workoutGoal || 4);
-          saveAiTargets(next, proposed, '주간 리포트 자동 조정');
-        }
-        const savedCoach = { ...result, createdAt: new Date().toISOString(), auto };
         next.profile ||= {};
-        next.profile.weeklyCoach = savedCoach;
+        const workouts = next.profile.workoutGoal || 4;
+        saveAiTargets(next, {
+          kcal: clamp(result.targets.kcal, current.kcal - 100, current.kcal + 100, current.kcal),
+          protein: clamp(result.targets.protein, 40, 350, current.protein),
+          carbs: clamp(result.targets.carbs, 60, 650, current.carbs),
+          fat: clamp(result.targets.fat, 30, 180, current.fat),
+          workouts: clamp(result.targets.workouts, Math.max(1, workouts - 1), Math.min(7, workouts + 1), workouts),
+          intensity: ['낮음', '중간', '높음'].includes(result.targets.intensity) ? result.targets.intensity : (next.profile.trainingIntensity || '중간')
+        }, '주간 리포트 자동 조정');
+        next.profile.weeklyCoach = { ...result, version: 2, createdAt: new Date().toISOString(), auto, period: { start: metrics.start, end } };
         next.profile.weeklyCoachKey = scheduledCoachKey();
         writeState(next);
-        coach.innerHTML = weeklyCoachMarkup(savedCoach);
-        bindCoachActions();
+        busy = false;
+        render();
         window.dispatchEvent(new CustomEvent('fitlog:state-updated'));
       } catch (error) {
-        const recorded = rows.filter(row => row.kcal > 0); const active = rows.filter(row => row.workouts.length);
-        const target = +(state.profile?.targets?.kcal || 2200);
-        const average = recorded.length ? Math.round(recorded.reduce((sum,row)=>sum+row.kcal,0)/recorded.length) : 0;
-        const strengths = [active.length ? `${active.length}일 운동 기록을 남겨 흐름을 확인할 수 있어요.` : '운동 기록을 시작하면 훈련 흐름을 더 정확히 볼 수 있어요.', recorded.length >= 4 ? `${recorded.length}일 식단을 기록해 섭취 패턴이 잘 보입니다.` : '기록한 식단은 다음 계획을 조정하는 좋은 기준이 됩니다.'];
-        const adjustments = [average && average > target ? `기록일 평균이 목표보다 ${average-target}kcal 높아 간식과 음료부터 조정해 보세요.` : '칼로리뿐 아니라 매 끼니 단백질과 채소 구성을 함께 확인해 보세요.', active.length < +(state.profile?.workoutGoal || 5) ? `주간 목표까지 ${Math.max(0, +(state.profile?.workoutGoal || 5)-active.length)}회 남았어요. 짧은 운동도 기록해 보세요.` : '훈련량이 충분하니 수면과 회복 상태도 함께 살펴보세요.'];
-        const nextActions = ['운동하는 날에는 근력운동 총 볼륨을 입력해 증가 폭을 확인하기', '식사는 빠뜨리지 않고 기록하되 미기록일을 억지로 0kcal로 채우지 않기', '다음 인바디 측정은 비슷한 시간과 상태에서 진행하기'];
-        coach.innerHTML = `<div class="coach-title"><span>기록 기반 코치 노트</span><strong>${active.length >= 3 ? '좋은 흐름을 꾸준히 이어가요' : '이번 주는 기록과 루틴부터 단단하게'}</strong><small>AI 서버 연결이 원활하지 않아 저장된 기록으로 기본 코칭을 만들었어요.</small></div><div class="coach-columns"><div><b>잘한 점</b>${strengths.map(x=>`<p>✓ ${esc(x)}</p>`).join('')}</div><div><b>조정할 점</b>${adjustments.map(x=>`<p>• ${esc(x)}</p>`).join('')}</div></div><div class="coach-plan"><b>다음 7일 실행 계획</b>${nextActions.map((x,i)=>`<p><span>${i+1}</span>${esc(x)}</p>`).join('')}</div><small class="coach-note">연결 오류: ${esc(error.message || 'AI 서버 연결 실패')} · 의료 진단을 대신하지 않아요.</small><button type="button" class="link" id="refreshCoach">AI 코칭 다시 시도</button>${adviceMarkup()}`;
-        bindCoachActions();
+        busy = false;
+        render({ ...fallbackReport(state, metrics, error), createdAt: new Date().toISOString(), period: { start: metrics.start, end } });
       }
     }
 
     async function runEventAdvice() {
       const text = $('#eventAdviceText')?.value.trim();
       const notice = $('#eventAdviceNotice');
-      if (!text) return notice.textContent = '특별 일정이나 최근 변화를 적어주세요.';
-      const state = readState();
+      if (!text) { notice.textContent = '특별 일정이나 최근 상황을 적어주세요.'; return; }
       const settings = parse(localStorage.getItem(AI_KEY), {}) || {};
+      if (!settings.token) { notice.textContent = '더보기에서 AI 연결 토큰을 먼저 설정해 주세요.'; return; }
+      const state = readState();
       const button = $('#runEventAdvice');
-      button.disabled = true; button.textContent = '조정안을 계산하는 중…';
+      button.disabled = true;
+      button.textContent = '코치가 조언을 정리하는 중…';
       try {
-        const prompt = `사용자 정보: ${profileContextText(state)}. 현재 목표 ${JSON.stringify(state.profile?.targets || {})}, 운동강도 ${state.profile?.trainingIntensity || '중간'}. 특별 상황: ${text}. 건강한 보상행동 원칙을 지키며 목표 kcal와 운동강도만 보수적으로 수정하고 영양소와 운동 횟수는 유지한다.`;
-        const coaching = await analyzeCoachingSafely(settings, prompt, 'event');
-        const result = coaching.result;
-        const next = readState(); const plan = coaching.plan;
-        if (!plan) throw new Error('조정값을 읽지 못했어요.');
-        next.profile.targets.kcal = clamp(plan.kcal, next.profile.targets.kcal - 150, next.profile.targets.kcal + 150, next.profile.targets.kcal);
-        next.profile.trainingIntensity = ['낮음', '중간', '높음'].includes(plan.intensity) ? plan.intensity : (next.profile.trainingIntensity || '중간');
+        const plan = currentPlan(state);
+        const prompt = [
+          `특별 일정·상황: ${text}`,
+          `오늘: ${dateKey(new Date())}(${weekdayName(dateKey(new Date()))})`,
+          `사용자: ${profileContextText(state)}`,
+          `현재 목표: ${JSON.stringify(state.profile?.targets || {})}, 주 ${state.profile?.workoutGoal || 4}회`,
+          `최근 7일 지표:\n${metricsText(weeklyMetrics(state))}`,
+          `최근 기록:\n${recentLogText(state, 7)}`,
+          plan ? `남은 운동 계획: ${plan.days.filter(day => day.date >= dateKey(new Date())).map(day => `${weekdayName(day.date)} ${day.rest ? '휴식' : day.focus}`).join(', ')}` : '',
+          '요구: 이 일정 전·당일·후에 식사, 운동, 수면·회복을 어떻게 조정할지 전문 코치로서 구체적으로 조언한다. recommendations는 3~5개, title은 한 줄 행동, detail은 이유와 방법을 메뉴·분량·시간 예시와 함께 2~3문장. cautions는 피해야 할 행동. 굶기나 과도한 보상 운동은 권하지 않고, 목표 kcal 숫자를 바꾸라는 대신 행동으로 제안한다.'
+        ].filter(Boolean).join('\n\n');
+        const result = await analyzeWithAi(settings, prompt, 'advice', false);
+        if (!Array.isArray(result?.recommendations)) throw new Error('AI 서버 함수가 이전 버전이에요. Supabase에 새 함수를 배포해 주세요.');
+        const next = readState();
+        next.profile ||= {};
         next.profile.recommendationContext ||= {};
         next.profile.recommendationContext.eventContext = text;
-        next.profile.targetUpdatedAt = new Date().toISOString();
-        next.profile.targetReason = '특별 일정 조언';
+        next.profile.eventAdvice = { text, result, createdAt: new Date().toISOString() };
         writeState(next);
-        notice.textContent = result.summary || '목표를 조정했어요.';
-        window.dispatchEvent(new CustomEvent('fitlog:state-updated'));
+        render(null, true);
       } catch (error) {
-        notice.textContent = error.message || '조정하지 못했어요.';
-      } finally {
-        button.disabled = false; button.textContent = '목표 kcal·운동강도만 조정';
+        notice.textContent = error.message || '조언을 만들지 못했어요.';
+        button.disabled = false;
+        button.textContent = '코치 조언 받기';
       }
     }
+
+    coach.addEventListener('click', event => {
+      if (event.target.closest('[data-coach-run]')) runWeeklyCoach(false);
+      if (event.target.closest('#runEventAdvice')) runEventAdvice();
+    });
+    render();
+    window.addEventListener('fitlog:state-updated', () => { if (!busy && !coach.contains(document.activeElement)) render(null, coach.querySelector('.event-advice')?.open); });
 
     function scheduledCoachKey(now = new Date()) {
       const due = new Date(now);
@@ -774,15 +1211,26 @@
       return dateKey(due);
     }
 
-    function maybeRunScheduledCoach() {
+    let scheduledRunning = false;
+    async function maybeRunScheduledCoach() {
       const state = readState();
-      const dueKey = scheduledCoachKey();
-      const due = new Date(`${dueKey}T23:00:00`);
-      const hasRecords = weekRows(state).some(row => row.recorded);
       const settings = parse(localStorage.getItem(AI_KEY), {}) || {};
-      if (new Date() >= due && state.profile?.weeklyCoachKey !== dueKey && hasRecords && settings.token) setTimeout(() => runWeeklyCoach(true), 1200);
+      const dueKey = scheduledCoachKey();
+      if (scheduledRunning || !settings.token || new Date() < new Date(`${dueKey}T23:00:00`)) return;
+      if (state.profile?.weeklyCoachKey === dueKey && state.profile?.planScheduleKey === dueKey) return;
+      // 실패하면 열 때마다 재시도하지 않도록 자동 실행은 한 시간에 한 번만 시도한다.
+      const lastTry = +localStorage.getItem('fitlog:autoCoachTry') || 0;
+      if (Date.now() - lastTry < 3600000) return;
+      localStorage.setItem('fitlog:autoCoachTry', String(Date.now()));
+      scheduledRunning = true;
+      try {
+        if (state.profile?.weeklyCoachKey !== dueKey && Object.keys(state.logs || {}).length) await runWeeklyCoach(true);
+        await runScheduledPlan(dueKey);
+      } finally {
+        scheduledRunning = false;
+      }
     }
-    maybeRunScheduledCoach();
+    setTimeout(maybeRunScheduledCoach, 1200);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) maybeRunScheduledCoach(); });
     const now = new Date();
     const nextSunday = new Date(now);
@@ -799,6 +1247,406 @@
     toast.classList.add('show');
     clearTimeout(showToast.timer);
     showToast.timer = setTimeout(() => toast.classList.remove('show'), 2600);
+  }
+
+  // ---- 운동 기록 폼 ----
+  let selectedRpe = null;
+  let prefilledPlanDate = null;
+  const goTo = view => $(`.nav [data-go="${view}"]`)?.click();
+  const selectedGroups = () => [...document.querySelectorAll('[name="wt"]:checked')].map(input => input.value);
+
+  function planGroups(text) {
+    const groups = [];
+    if (/가슴|어깨|삼두|밀기|푸시|push/i.test(text)) groups.push('밀기');
+    if (/등|이두|당기기|풀|pull|로우/i.test(text)) groups.push('당기기');
+    if (/하체|다리|스쿼트|레그|런지/.test(text)) groups.push('하체');
+    if (/전신|full/i.test(text)) groups.push('전신');
+    if (/유산소|축구|러닝|달리기|cardio/i.test(text)) groups.push('유산소(축구)');
+    return groups;
+  }
+
+  function workoutDraft() {
+    const state = readState();
+    const groups = selectedGroups();
+    const exercises = parseWorkoutText($('#workoutNote')?.value, groups.join('·'));
+    const cardio = groups.some(group => /유산소/.test(group));
+    const estimate = estimateWorkout(exercises, {
+      minutes: +$('#workoutMinutes')?.value || 0, rpe: selectedRpe, groups,
+      manualCardioKcal: cardio ? +$('#workoutKcal')?.value || 0 : 0, bodyWeight: latestBodyWeight(state)
+    });
+    return { state, groups, exercises, estimate, cardio };
+  }
+
+  function renderWorkoutDraft() {
+    const target = $('#workoutParsed');
+    if (!target) return;
+    const { state, exercises, estimate } = workoutDraft();
+    if (!exercises.length) { target.innerHTML = ''; return; }
+    const history = exerciseHistory(state, dateKey(new Date()));
+    const volume = exercises.reduce((sum, exercise) => sum + exercise.volume, 0);
+    target.innerHTML = `<div class="parsed-head"><span>인식된 운동 ${exercises.length}개</span><b>약 ${estimate.kcal.toLocaleString()} kcal 소모</b></div>
+      <ul>${exercises.map(exercise => `<li><div><strong>${esc(exercise.name)}</strong><span>${esc(setSummary(exercise))}</span></div><div class="badges">${progressBadges(exerciseProgress(exercise, history))}</div></li>`).join('')}</ul>
+      <div class="parsed-foot">${volume ? `총 볼륨 <b>${volume.toLocaleString()}kg</b> · ` : ''}${estimate.strengthSets ? `${estimate.strengthSets}세트 · ` : ''}${estimate.minutes ? `${estimate.estimatedTime ? '약 ' : ''}${estimate.minutes}분 · ` : ''}체중 ${estimate.bodyWeight}kg 기준</div>`;
+  }
+
+  function syncCardioField() {
+    $('#cardioField')?.classList.toggle('hidden', !selectedGroups().some(group => /유산소/.test(group)));
+  }
+
+  function setRpe(value) {
+    selectedRpe = value;
+    document.querySelectorAll('[data-rpe]').forEach(button => button.classList.toggle('on', +button.dataset.rpe === value));
+    if ($('#rpeLabel')) $('#rpeLabel').textContent = value ? `${value} · ${RPE_LABELS[value]}` : '선택 안 함';
+  }
+
+  function workoutWarn(message) {
+    const notice = $('#workoutNotice');
+    notice.textContent = message;
+    notice.classList.add('warn');
+    const choices = $('.choices');
+    choices.classList.remove('shake'); void choices.offsetWidth; choices.classList.add('shake');
+  }
+
+  function resetWorkoutForm() {
+    document.querySelectorAll('[name="wt"]').forEach(input => { input.checked = false; });
+    ['#workoutNote', '#workoutKcal', '#workoutMinutes', '#workoutComment'].forEach(selector => { if ($(selector)) $(selector).value = ''; });
+    prefilledPlanDate = null;
+    setRpe(null);
+    syncCardioField();
+    renderWorkoutDraft();
+  }
+
+  function saveWorkoutRecord() {
+    const notice = $('#workoutNotice');
+    const { state, groups, exercises, estimate, cardio } = workoutDraft();
+    if (!groups.length) return workoutWarn('운동 종류를 하나 이상 선택해 주세요.');
+    const today = dateKey(new Date());
+    const note = $('#workoutNote').value.trim();
+    const history = exerciseHistory(state, today);
+    const prs = exercises.filter(exercise => exerciseProgress(exercise, history)?.pr).length;
+    const totalVolume = exercises.reduce((sum, exercise) => sum + exercise.volume, 0);
+    const manualKcal = cardio ? +$('#workoutKcal').value || 0 : 0;
+    const record = {
+      id: crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`,
+      group: groups.join('·'), name: note.split('\n')[0] || groups.join('·'), note, exercises, totalVolume,
+      minutes: estimate.minutes || null, minutesEstimated: estimate.estimatedTime, rpe: selectedRpe,
+      comment: $('#workoutComment').value.trim(), burnKcal: estimate.kcal, cardioKcal: estimate.cardioKcal
+    };
+    if (manualKcal) record.kcal = manualKcal;
+    if (prefilledPlanDate) record.planDate = prefilledPlanDate;
+    state.logs ||= {};
+    state.logs[today] ||= { meals: [], workouts: [] };
+    state.logs[today].workouts ||= [];
+    state.logs[today].workouts.push(record);
+    writeState(state);
+    window.dispatchEvent(new CustomEvent('fitlog:state-updated'));
+    resetWorkoutForm();
+    notice.classList.remove('warn');
+    notice.textContent = ['저장했어요', totalVolume ? `볼륨 ${totalVolume.toLocaleString()}kg` : '', estimate.kcal ? `약 ${estimate.kcal.toLocaleString()}kcal 소모` : '', prs ? `🏆 PR ${prs}개` : ''].filter(Boolean).join(' · ');
+    setTimeout(() => { notice.textContent = ''; goTo('home'); }, 1400);
+  }
+
+  function prefillWorkout(day) {
+    const cardioMatch = String(day.cardio || '').match(/([가-힣a-zA-Z ]+?)\s*(\d+)\s*분/);
+    const lines = (day.exercises || []).map(exercise => {
+      const reps = parseInt(exercise.reps, 10) || 0;
+      const sets = Math.max(1, Math.round(+exercise.sets || 1));
+      return `${exercise.name} ${+exercise.weight ? `${+exercise.weight}kg ` : ''}${reps ? Array(sets).fill(reps).join('/') : `${sets}세트`}`;
+    });
+    if (cardioMatch) lines.push(`${cardioMatch[1].trim()} ${cardioMatch[2]}분`);
+    const groups = planGroups(`${day.focus} ${(day.exercises || []).map(exercise => exercise.name).join(' ')} ${cardioMatch ? '유산소' : ''}`);
+    document.querySelectorAll('[name="wt"]').forEach(input => { input.checked = groups.includes(input.value); });
+    $('#workoutNote').value = lines.join('\n');
+    prefilledPlanDate = day.date;
+    syncCardioField();
+    renderWorkoutDraft();
+    if (location.hash !== '#workout') goTo('workout');
+    setTimeout(() => $('#workoutForm')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+    showToast('계획을 채워뒀어요. 실제로 한 무게·횟수로 고쳐서 저장하세요.');
+  }
+
+  function installWorkoutForm() {
+    const note = $('#workoutNote');
+    if (!note || note.dataset.enhanced) return;
+    note.dataset.enhanced = 'true';
+    note.addEventListener('input', renderWorkoutDraft);
+    ['#workoutMinutes', '#workoutKcal'].forEach(selector => $(selector)?.addEventListener('input', renderWorkoutDraft));
+    document.querySelectorAll('[name="wt"]').forEach(input => input.addEventListener('change', () => {
+      syncCardioField();
+      renderWorkoutDraft();
+      $('#workoutNotice').classList.remove('warn');
+      $('#workoutNotice').textContent = '';
+    }));
+    document.querySelectorAll('[data-rpe]').forEach(button => button.addEventListener('click', () => {
+      setRpe(selectedRpe === +button.dataset.rpe ? null : +button.dataset.rpe);
+      renderWorkoutDraft();
+    }));
+    $('#loadLastWorkout').onclick = () => {
+      const state = readState();
+      const last = Object.keys(state.logs || {}).filter(validDate).sort().reverse().map(date => (state.logs[date].workouts || []).at(-1)).find(Boolean);
+      if (!last) return showToast('불러올 운동 기록이 아직 없어요.');
+      const groups = String(last.group || last.type || '').split('·');
+      document.querySelectorAll('[name="wt"]').forEach(input => { input.checked = groups.includes(input.value); });
+      note.value = last.note || last.name || '';
+      syncCardioField();
+      renderWorkoutDraft();
+      showToast('최근 기록을 불러왔어요. 무게·횟수만 바꿔 저장하세요.');
+    };
+    $('#saveWorkout').onclick = saveWorkoutRecord;
+    setRpe(null);
+  }
+
+  // ---- AI 주간 운동 계획 ----
+  let planBusy = false;
+  let selectedPlanDate = null;
+
+  const currentPlan = (state = readState()) => state.profile?.weeklyPlan || null;
+  const shortFocus = day => day.rest ? '휴식' : String(day.focus || '운동').split(/[\s·,/(]/)[0].slice(0, 4);
+
+  function planDay(state, key) {
+    for (const plan of [state.profile?.weeklyPlan, ...(state.profile?.planHistory || [])].filter(Boolean)) {
+      const day = (plan.days || []).find(item => item.date === key);
+      if (day) return day;
+    }
+    return null;
+  }
+
+  function dayState(state, day) {
+    const today = dateKey(new Date());
+    if ((state.logs?.[day.date]?.workouts || []).length) return 'done';
+    if (day.rest) return 'rest';
+    if (day.date < today) return 'missed';
+    return day.date === today ? 'today' : 'planned';
+  }
+
+  function normalizePlanDay(day) {
+    return {
+      date: day.date,
+      focus: String(day.focus || (day.rest ? '휴식' : '운동')),
+      rest: Boolean(day.rest) || !(day.exercises || []).length && !/\d/.test(day.cardio || ''),
+      exercises: (day.exercises || []).map(exercise => ({
+        name: String(exercise.name || '운동'), weight: Math.max(0, Math.round((+exercise.weight || 0) * 10) / 10),
+        sets: Math.min(10, Math.max(1, Math.round(+exercise.sets || 3))), reps: String(exercise.reps || '10'), note: String(exercise.note || '')
+      })),
+      cardio: String(day.cardio || '없음'),
+      tip: String(day.tip || '')
+    };
+  }
+
+  async function generatePlan({ weekStart, dates, basePlan = null, reason = '직접 요청', auto = false }) {
+    if (planBusy) return null;
+    const settings = parse(localStorage.getItem(AI_KEY), {}) || {};
+    if (!settings.token) { showToast('더보기에서 AI 연결 토큰을 먼저 설정해 주세요.'); return null; }
+    if (!dates.length) { showToast('이번 주에 남은 날이 없어요. 다음 주 계획을 받아보세요.'); return null; }
+    planBusy = true;
+    renderPlanCard();
+    updatePlanHero();
+    try {
+      const state = readState();
+      const info = state.profile?.recommendationContext || {};
+      const coach = state.profile?.weeklyCoach;
+      const pastDays = basePlan ? (basePlan.days || []).filter(day => day.date < dates[0]) : [];
+      const prompt = [
+        `다음 날짜의 운동 계획을 짠다: ${dates.map(date => `${date}(${weekdayName(date)})`).join(', ')}. days는 이 날짜들만 날짜마다 1개씩 순서대로 반환한다.`,
+        `사용자: ${profileContextText(state)}`,
+        `주간 운동 목표 ${state.profile?.workoutGoal || 4}회, 강도 ${state.profile?.trainingIntensity || '중간'}, 운동 가능 일정 ${info.schedule || '정보 없음'}, 부상·주의 ${info.injuries || '없음'}, 선호 ${info.trainingPreference || '정보 없음'}.`,
+        `최근 14일 기록(체크인·식단·운동·메모):\n${recentLogText(state, 14)}`,
+        `종목별 최근 수행:\n${exerciseHistoryText(state)}`,
+        `최근 7일 지표:\n${metricsText(weeklyMetrics(state))}`,
+        coach ? `지난 주간 리포트: ${coach.headline || ''} / 조정할 점: ${(coach.adjustments || []).join(' ')} / 다음 행동: ${(coach.nextActions || []).join(' ')}` : '',
+        pastDays.length ? `이번 주 이미 지난 날: ${pastDays.map(day => `${weekdayName(day.date)} ${day.rest ? '휴식' : day.focus} → ${(state.logs?.[day.date]?.workouts || []).length ? '수행함' : '못 함'}`).join(', ')}. 못 한 운동의 핵심 부위를 남은 날에 우선 배치하되 같은 부위를 연달아 두지 말고 하루 운동량을 과하게 늘리지 않는다.` : '',
+        '규칙: 1) 점진적 과부하 — 직전 수행에서 목표 횟수를 채우고 RPE 8 이하였다면 상체 +2.5kg, 하체 +5kg 또는 세트당 1~2회 증가. RPE 9 이상, 수면 6시간 미만, 컨디션 나쁨, 통증 메모가 있으면 유지하거나 5~10% 낮춘다. 3~4주 연속 증량했고 피로 신호가 있으면 디로드한다. 2) 기록이 없는 종목은 보수적인 시작 무게. 3) 부위별 주간 세트 10~20, 같은 부위는 48시간 휴식. 4) 운동 가능 요일에 맞추고 나머지는 rest=true, exercises는 빈 배열, focus는 휴식, tip에 회복 활동. 5) 각 종목 note에 과부하 근거를 짧게(예: 지난주 40kg×14×4 RPE8 → +2.5kg). weight는 kg 숫자(맨몸 0), reps는 8 또는 8-10 형식. 6) cardio는 유산소가 있으면 러닝 20분처럼, 없으면 없음. 7) principle에 이번 주 과부하 전략을 한두 문장으로. 8) title은 12자 이내.'
+      ].filter(Boolean).join('\n\n');
+      const result = await analyzeWithAi(settings, prompt, 'plan', false);
+      if (!Array.isArray(result?.days) || !result.days.length) throw new Error('AI 서버 함수가 이전 버전이에요. Supabase에 새 함수를 배포해 주세요.');
+      const days = dates.map((date, index) => {
+        const found = result.days.find(day => day.date === date) || result.days[index];
+        return found ? normalizePlanDay({ ...found, date }) : normalizePlanDay({ date, rest: true, exercises: [] });
+      });
+      const next = readState();
+      next.profile ||= {};
+      const previous = next.profile.weeklyPlan;
+      if (previous && previous.weekStart !== weekStart) next.profile.planHistory = [previous, ...(next.profile.planHistory || [])].slice(0, 4);
+      const kept = basePlan?.weekStart === weekStart ? (basePlan.days || []).filter(day => day.date < dates[0]) : [];
+      const now = new Date().toISOString();
+      next.profile.weeklyPlan = {
+        weekStart, title: String(result.title || '이번 주 계획'), summary: String(result.summary || ''), principle: String(result.principle || ''),
+        days: [...kept, ...days].sort((a, b) => a.date.localeCompare(b.date)),
+        createdAt: kept.length ? basePlan.createdAt : now, updatedAt: now, reason, auto
+      };
+      writeState(next);
+      selectedPlanDate = null;
+      window.dispatchEvent(new CustomEvent('fitlog:state-updated'));
+      showToast(kept.length ? '남은 요일 계획을 다시 짰어요.' : 'AI 주간 계획이 준비됐어요.');
+      return next.profile.weeklyPlan;
+    } catch (error) {
+      if (!auto) showToast(error.message || '계획을 만들지 못했어요.');
+      return null;
+    } finally {
+      planBusy = false;
+      renderPlanCard();
+      updatePlanHero();
+    }
+  }
+
+  function planThisWeek() {
+    const state = readState();
+    const weekStart = mondayKey();
+    const today = dateKey(new Date());
+    const plan = currentPlan(state);
+    const doneToday = (state.logs?.[today]?.workouts || []).length > 0;
+    const dates = Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)).filter(date => date > today || (date === today && !doneToday));
+    return generatePlan({ weekStart, dates, basePlan: plan?.weekStart === weekStart ? plan : null, reason: plan?.weekStart === weekStart ? '남은 요일 재조정' : '직접 요청' });
+  }
+
+  function planNextWeek(auto = false) {
+    const weekStart = addDays(mondayKey(), 7);
+    return generatePlan({ weekStart, dates: Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)), reason: auto ? '일요일 자동 계획' : '다음 주 미리 받기', auto });
+  }
+
+  async function runScheduledPlan(dueKey) {
+    const state = readState();
+    const weekStart = addDays(dueKey, 1);
+    const today = dateKey(new Date());
+    if (state.profile?.planScheduleKey === dueKey) return;
+    const markDone = () => { const next = readState(); next.profile ||= {}; next.profile.planScheduleKey = dueKey; writeState(next); };
+    if (state.profile?.weeklyPlan?.weekStart === weekStart) return markDone();
+    const dates = Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)).filter(date => date >= today);
+    const plan = await generatePlan({ weekStart, dates, reason: '일요일 자동 계획', auto: true });
+    if (plan) markDone();
+  }
+
+  function planDayMarkup(day, state) {
+    const status = dayState(state, day);
+    const today = dateKey(new Date());
+    if (day.rest) return `<div class="plan-detail rest"><strong>${weekdayName(day.date)}요일 · 휴식</strong><p>${esc(day.tip || '가벼운 걷기와 스트레칭으로 회복해요.')}</p></div>`;
+    return `<div class="plan-detail">
+      <div class="plan-detail-head"><strong>${weekdayName(day.date)}요일 · ${esc(day.focus)}</strong>${status === 'done' ? '<i class="badge up">완료</i>' : status === 'missed' ? '<i class="badge down">놓침</i>' : ''}</div>
+      <ol class="plan-exercises">${day.exercises.map(exercise => `<li><div><strong>${esc(exercise.name)}</strong>${exercise.note ? `<small>${esc(exercise.note)}</small>` : ''}</div><b>${exercise.weight ? `${exercise.weight}kg · ` : ''}${esc(exercise.reps)}회 × ${exercise.sets}</b></li>`).join('')}</ol>
+      ${day.cardio && day.cardio !== '없음' ? `<p class="plan-note">🏃 ${esc(day.cardio)}</p>` : ''}
+      ${day.tip ? `<p class="plan-note">💡 ${esc(day.tip)}</p>` : ''}
+      ${day.date === today && status !== 'done' ? `<button class="primary mint full" data-plan-action="log" data-date="${day.date}">이 계획으로 기록하기</button>` : ''}
+    </div>`;
+  }
+
+  function renderPlanCard() {
+    const card = $('#planCard');
+    if (!card) return;
+    if (planBusy) {
+      card.innerHTML = '<div class="plan-loading"><span class="spinner dark"></span><strong>AI 코치가 계획을 짜는 중…</strong><small>지난 운동량과 컨디션을 반영하고 있어요. 30초쯤 걸려요.</small></div>';
+      return;
+    }
+    const state = readState();
+    const plan = currentPlan(state);
+    const today = dateKey(new Date());
+    const thisWeek = mondayKey();
+    if (!plan || !(plan.days || []).some(day => day.date >= thisWeek)) {
+      card.innerHTML = `<div class="plan-empty"><span class="plan-eyebrow">AI 주간 계획</span><strong>이번 주 운동 계획이 없어요</strong><small>지난 운동량·컨디션·메모를 바탕으로 점진적 과부하 계획을 짜드려요. 매주 일요일 밤 11시에는 다음 주 계획이 자동으로 만들어져요.</small><button class="primary" data-plan-action="week">이번 주 계획 받기</button></div>`;
+      return;
+    }
+    if (!plan.days.some(day => day.date === selectedPlanDate)) selectedPlanDate = (plan.days.find(day => day.date >= today) || plan.days[0]).date;
+    const day = plan.days.find(item => item.date === selectedPlanDate);
+    const isCurrent = plan.weekStart === thisWeek;
+    const missed = isCurrent ? plan.days.filter(item => dayState(state, item) === 'missed') : [];
+    const week = Array.from({ length: 7 }, (_, index) => addDays(plan.weekStart, index));
+    card.innerHTML = `
+      <div class="plan-head"><div><span class="plan-eyebrow">AI 주간 계획 · ${shortDate(plan.weekStart)}~${shortDate(addDays(plan.weekStart, 6))}</span><strong>${esc(plan.title)}</strong></div>${isCurrent ? '<button class="link" data-plan-action="week">다시 짜기</button>' : '<span class="badge">다음 주</span>'}</div>
+      ${plan.principle ? `<p class="plan-principle">📈 ${esc(plan.principle)}</p>` : ''}
+      ${missed.length ? `<div class="plan-alert"><span>${missed.map(item => weekdayName(item.date)).join('·')}요일 운동을 놓쳤어요.</span><button type="button" data-plan-action="week">남은 요일 다시 짜기</button></div>` : ''}
+      <div class="plan-strip">${week.map(date => {
+        const item = plan.days.find(entry => entry.date === date);
+        const status = item ? dayState(state, item) : (state.logs?.[date]?.workouts || []).length ? 'done' : 'none';
+        const mark = status === 'done' ? '✓' : status === 'missed' ? '!' : +date.slice(8);
+        return `<button type="button" class="plan-day ${status} ${date === selectedPlanDate ? 'selected' : ''} ${date === today ? 'is-today' : ''}" data-plan-day="${date}" ${item ? '' : 'disabled'}><span>${weekdayName(date)}</span><b>${mark}</b><small>${item ? esc(shortFocus(item)) : ''}</small></button>`;
+      }).join('')}</div>
+      ${day ? planDayMarkup(day, state) : ''}
+      ${new Date().getDay() === 0 && isCurrent ? '<button class="ghost full" data-plan-action="next">다음 주 계획 미리 받기</button>' : ''}`;
+  }
+
+  function installPlanActions() {
+    if (document.body.dataset.planActions) return;
+    document.body.dataset.planActions = 'true';
+    document.addEventListener('click', event => {
+      const dayButton = event.target.closest('[data-plan-day]');
+      if (dayButton) { selectedPlanDate = dayButton.dataset.planDay; renderPlanCard(); return; }
+      const action = event.target.closest('[data-plan-action]');
+      if (!action) return;
+      const kind = action.dataset.planAction;
+      if (kind === 'week') planThisWeek();
+      if (kind === 'next') planNextWeek(false);
+      if (kind === 'log') {
+        const day = planDay(readState(), action.dataset.date || dateKey(new Date()));
+        if (day) prefillWorkout(day);
+      }
+    });
+  }
+
+  // ---- 아침 체크인 ----
+  let checkinEditing = false;
+
+  function renderCheckin() {
+    const card = $('#checkin');
+    if (!card) return;
+    const state = readState();
+    const log = state.logs?.[dateKey(new Date())] || {};
+    const complete = +log.weight && +log.sleep && log.condition;
+    if (complete && !checkinEditing) {
+      card.className = 'card checkin done';
+      card.innerHTML = `<span class="checkin-title">☀️ 오늘 체크인</span><b>${log.weight}kg · ${log.sleep}시간 · ${conditionText(log.condition)}</b><button type="button" class="link" data-checkin-edit>수정</button>`;
+      return;
+    }
+    card.className = 'card checkin';
+    card.innerHTML = `
+      <div class="checkin-head"><strong>☀️ 아침 체크인</strong><small>AI 코칭에 반영돼요</small><span class="checkin-saved" id="checkinSaved"></span></div>
+      <div class="checkin-grid">
+        <label><span>공복 체중</span><div class="unit-input"><input id="ciWeight" inputmode="decimal" value="${esc(log.weight || '')}" placeholder="${latestBodyWeight(state)}"><b>kg</b></div></label>
+        <label><span>수면</span><div class="unit-input"><input id="ciSleep" inputmode="decimal" value="${esc(log.sleep || '')}" placeholder="7"><b>시간</b></div></label>
+      </div>
+      <div class="condition-chips" role="radiogroup" aria-label="컨디션">${Object.entries(CONDITIONS).map(([value, [emoji, label]]) => `<button type="button" data-condition="${value}" class="${+log.condition === +value ? 'on' : ''}" aria-label="컨디션 ${label}"><span>${emoji}</span><small>${label}</small></button>`).join('')}</div>`;
+  }
+
+  function saveCheckin(patch) {
+    const state = readState();
+    const today = dateKey(new Date());
+    state.logs ||= {};
+    state.logs[today] ||= { meals: [], workouts: [] };
+    Object.assign(state.logs[today], patch);
+    writeState(state);
+    const saved = $('#checkinSaved');
+    if (saved) saved.textContent = '저장됨 ✓';
+    const log = state.logs[today];
+    if (+log.weight && +log.sleep && log.condition) {
+      checkinEditing = false;
+      setTimeout(() => { renderCheckin(); updateMascot(); }, 700);
+    }
+  }
+
+  function installCheckin() {
+    const card = $('#checkin');
+    if (!card || card.dataset.enhanced) return;
+    card.dataset.enhanced = 'true';
+    card.addEventListener('click', event => {
+      if (event.target.closest('[data-checkin-edit]')) { checkinEditing = true; renderCheckin(); return; }
+      const chip = event.target.closest('[data-condition]');
+      if (!chip) return;
+      card.querySelectorAll('[data-condition]').forEach(button => button.classList.toggle('on', button === chip));
+      saveCheckin({ condition: +chip.dataset.condition });
+    });
+    card.addEventListener('change', event => {
+      if (event.target.id === 'ciWeight') {
+        const weight = +String(event.target.value).replace(',', '.');
+        if (weight >= 20 && weight <= 300) saveCheckin({ weight: Math.round(weight * 10) / 10 });
+        else if (event.target.value) showToast('체중을 kg 단위로 적어주세요.');
+      }
+      if (event.target.id === 'ciSleep') {
+        const raw = String(event.target.value).trim();
+        const clock = raw.match(/^(\d{1,2})[:시]\s*(\d{1,2})?/);
+        const hours = clock ? +clock[1] + (+clock[2] || 0) / 60 : +raw.replace(',', '.');
+        if (hours > 0 && hours <= 16) saveCheckin({ sleep: Math.round(hours * 10) / 10 });
+        else if (raw) showToast('수면 시간을 숫자로 적어주세요. 예: 7.5');
+      }
+    });
+    renderCheckin();
   }
 
   function installUserContext() {
@@ -881,7 +1729,7 @@
       button.textContent = 'AI 코치가 기준을 계산하는 중…';
       notice.textContent = '목표·생활패턴·인바디를 함께 분석하고 있어요.';
       try {
-        const prompt = `대한민국 최고 수준의 스포츠영양·피트니스 코치처럼 안전하고 현실적으로 설계한다. 사용자 정보: ${profileContextText(state)}. 현재 목표값: ${JSON.stringify(state.profile?.targets || {})}, 주간 운동 ${state.profile?.workoutGoal || 4}회. 현재 상태와 자유롭게 적은 목표에 맞는 하루 kcal, 단백질g, 탄수g, 지방g, 주간 운동횟수, 운동강도를 결정한다. 급격한 감량과 의학적 진단은 피한다.`;
+        const prompt = `대한민국 최고 수준의 스포츠영양·피트니스 코치처럼 안전하고 현실적으로 설계한다. 사용자 정보: ${profileContextText(state)}. 현재 목표값: ${JSON.stringify(state.profile?.targets || {})}, 주간 운동 ${state.profile?.workoutGoal || 4}회. 현재 상태와 자유롭게 적은 목표에 맞는 하루 kcal, 단백질g, 탄수g, 지방g, 주간 운동횟수, 운동강도를 결정한다. 급격한 감량과 의학적 진단은 피한다. 최근 기록: ${recentLogText(state, 7).slice(0, 900)}`;
         const coaching = await analyzeCoachingSafely(settings, prompt, 'goal');
         const result = coaching.result;
         const latest = readState();
@@ -936,7 +1784,7 @@
       panel.innerHTML = '<div class="recommend-loading"><span class="spinner dark"></span><strong>남은 끼니를 맞추는 중…</strong><span>오늘 기록과 목표를 함께 계산하고 있어요.</span></div>';
       panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
       try {
-        const prompt = `사용자 정보: ${profileContextText(state)}. 현재 시간 ${new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}. 오늘 먹은 음식: ${meals.map(item => `${item.meal} ${item.name} ${item.kcal}kcal`).join(', ') || '없음'}. 섭취 합계: ${Math.round(eaten.kcal)}kcal, 단백질 ${Math.round(eaten.protein)}g, 탄수 ${Math.round(eaten.carbs)}g, 지방 ${Math.round(eaten.fat)}g. 하루 목표: ${targets.kcal}kcal, 단백질 ${targets.protein}g, 탄수 ${targets.carbs}g, 지방 ${targets.fat}g. 추천할 남은 끼니: ${types.join(', ')}. 목표, 알레르기, 부상과 취향을 지키면서 목표를 과하게 넘지 않는 현실적인 한국식 메뉴를 끼니별로 추천한다.`;
+        const prompt = `사용자 정보: ${profileContextText(state)}. 현재 시간 ${new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}. 오늘 먹은 음식: ${meals.map(item => `${item.meal} ${item.name} ${item.kcal}kcal`).join(', ') || '없음'}. 섭취 합계: ${Math.round(eaten.kcal)}kcal, 단백질 ${Math.round(eaten.protein)}g, 탄수 ${Math.round(eaten.carbs)}g, 지방 ${Math.round(eaten.fat)}g. 하루 목표: ${targets.kcal}kcal, 단백질 ${targets.protein}g, 탄수 ${targets.carbs}g, 지방 ${targets.fat}g. 추천할 남은 끼니: ${types.join(', ')}. 오늘·어제 체크인과 운동: ${recentLogText(state, 2)}. 운동한 날은 회복용 단백질·탄수화물을 충분히 넣고, 목표, 알레르기, 부상과 취향을 지키면서 목표를 과하게 넘지 않는 현실적인 한국식 메뉴를 끼니별로 추천한다.`;
         const result = await analyzeWithAi(settings, prompt, 'recommend');
         const suggestions = Array.isArray(result.meals) ? result.meals : [];
         panel.innerHTML = `<div class="recommend-head"><div><span>오늘의 남은 끼니</span><strong>${esc(result.title || '가볍고 든든하게')}</strong></div><small>${esc(result.summary || '')}</small></div>
@@ -1196,6 +2044,26 @@
       .kcal-value{font-size:19px;line-height:1;font-weight:950;letter-spacing:-.4px;color:var(--ink)}.meal-row em{display:flex;align-items:baseline;gap:3px;white-space:nowrap;font-size:12px}.meal-row .meal-emoji{width:56px;height:56px;border-radius:17px;background:linear-gradient(145deg,#fff3df,#e9f8f1);display:grid;place-items:center;font-size:31px;box-shadow:inset 0 0 0 1px #e2ede8}.meal-group-row>span:nth-child(2)>span{font-size:12px;line-height:1.45;color:#526a61}.meal-group-row small{display:block;margin-top:4px;color:var(--sub);font-size:11px}.meal-group{padding:5px 0;border-bottom:1px solid var(--line)}.meal-group:last-child{border-bottom:0}.meal-group>header{display:grid;grid-template-columns:42px 1fr auto;gap:9px;align-items:center;padding:9px 0}.meal-emoji.small{width:42px;height:42px;border-radius:14px;background:#f1faf6;display:grid;place-items:center;font-size:23px}.meal-group header strong,.meal-group header span{display:block}.meal-group header span{color:var(--sub);font-size:11px}.meal-group header em{display:flex;align-items:baseline;gap:3px;font-style:normal;font-size:12px}.meal-group-items{margin-left:51px}.meal-group-items article{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:6px;align-items:center;padding:9px 0;border-top:1px dashed #e4efeb}.meal-group-items article strong,.meal-group-items article span{display:block}.meal-group-items article strong{font-size:12px}.meal-group-items article span{margin-top:3px;color:var(--sub);font-size:11px;line-height:1.4}.item-kcal{font-size:16px;white-space:nowrap}.meal-group-items .edit-meal,.meal-group-items .delete{padding:6px 7px;font-size:12px}.analysis-total b,.recommend-list small{font-size:15px;color:var(--ink);font-weight:900}.photo strong #mealKcal{font-size:36px;letter-spacing:-1.5px}.photo strong{display:flex;align-items:baseline;gap:5px}#mealRemain,#kcalMsg{font-size:13px;font-weight:800}.kcal-input-wrap{position:relative}.kcal-input-wrap input{padding-right:55px}.kcal-input-wrap b{position:absolute;right:13px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--sub)}.cardio-kcal-field small{font-size:11px;color:#8a9a94}
       .settings-fold{margin:10px 0;overflow:hidden}.settings-fold>summary{list-style:none;min-height:72px;padding:12px 15px;display:grid;grid-template-columns:44px 1fr auto;align-items:center;gap:10px;cursor:pointer}.settings-fold>summary::-webkit-details-marker{display:none}.settings-fold>summary .fold-icon{width:44px;height:44px;border-radius:15px;background:#f0faf6;display:grid;place-items:center;font-size:21px}.settings-fold>summary strong,.settings-fold>summary small{display:block}.settings-fold>summary strong{font-size:14px}.settings-fold>summary small{margin-top:3px;color:var(--sub);font-size:11px;line-height:1.4}.settings-fold>summary>b{font-size:21px;transition:.2s transform}.settings-fold[open]>summary>b{transform:rotate(90deg)}.fold-content{padding:3px 15px 16px;border-top:1px solid var(--line)}.body-profile-card{padding:13px 0 0;margin:0;box-shadow:none;border:0}.profile-step{display:grid;grid-template-columns:28px 1fr;gap:8px;align-items:center;margin:15px 0 10px}.profile-step>span{width:27px;height:27px;border-radius:10px;background:#17372c;color:#fff;display:grid;place-items:center;font-weight:900;font-size:12px}.profile-step strong,.profile-step small{display:block}.profile-step strong{font-size:13px}.profile-step small{color:var(--sub);font-size:11px;margin-top:2px}.goal-text{min-height:105px;line-height:1.5}.ai-target-summary{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin:12px 0;padding:11px;border-radius:16px;background:#f4faf7}.ai-target-summary span{padding:7px 8px;border-radius:11px;background:#fff;color:var(--sub);font-size:11px}.ai-target-summary span:last-child{grid-column:1/-1}.ai-target-summary b{display:block;margin-bottom:2px;color:var(--ink);font-size:14px}.event-advice{margin-top:11px;border-top:1px solid #dcebe5}.event-advice>summary{list-style:none;padding:12px 2px 2px;color:#3a8069;font-size:12px;font-weight:900;cursor:pointer}.event-advice>summary::-webkit-details-marker{display:none}.event-advice>summary b{float:right}.event-advice>div{padding-top:8px}.event-advice .primary{font-size:12px}.chart-card#cardioReportCard{background:linear-gradient(145deg,#effbf6,#fff)}
       .mascot-levels.warmup{grid-template-columns:repeat(3,1fr)}.mascot-levels.warmup i.on{background:#72d1ae}
+      .ghost{min-height:44px;border:1px solid #17372c33;border-radius:14px;background:#ffffffb3;padding:0 14px;font-weight:800;color:var(--ink)}.ghost.full{width:100%;margin-top:12px}
+      .badge{display:inline-flex;align-items:center;padding:3px 7px;border-radius:99px;background:#eef3f1;color:#5d736b;font-size:11px;font-style:normal;font-weight:800;white-space:nowrap}.badge.up{background:#dcf5eb;color:#23775a}.badge.down{background:#ffece6;color:#b05243}.badge.pr{background:#fff1c7;color:#8a6200}.badges{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end}
+      .input-hint{margin:6px 2px 0;color:var(--sub);font-size:12px;line-height:1.5}.input-hint b{color:var(--ink)}
+      .parsed{margin:0 0 12px;padding:12px;border-radius:15px;background:#f3f9f6;color:var(--sub);font-size:12px}.parsed-head{display:flex;justify-content:space-between;align-items:center;gap:8px}.parsed-head b{color:#c2573c;font-size:14px}.parsed ul{margin:8px 0 0;padding:0;list-style:none}.parsed li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-top:1px dashed #dcebe5}.parsed li strong,.parsed li span{display:block}.parsed li strong{color:var(--ink);font-size:13px}.parsed li span{margin-top:2px;font-size:12px}.parsed-foot{margin-top:6px;padding-top:8px;border-top:1px solid #dcebe5;font-size:12px}.parsed-foot b{color:#2f8467}
+      .workout-meta{display:grid;grid-template-columns:112px 1fr;gap:10px}.workout-meta .field>span small{color:#2f8467;font-weight:800}.rpe-chips{display:grid;grid-template-columns:repeat(6,1fr);gap:4px}.rpe-chips button{height:44px;border:1px solid var(--line);border-radius:12px;background:#f9fcfb;font-weight:900}.rpe-chips button.on{background:#17372c;border-color:#17372c;color:#fff}
+      .plan-card{margin-bottom:12px;padding:15px}.plan-card:empty{display:none}.plan-eyebrow{display:block;color:#477e9d;font-size:11px;font-weight:950;letter-spacing:.3px}.plan-empty{display:grid;gap:6px}.plan-empty strong{font-size:17px}.plan-empty small{color:var(--sub);font-size:12px;line-height:1.55}.plan-empty .primary{margin-top:6px}.plan-loading{min-height:120px;display:grid;place-items:center;align-content:center;gap:6px;text-align:center}.plan-loading small{color:var(--sub);font-size:12px}
+      .plan-head{display:flex;justify-content:space-between;align-items:start;gap:8px}.plan-head strong{display:block;margin-top:3px;font-size:18px}.plan-principle{margin:10px 0 0;padding:10px 12px;border-radius:13px;background:#eef7ff;color:#335f79;font-size:12px;line-height:1.55}.plan-alert{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;padding:10px 12px;border-radius:13px;background:#fff1ec;color:#a4492f;font-size:12px;font-weight:800}.plan-alert button{flex:none;border:0;border-radius:10px;background:#c2573c;color:#fff;padding:8px 10px;font-size:12px;font-weight:900}
+      .plan-strip{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin:12px 0}.plan-day{min-width:0;padding:7px 0 6px;border:1px solid transparent;border-radius:13px;background:#f3f8f6;display:grid;justify-items:center;gap:3px}.plan-day span{color:var(--sub);font-size:11px}.plan-day b{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:#fff;font-size:12px}.plan-day small{max-width:100%;overflow:hidden;color:var(--sub);font-size:10px;white-space:nowrap}.plan-day.done b{background:var(--mint);color:#fff}.plan-day.missed b{background:#ffd9cf;color:#b05243}.plan-day.rest{background:#fafcfb}.plan-day.rest b{background:transparent;color:#a3b3ad}.plan-day.is-today span{color:var(--ink);font-weight:900}.plan-day.selected{border-color:#17372c;background:#fff}.plan-day:disabled{opacity:.4}
+      .plan-detail{padding:12px;border-radius:15px;background:#f7fbf9}.plan-detail.rest p{margin:6px 0 0;color:var(--sub);font-size:13px;line-height:1.55}.plan-detail-head{display:flex;justify-content:space-between;align-items:center;gap:8px}.plan-detail-head strong{font-size:14px}.plan-exercises{margin:8px 0 0;padding:0;list-style:none;counter-reset:ex}.plan-exercises li{display:flex;justify-content:space-between;align-items:start;gap:10px;padding:8px 0;border-top:1px dashed #dcebe5}.plan-exercises li strong{display:block;font-size:13px}.plan-exercises li small{display:block;margin-top:2px;color:#2f8467;font-size:11px;line-height:1.45}.plan-exercises li b{flex:none;font-size:13px}.plan-note{margin:8px 0 0;color:var(--sub);font-size:12px;line-height:1.5}.plan-detail .primary{margin-top:10px}
+      .hero-list{margin:6px 0 12px;padding:0;list-style:none}.hero-list li{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid #17372c12;font-size:13px}.hero-list li b{white-space:nowrap}.hero-list li.more{color:var(--sub);border:0}
+      .checkin{margin-top:9px;padding:12px 14px}.checkin-head{display:flex;align-items:baseline;gap:7px;margin-bottom:9px}.checkin-head strong{font-size:14px}.checkin-head small{color:var(--sub);font-size:11px}.checkin-saved{margin-left:auto;color:#2f8467;font-size:11px;font-weight:800}.checkin-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.checkin-grid label>span{display:block;margin-bottom:4px;color:var(--sub);font-size:11px}.unit-input{position:relative}.unit-input input{width:100%;height:40px;border:1px solid var(--line);border-radius:12px;background:#f9fcfb;padding:0 42px 0 11px;font-size:16px}.unit-input b{position:absolute;right:11px;top:50%;transform:translateY(-50%);color:var(--sub);font-size:12px}.condition-chips{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-top:9px}.condition-chips button{height:48px;border:1px solid var(--line);border-radius:12px;background:#f9fcfb;display:grid;place-items:center;align-content:center;gap:1px}.condition-chips span{font-size:18px;line-height:1}.condition-chips small{color:var(--sub);font-size:10px}.condition-chips button.on{border-color:#72d1ae;background:#dcf5eb}.checkin.done{display:flex;align-items:center;gap:8px}.checkin.done .checkin-title{color:var(--sub);font-size:12px;white-space:nowrap}.checkin.done b{flex:1;font-size:13px}.checkin.done .link{padding:4px}
+      .chart .axis{fill:#8a9c95;font-size:10px}.chart .bar-value{fill:#33514a;font-size:10px;font-weight:800}
+      .ib-section{margin-top:12px}.ib-section+.ib-section{padding-top:12px;border-top:1px solid var(--line)}.ib-title{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px}.ib-title strong{font-size:14px}.ib-title span{color:var(--sub);font-size:11px;text-align:right}.ib-row{display:grid;grid-template-columns:62px 1fr 74px;align-items:center;gap:8px;padding:7px 0}.ib-label{font-size:13px;font-weight:800}.ib-label small{margin-left:2px;color:var(--sub);font-size:10px;font-weight:600}.ib-track{position:relative;height:14px;border-radius:4px;background:repeating-linear-gradient(90deg,#eef4f1 0 calc(10% - 1px),#fff calc(10% - 1px) 10%)}.ib-band{position:absolute;top:-3px;bottom:-3px;border-radius:4px;background:#72d1ae33;border:1px dashed #72d1ae}.ib-fill{position:absolute;left:0;top:3px;bottom:3px;border-radius:0 4px 4px 0}.ib-value{font-size:15px;text-align:right}.ib-value small{display:block;font-size:10px;font-weight:800}.ib-value small.ok{color:#2f8467}.ib-value small.warn{color:#c2573c}.ib-legend{margin:4px 0 0;color:var(--sub);font-size:11px}.ib-legend i{display:inline-block;width:14px;height:8px;margin-right:5px;border:1px dashed #72d1ae;background:#72d1ae33;border-radius:2px}
+      .ib-history{overflow-x:auto;margin:0 -4px;padding:0 4px}.ib-history table{border-collapse:collapse;min-width:100%;font-size:12px}.ib-history th,.ib-history td{padding:6px 5px;text-align:right;white-space:nowrap}.ib-history thead th{color:var(--sub);font-weight:700}.ib-history tbody th{position:sticky;left:0;background:#fff;text-align:left;color:var(--sub);font-weight:800}.ib-history td b{display:block;font-size:13px}.ib-history td i{display:block;height:4px;margin:4px 0 0 auto;border-radius:3px;background:#b9d8cc}.ib-history .latest{background:#f1faf6}.ib-history td.latest b{color:#17372c}.ib-history td.latest i{background:#72d1ae}.ib-changes{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px;font-size:12px}.ib-changes em{color:var(--sub);font-style:normal}.ib-changes span{padding:4px 8px;border-radius:99px;background:#f1f5f3;font-weight:800}.ib-changes .good{background:#dcf5eb;color:#23775a}.ib-changes .bad{background:#ffece6;color:#b05243}.ib-target{margin:12px 0 0;padding:10px 12px;border-radius:13px;background:#fff8e1;font-size:13px;font-weight:800}
+      .part-bars{display:grid;gap:9px;margin-top:10px}.part-row{display:grid;grid-template-columns:36px 1fr 52px;align-items:center;gap:8px;font-size:13px}.part-row span{font-weight:800}.part-row b{text-align:right;font-size:13px}.part-track{position:relative;height:12px;border-radius:99px;background:#eef4f1;overflow:hidden}.part-track .band{position:absolute;top:0;bottom:0;background:#72d1ae2e}.part-track .fill{position:absolute;left:0;top:0;bottom:0;border-radius:99px}.part-track .fill.ok{background:#72d1ae}.part-track .fill.under{background:#9fb7c9}.part-track .fill.over{background:#ffb35f}.band-dot{background:#72d1ae2e!important;border:1px solid #72d1ae;border-radius:2px!important}#partSetsCard .legend{margin-top:10px}
+      .report-top{display:flex;justify-content:space-between;align-items:start;gap:10px}.score-ring{--p:0;flex:none;width:64px;height:64px;border-radius:50%;background:conic-gradient(#72d1ae calc(var(--p)*1%),#e3eeea 0);display:grid;place-items:center;align-content:center;position:relative}.score-ring:before{content:"";position:absolute;inset:6px;border-radius:50%;background:#fff}.score-ring b,.score-ring small{position:relative}.score-ring b{font-size:20px;line-height:1}.score-ring small{color:var(--sub);font-size:10px}.report-summary{margin:10px 0 0;font-size:13px;line-height:1.6}
+      .metric-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:12px}.metric{padding:10px;border-radius:13px;background:#fff;border:1px solid #e3eeea}.metric span,.metric small{display:block;color:var(--sub);font-size:11px}.metric b{display:block;margin:3px 0 2px;font-size:16px}.metric.good{border-color:#bfe8d7}.metric.good small{color:#23775a}.metric.warn{border-color:#ffd6c8}.metric.warn small{color:#b05243}
+      .report-section{margin-top:10px;padding:11px 12px;border-radius:14px;background:#fff}.report-section h4{display:flex;align-items:center;gap:6px;margin:0 0 5px;font-size:13px}.report-section p{margin:0;color:#48625a;font-size:12px;line-height:1.6}.status{padding:2px 7px;border-radius:99px;font-size:11px;font-style:normal}.status.up{background:#dcf5eb;color:#23775a}.status.keep{background:#e8f1ff;color:#3a6a95}.status.warn{background:#fff1d6;color:#8a6200}.status.rest{background:#f1ecff;color:#5f4bb6}.coach-actions{display:flex;justify-content:space-between;gap:8px;margin-top:4px}
+      .advice-result{margin-top:12px;padding:12px;border-radius:14px;background:#fff}.advice-result strong{font-size:15px}.advice-result>p{margin:5px 0 0;color:#48625a;font-size:12px;line-height:1.6}.advice-result ol{margin:10px 0 0;padding-left:18px}.advice-result li{margin:8px 0;font-size:12px;line-height:1.55}.advice-result li b,.advice-result li span{display:block}.advice-result li span{color:var(--sub)}.advice-cautions{margin-top:8px;padding:9px 11px;border-radius:12px;background:#fff4f0}.advice-cautions b{font-size:12px;color:#a4492f}.advice-cautions p{margin:4px 0 0;color:#8d5a4d;font-size:12px}.advice-result small{display:block;margin-top:8px;color:var(--sub);font-size:11px}
+      .day-block .day-workout{display:block;margin:8px 0;padding:10px;border-radius:12px;background:#fff}.day-workout>b{font-size:12px}.day-workout>small{display:block;margin-top:2px;color:var(--sub);font-size:11px}.day-workout ul{margin:6px 0 0;padding:0;list-style:none}.day-workout li{display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 0;border-top:1px dashed #e4efeb}.day-block .day-workout li span{color:var(--ink);font-size:12px}.day-workout li em{color:var(--sub);font-style:normal}.day-block .day-comment{margin-top:6px;color:#48625a}
       @media(max-width:360px){.welcome{padding-right:118px}.welcome img{width:120px;height:120px}.calendar-grid,.calendar-weekdays{gap:2px}.calendar-day{height:52px}.activity-ring{width:26px;height:26px}.activity-ring:before{width:20px;height:20px}.activity-ring:after{width:14px;height:14px}.mascot-stats span{font-size:10px}}
     `;
     document.head.appendChild(style);
@@ -1211,6 +2079,10 @@
   updatePlanHero();
   refreshIcons();
   installCalendar();
+  installWorkoutForm();
+  installPlanActions();
+  installCheckin();
+  renderPlanCard();
   installMealComposer();
   installMealRecommendation();
   installUserContext();
@@ -1221,13 +2093,16 @@
   removeDuplicateArchive();
   [$('#mealPreview'), $('#mealList')].filter(Boolean).forEach(target => new MutationObserver(() => renderGroupedMeals()).observe(target, { childList: true }));
   window.addEventListener('hashchange', () => {
-    if (location.hash === '#workout') renderCalendar();
+    if (location.hash === '#workout') { renderCalendar(); renderPlanCard(); renderWorkoutDraft(); }
     if (location.hash === '#report') renderRealReportCharts();
+    if (location.hash === '#home') { updatePlanHero(); renderCheckin(); }
     removeDuplicateArchive();
   });
   window.addEventListener('fitlog:state-updated', () => {
     updateMascot();
     updatePlanHero();
+    renderPlanCard();
+    if (!$('#checkin')?.contains(document.activeElement)) renderCheckin();
     renderCalendar();
     renderRealReportCharts();
     renderGroupedMeals();
