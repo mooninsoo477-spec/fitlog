@@ -721,6 +721,59 @@
   const fatMassOf = record => +record.bodyFatMass || (+record.weight && +(record.pbf ?? record.bodyFat) ? Math.round(record.weight * (record.pbf ?? record.bodyFat) / 10) / 10 : null);
   const pbfOf = record => +(record.pbf ?? record.bodyFat) || null;
 
+  // 변화 기록은 한 번에 한 지표만, 지표마다 자기 눈금으로 그린다.
+  const BODY_METRICS = [
+    { label: '체중', unit: 'kg', pick: record => +record.weight || null, good: 0, color: '#4f9be6' },
+    { label: '골격근량', unit: 'kg', pick: record => +record.smm || null, good: 1, color: '#3fae84' },
+    { label: '체지방량', unit: 'kg', pick: fatMassOf, good: -1, color: '#f07f62' },
+    { label: '체지방률', unit: '%', pick: pbfOf, good: -1, color: '#e8923f' }
+  ];
+  let bodyMetricIndex = 0;
+
+  function bodyTrend(records, metric) {
+    const points = records.map((record, index) => ({ index, date: record.date, value: metric.pick(record) })).filter(point => point.value != null);
+    if (points.length < 2) return `<p class="ib-trend-empty">${metric.label} 측정값이 2회 이상 있어야 변화를 보여드려요.</p>`;
+    const values = points.map(point => point.value);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const pad = Math.max((max - min) * .35, metric.unit === '%' ? .5 : .3);
+    const lo = min - pad;
+    const hi = max + pad;
+    const left = 40; const right = 344; const top = 24; const bottom = 112;
+    const inset = 14;
+    const x = index => left + inset + index * (right - left - inset * 2) / (points.length - 1);
+    const y = value => bottom - (value - lo) / (hi - lo) * (bottom - top);
+    const line = points.map((point, index) => `${x(index)},${y(point.value)}`).join(' ');
+    const ticks = [lo, (lo + hi) / 2, hi].map(value => `<line class="grid" x1="${left}" y1="${y(value)}" x2="${right}" y2="${y(value)}"/><text class="axis" x="${left - 6}" y="${y(value) + 3}" text-anchor="end">${value.toFixed(1)}</text>`).join('');
+    const last = points.length - 1;
+    const round = value => Math.round(value * 10) / 10;
+    const delta = (from, to) => {
+      const diff = round(to - from);
+      const tone = !diff || !metric.good ? 'flat' : diff * metric.good > 0 ? 'good' : 'bad';
+      return `<b class="${tone}">${diff > 0 ? '▲ +' : diff < 0 ? '▼ ' : ''}${diff === 0 ? '변화 없음' : `${diff}${metric.unit}`}</b>`;
+    };
+    const lowest = values.indexOf(min);
+    const highest = values.indexOf(max);
+    return `<svg class="chart ib-trend-chart" viewBox="0 0 360 134" role="img" aria-label="${metric.label} 변화">
+        <defs><linearGradient id="trendFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${metric.color}" stop-opacity=".22"/><stop offset="1" stop-color="${metric.color}" stop-opacity="0"/></linearGradient></defs>
+        ${ticks}
+        <polygon points="${x(0)},${bottom} ${line} ${x(last)},${bottom}" fill="url(#trendFill)"/>
+        <polyline points="${line}" fill="none" stroke="${metric.color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        ${points.map((point, index) => {
+          const isLast = index === last;
+          const emphasis = isLast || index === lowest || index === highest || points.length <= 10;
+          return `<circle cx="${x(index)}" cy="${y(point.value)}" r="${isLast ? 5 : 3.5}" fill="${isLast ? metric.color : '#fff'}" stroke="${metric.color}" stroke-width="2"><title>${point.date} ${point.value}${metric.unit}</title></circle>
+            ${emphasis ? `<text x="${x(index)}" y="${y(point.value) - 9}" text-anchor="middle" class="trend-value ${isLast ? 'last' : ''}">${point.value}</text>` : ''}
+            <text x="${x(index)}" y="${bottom + 16}" text-anchor="middle" class="${isLast ? 'trend-date last' : 'trend-date'}">${shortDate(point.date)}</text>`;
+        }).join('')}
+      </svg>
+      <div class="ib-summary">
+        <div><span>현재</span><strong>${points[last].value}<small>${metric.unit}</small></strong></div>
+        <div><span>직전 대비 <em>${shortDate(points[last - 1].date)}</em></span>${delta(points[last - 1].value, points[last].value)}</div>
+        <div><span>첫 측정 대비 <em>${shortDate(points[0].date)}</em></span>${delta(points[0].value, points[last].value)}</div>
+      </div>`;
+  }
+
   function bodyComposition(records, state) {
     if (!records.length) return svgEmpty('아직 인바디 기록이 없어요', '측정값을 입력하면 체중·골격근량·체지방을 결과지처럼 보여드려요.', '<button type="button" class="primary mint" data-go="more" data-open="inbodyPanel">인바디 입력하기</button>');
     const info = state.profile?.recommendationContext || {};
@@ -753,29 +806,11 @@
     const pbf = pbfOf(latest);
     const pbfRow = pbf ? `<div class="ib-row"><span class="ib-label">체지방률<small>%</small></span><div class="ib-track"><i class="ib-band" style="left:${pbfRange[0] / 45 * 100}%;width:${(pbfRange[1] - pbfRange[0]) / 45 * 100}%"></i><i class="ib-fill" style="width:${Math.min(100, pbf / 45 * 100)}%;background:#f2a65a"></i></div><b class="ib-value">${pbf}<small class="${pbf < pbfRange[0] || pbf > pbfRange[1] ? 'warn' : 'ok'}">${pbf < pbfRange[0] ? '표준 이하' : pbf > pbfRange[1] ? '표준 이상' : '표준'}</small></b></div>` : '';
 
-    const metrics = [
-      ['체중', record => +record.weight || null, 'kg', 0],
-      ['골격근량', record => +record.smm || null, 'kg', 1],
-      ['체지방량', fatMassOf, 'kg', -1],
-      ['체지방률', pbfOf, '%', -1]
-    ];
-    const history = `<div class="ib-history"><table><thead><tr><th></th>${records.map((record, index) => `<th class="${index === records.length - 1 ? 'latest' : ''}">${shortDate(record.date)}</th>`).join('')}</tr></thead><tbody>${metrics.map(([label, pick]) => {
-      const values = records.map(pick);
-      const present = values.filter(value => value != null);
-      const min = Math.min(...present); const max = Math.max(...present);
-      return `<tr><th>${label}</th>${values.map((value, index) => `<td class="${index === records.length - 1 ? 'latest' : ''}">${value == null ? '–' : `<b>${value}</b><i style="width:${max > min ? 30 + (value - min) / (max - min) * 70 : 100}%"></i>`}</td>`).join('')}</tr>`;
-    }).join('')}</tbody></table></div>`;
-
-    const changes = records.length > 1 ? metrics.slice(0, 3).map(([label, pick, unit, goodDirection]) => {
-      const a = pick(first); const b = pick(latest);
-      if (a == null || b == null) return '';
-      const diff = Math.round((b - a) * 10) / 10;
-      const tone = !diff || !goodDirection ? '' : diff * goodDirection > 0 ? 'good' : 'bad';
-      return `<span class="${tone}">${label} ${diff > 0 ? '+' : ''}${diff}${unit}</span>`;
-    }).filter(Boolean).join('') : '';
     const targetFat = +(state.profile?.bodyGoals?.targetBodyFat || state.profile?.targetFat) || 0;
     return `<div class="ib-section"><div class="ib-title"><strong>골격근·지방 분석</strong><span>${shortDate(latest.date)} 측정${stdWeight ? '' : ' · 키를 입력하면 표준 범위를 보여드려요'}</span></div>${rows.map(bar).join('')}${pbfRow}${stdWeight ? '<p class="ib-legend"><i></i>표준 범위 (키·성별 기준 추정)</p>' : ''}</div>
-      ${records.length > 1 ? `<div class="ib-section"><div class="ib-title"><strong>변화 기록</strong><span>${records.length}회 측정</span></div>${history}${changes ? `<div class="ib-changes"><em>첫 측정 대비</em>${changes}</div>` : ''}</div>` : ''}
+      ${records.length > 1 ? `<div class="ib-section"><div class="ib-title"><strong>변화 기록</strong><span>${records.length}회 측정</span></div>
+        <div class="ib-tabs" role="tablist" aria-label="변화 기록 지표">${BODY_METRICS.map((metric, index) => `<button type="button" role="tab" aria-selected="${index === bodyMetricIndex}" class="${index === bodyMetricIndex ? 'on' : ''}" data-body-metric="${index}" style="--metric:${metric.color}">${metric.label}</button>`).join('')}</div>
+        <div id="bodyTrend">${bodyTrend(records, BODY_METRICS[bodyMetricIndex])}</div></div>` : ''}
       ${targetFat && pbf ? `<p class="ib-target">🎯 목표 체지방률 ${targetFat}% · ${pbf > targetFat ? `${Math.round((pbf - targetFat) * 10) / 10}%p 남음` : '목표 달성!'}</p>` : ''}`;
   }
 
@@ -839,9 +874,23 @@
     const state = readState();
     const inbody = (state.inbody || []).filter(item => !item.excluded && item.date).sort((a, b) => String(a.date).localeCompare(String(b.date))).slice(-10);
     $('#bodyCard .chart-head').innerHTML = `<div><span>신체 변화</span><br><strong>${inbody.length ? `인바디 측정 ${inbody.length}회` : '최근 인바디'}</strong></div><button type="button" class="link" data-go="more" data-open="inbodyPanel">측정값 입력</button>`;
-    $('#bodyComposition').innerHTML = bodyComposition(inbody, state);
-    const historyTable = $('#bodyComposition .ib-history');
-    if (historyTable) requestAnimationFrame(() => { historyTable.scrollLeft = historyTable.scrollWidth; });
+    const composition = $('#bodyComposition');
+    composition.innerHTML = bodyComposition(inbody, state);
+    if (!composition.dataset.tabs) {
+      composition.dataset.tabs = 'true';
+      composition.addEventListener('click', event => {
+        const tab = event.target.closest('[data-body-metric]');
+        if (!tab) return;
+        bodyMetricIndex = +tab.dataset.bodyMetric;
+        composition.querySelectorAll('[data-body-metric]').forEach(button => {
+          const on = button === tab;
+          button.classList.toggle('on', on);
+          button.setAttribute('aria-selected', String(on));
+        });
+        const records = (readState().inbody || []).filter(item => !item.excluded && item.date).sort((a, b) => String(a.date).localeCompare(String(b.date))).slice(-10);
+        $('#bodyTrend').innerHTML = bodyTrend(records, BODY_METRICS[bodyMetricIndex]);
+      });
+    }
     const bodyComment = $('#bodyComment');
     if (bodyComment) {
       bodyComment.textContent = inbody.length > 1 ? '같은 시간대·조건에서 잰 값끼리 비교해야 정확해요. 한 번의 수치보다 흐름을 보세요.' : inbody.length ? '측정값이 더 쌓이면 변화 속도와 목표 방향을 함께 분석해요.' : '';
@@ -2058,6 +2107,8 @@
       .chart .axis{fill:#8a9c95;font-size:10px}.chart .bar-value{fill:#33514a;font-size:10px;font-weight:800}
       .ib-section{margin-top:12px}.ib-section+.ib-section{padding-top:12px;border-top:1px solid var(--line)}.ib-title{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px}.ib-title strong{font-size:14px}.ib-title span{color:var(--sub);font-size:11px;text-align:right}.ib-row{display:grid;grid-template-columns:62px 1fr 74px;align-items:center;gap:8px;padding:7px 0}.ib-label{font-size:13px;font-weight:800}.ib-label small{margin-left:2px;color:var(--sub);font-size:10px;font-weight:600}.ib-track{position:relative;height:14px;border-radius:4px;background:repeating-linear-gradient(90deg,#eef4f1 0 calc(10% - 1px),#fff calc(10% - 1px) 10%)}.ib-band{position:absolute;top:-3px;bottom:-3px;border-radius:4px;background:#72d1ae33;border:1px dashed #72d1ae}.ib-fill{position:absolute;left:0;top:3px;bottom:3px;border-radius:0 4px 4px 0}.ib-value{font-size:15px;text-align:right}.ib-value small{display:block;font-size:10px;font-weight:800}.ib-value small.ok{color:#2f8467}.ib-value small.warn{color:#c2573c}.ib-legend{margin:4px 0 0;color:var(--sub);font-size:11px}.ib-legend i{display:inline-block;width:14px;height:8px;margin-right:5px;border:1px dashed #72d1ae;background:#72d1ae33;border-radius:2px}
       .ib-history{overflow-x:auto;margin:0 -4px;padding:0 4px}.ib-history table{border-collapse:collapse;min-width:100%;font-size:12px}.ib-history th,.ib-history td{padding:6px 5px;text-align:right;white-space:nowrap}.ib-history thead th{color:var(--sub);font-weight:700}.ib-history tbody th{position:sticky;left:0;background:#fff;text-align:left;color:var(--sub);font-weight:800}.ib-history td b{display:block;font-size:13px}.ib-history td i{display:block;height:4px;margin:4px 0 0 auto;border-radius:3px;background:#b9d8cc}.ib-history .latest{background:#f1faf6}.ib-history td.latest b{color:#17372c}.ib-history td.latest i{background:#72d1ae}.ib-changes{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px;font-size:12px}.ib-changes em{color:var(--sub);font-style:normal}.ib-changes span{padding:4px 8px;border-radius:99px;background:#f1f5f3;font-weight:800}.ib-changes .good{background:#dcf5eb;color:#23775a}.ib-changes .bad{background:#ffece6;color:#b05243}.ib-target{margin:12px 0 0;padding:10px 12px;border-radius:13px;background:#fff8e1;font-size:13px;font-weight:800}
+      .ib-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:4px;border-radius:14px;background:#f1f6f4}.ib-tabs button{min-height:36px;border:0;border-radius:11px;background:transparent;color:var(--sub);font-size:12px;font-weight:800}.ib-tabs button.on{background:#fff;color:var(--metric);box-shadow:0 2px 8px #17372c14}.ib-trend-chart{margin-top:8px}.ib-trend-chart .trend-value{fill:#48625a;font-size:10px;font-weight:700}.ib-trend-chart .trend-value.last{fill:#17372c;font-size:12px;font-weight:900}.ib-trend-chart .trend-date{fill:#8a9c95;font-size:10px}.ib-trend-chart .trend-date.last{fill:#17372c;font-weight:800}.ib-trend-empty{margin:14px 0;color:var(--sub);font-size:12px;text-align:center}
+      .ib-summary{display:grid;grid-template-columns:.8fr 1fr 1fr;gap:6px;margin-top:6px}.ib-summary>div{padding:9px 10px;border-radius:12px;background:#f5faf8}.ib-summary span{display:block;color:var(--sub);font-size:11px}.ib-summary em{font-style:normal;opacity:.8}.ib-summary strong{display:block;margin-top:3px;font-size:18px;line-height:1.1}.ib-summary strong small{margin-left:2px;color:var(--sub);font-size:11px}.ib-summary b{display:block;margin-top:4px;font-size:14px}.ib-summary b.good{color:#23775a}.ib-summary b.bad{color:#c2573c}.ib-summary b.flat{color:#5d736b}
       .part-bars{display:grid;gap:9px;margin-top:10px}.part-row{display:grid;grid-template-columns:36px 1fr 52px;align-items:center;gap:8px;font-size:13px}.part-row span{font-weight:800}.part-row b{text-align:right;font-size:13px}.part-track{position:relative;height:12px;border-radius:99px;background:#eef4f1;overflow:hidden}.part-track .band{position:absolute;top:0;bottom:0;background:#72d1ae2e}.part-track .fill{position:absolute;left:0;top:0;bottom:0;border-radius:99px}.part-track .fill.ok{background:#72d1ae}.part-track .fill.under{background:#9fb7c9}.part-track .fill.over{background:#ffb35f}.band-dot{background:#72d1ae2e!important;border:1px solid #72d1ae;border-radius:2px!important}#partSetsCard .legend{margin-top:10px}
       .report-top{display:flex;justify-content:space-between;align-items:start;gap:10px}.score-ring{--p:0;flex:none;width:64px;height:64px;border-radius:50%;background:conic-gradient(#72d1ae calc(var(--p)*1%),#e3eeea 0);display:grid;place-items:center;align-content:center;position:relative}.score-ring:before{content:"";position:absolute;inset:6px;border-radius:50%;background:#fff}.score-ring b,.score-ring small{position:relative}.score-ring b{font-size:20px;line-height:1}.score-ring small{color:var(--sub);font-size:10px}.report-summary{margin:10px 0 0;font-size:13px;line-height:1.6}
       .metric-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:12px}.metric{padding:10px;border-radius:13px;background:#fff;border:1px solid #e3eeea}.metric span,.metric small{display:block;color:var(--sub);font-size:11px}.metric b{display:block;margin:3px 0 2px;font-size:16px}.metric.good{border-color:#bfe8d7}.metric.good small{color:#23775a}.metric.warn{border-color:#ffd6c8}.metric.warn small{color:#b05243}
