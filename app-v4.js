@@ -73,7 +73,7 @@
     if (quick) quick.innerHTML = `
       <button data-quick="meals"><span class="quick-icon peach">🍱</span><strong>식사</strong></button>
       <button data-quick="workout"><span class="quick-icon mint">🏃</span><strong>운동</strong></button>
-      <button data-quick="more"><span class="quick-icon lilac">⚖️</span><strong>신체</strong></button>`;
+      <button data-quick="more" data-open="inbodyPanel"><span class="quick-icon lilac">⚖️</span><strong>신체</strong></button>`;
   }
 
   function mascotMetrics() {
@@ -107,13 +107,18 @@
     if (!mascot) return;
     const metrics = mascotMetrics();
     const states = {
-      1: ['잠깐 재충전', '조금 쉬어가도 괜찮아요. 다음 한 번이면 표정이 달라져요!', '축 처져 앉아 있는 아스날 강아지'],
-      2: ['몸이 조금 무거워요', '가볍게 한 번 움직이면 다시 신날 거예요.', '천천히 공을 따라 걷는 아스날 강아지'],
-      3: ['균형을 잡는 중', '기록을 이어가며 내 페이스를 찾아가요.', '축구공 위에 발을 올린 아스날 강아지'],
-      4: ['기세 좋은 러너', '식단과 운동 흐름이 좋아요. 한 단계만 더!', '공을 몰며 달리는 아스날 강아지'],
-      5: ['불타는 질주', '이번 주 정말 뜨거워요. 공까지 날아가겠어요!', '불꽃과 함께 공을 차며 달리는 아스날 강아지']
+      1: ['잠깐 재충전', '조금 쉬어가도 괜찮아요. 다음 한 번이면 표정이 달라져요!', '축 처져 앉아 있는 강아지'],
+      2: ['몸이 조금 무거워요', '가볍게 한 번 움직이면 다시 신날 거예요.', '천천히 공을 따라 걷는 강아지'],
+      3: ['균형을 잡는 중', '기록을 이어가며 내 페이스를 찾아가요.', '축구공 위에 발을 올린 강아지'],
+      4: ['기세 좋은 러너', '식단과 운동 흐름이 좋아요. 한 단계만 더!', '공을 몰며 달리는 강아지'],
+      5: ['불타는 질주', '이번 주 정말 뜨거워요. 공까지 날아가겠어요!', '불꽃과 함께 공을 차며 달리는 강아지']
     };
-    const [title, message, alt] = states[metrics.level];
+    const warmingUp = metrics.dataDays < 3;
+    let [title, message, alt] = states[metrics.level];
+    if (warmingUp) {
+      title = `분석 준비 중 · ${metrics.dataDays}/3일`;
+      message = metrics.dataDays ? `${3 - metrics.dataDays}일만 더 기록하면 컨디션을 읽어드릴게요.` : '식사나 운동을 3일 기록하면 컨디션을 읽어드릴게요.';
+    }
     mascot.src = `fitlog-puppy-state-${metrics.level}.png`;
     mascot.alt = alt;
     const welcome = $('.welcome');
@@ -125,10 +130,13 @@
       meter.className = 'mascot-meter';
       welcome.insertAdjacentElement('afterend', meter);
     }
-    const average = metrics.avgKcal ? `${metrics.avgKcal.toLocaleString()} kcal` : '식단 기록 대기';
+    const average = metrics.avgKcal ? `${metrics.avgKcal.toLocaleString()} kcal` : '–';
+    const levels = warmingUp
+      ? `<div class="mascot-levels warmup" aria-label="3일 중 ${metrics.dataDays}일 기록">${[1, 2, 3].map(day => `<i class="${day <= metrics.dataDays ? 'on' : ''}"></i>`).join('')}</div>`
+      : `<div class="mascot-levels" aria-label="5단계 중 ${metrics.level}단계">${[1, 2, 3, 4, 5].map(level => `<i class="${level <= metrics.level ? 'on' : ''}"></i>`).join('')}</div>`;
     meter.innerHTML = `
       <div class="mascot-meter-head"><span>최근 7일 컨디션</span><strong>${title}</strong></div>
-      <div class="mascot-levels" aria-label="5단계 중 ${metrics.level}단계">${[1, 2, 3, 4, 5].map(level => `<i class="${level <= metrics.level ? 'on' : ''}"></i>`).join('')}</div>
+      ${levels}
       <p>${message}</p>
       <div class="mascot-stats"><span><b>${average}</b>평균 섭취</span><span><b>${metrics.activeDays}일</b>운동 완료</span><span><b>${metrics.dataDays}일</b>기록 반영</span></div>`;
   }
@@ -142,13 +150,32 @@
     if (!hero) return;
     const state = readState();
     const info = state.profile?.recommendationContext || {};
+    const goal = info.goalStatement || info.goal || '';
+    if (!goal && !state.profile?.targetUpdatedAt) {
+      hero.className = 'hero onboard';
+      hero.innerHTML = `<span class="tag">시작하기</span><h2>나에게 맞는 목표부터 정해요</h2>
+        <ol><li>키·체중 같은 기본 정보</li><li>원하는 변화를 내 말로 한 줄</li><li>운동 가능한 요일과 시간</li></ol>
+        <div class="hero-actions"><button class="primary" data-go="more" data-open="recommendationProfile">목표 설정하기</button><button class="ghost" data-go="workout">먼저 기록해보기</button></div>`;
+      return;
+    }
     const coach = state.profile?.weeklyCoach || {};
     const intensity = state.profile?.trainingIntensity || '중간';
-    const goal = info.goalStatement || info.goal || '꾸준한 체력 향상';
-    const action = coach.nextActions?.[0] || `이번 주 ${state.profile?.workoutGoal || 4}회, 회복 상태를 보며 진행해요.`;
-    hero.querySelector('.tag').textContent = `AI 목표 · ${intensity} 강도`;
-    hero.querySelector('h2').textContent = goal.length > 24 ? `${goal.slice(0, 24)}…` : goal;
-    hero.querySelector('p').textContent = action;
+    const weeklyGoal = +(state.profile?.workoutGoal || 4);
+    const now = new Date();
+    const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7));
+    let doneDays = 0;
+    for (const date = new Date(monday); date <= now; date.setDate(date.getDate() + 1)) {
+      if ((state.logs?.[dateKey(date)]?.workouts || []).length) doneDays++;
+    }
+    const doneToday = (state.logs?.[dateKey(now)]?.workouts || []).length > 0;
+    const title = goal || '내 목표 기준으로 진행 중';
+    const action = coach.nextActions?.[0] || `주 ${weeklyGoal}회, 회복 상태를 보며 진행해요.`;
+    hero.className = 'hero';
+    hero.innerHTML = `<span class="tag">${state.profile?.targetReason ? 'AI 목표' : '내 목표'} · ${esc(intensity)} 강도</span>
+      <h2>${esc(title.length > 24 ? `${title.slice(0, 24)}…` : title)}</h2>
+      <p>${esc(action)}</p>
+      <div class="hero-progress"><div class="track"><i style="width:${Math.min(100, doneDays / Math.max(1, weeklyGoal) * 100)}%"></i></div><b>이번 주 ${doneDays}/${weeklyGoal}회</b></div>
+      <div class="hero-actions">${doneToday ? '<button class="ghost" data-go="workout">오늘 운동 완료 ✓</button>' : '<button class="primary" data-go="workout">오늘 운동 기록하기</button>'}</div>`;
   }
 
   function removeLegacyDemoMeals() {
@@ -398,8 +425,8 @@
     return parts.length === 3 ? `${+parts[1]}/${+parts[2]}` : String(value || '').slice(5).replace('-', '/');
   };
 
-  function svgEmpty(message) {
-    return `<div class="chart-empty"><span>📊</span><strong>${message}</strong><small>기록을 추가하면 최근 10회 흐름이 자동으로 나타나요.</small></div>`;
+  function svgEmpty(message, hint = '기록을 추가하면 최근 10회 흐름이 자동으로 나타나요.', action = '') {
+    return `<div class="chart-empty"><span aria-hidden="true">📊</span><strong>${message}</strong><small>${hint}</small>${action}</div>`;
   }
 
   function linePath(values, min, max) {
@@ -408,7 +435,7 @@
   }
 
   function lineChart(records) {
-    if (!records.length) return svgEmpty('아직 인바디 측정 기록이 없어요.');
+    if (!records.length) return svgEmpty('아직 인바디 기록이 없어요', '측정값을 입력하면 체중·체지방·근육량 흐름을 보여드려요.', '<button type="button" class="primary mint" data-go="more" data-open="inbodyPanel">인바디 입력하기</button>');
     const series = [
       ['weight', '#67aef2'], ['pbf', '#ff8f78'], ['smm', '#54bb93']
     ];
@@ -437,7 +464,7 @@
   }
 
   function barChart(records, color, unit, target = 0) {
-    if (!records.length) return svgEmpty('표시할 실제 기록이 없어요.');
+    if (!records.length) return svgEmpty('아직 표시할 기록이 없어요');
     const max = Math.max(target, ...records.map(item => item.value), 1);
     const width = 260 / Math.max(1, records.length); const barWidth = Math.min(22, width * .62);
     return `<svg class="chart real-chart" viewBox="0 0 360 132" role="img"><line class="grid" x1="38" y1="96" x2="338" y2="96"/>${target ? `<line x1="38" y1="${96-target/max*76}" x2="338" y2="${96-target/max*76}" stroke="#9db4aa" stroke-dasharray="4 4"/><text x="336" y="${90-target/max*76}" text-anchor="end">목표</text>` : ''}${records.map((item,index)=>{const x=46+index*(284/Math.max(1,records.length-1))-barWidth/2; const h=Math.max(2,item.value/max*76); return `<rect x="${x}" y="${96-h}" width="${barWidth}" height="${h}" rx="5" fill="${color}"><title>${Math.round(item.value).toLocaleString()} ${unit}</title></rect><text x="${x+barWidth/2}" y="116" text-anchor="middle">${shortDate(item.date)}</text>`}).join('')}</svg>`;
@@ -447,21 +474,25 @@
     const report = $('[data-view="report"] .content'); if (!report) return;
     const state = readState(); const cards = [...report.querySelectorAll('.chart-card')]; if (cards.length < 3) return;
     const inbody = (state.inbody || []).filter(item => !item.excluded && item.date).sort((a,b)=>String(a.date).localeCompare(String(b.date))).slice(-10);
-    cards[0].querySelector('.chart-head').innerHTML = `<div><span>신체 변화</span><br><strong>최근 인바디 측정 ${inbody.length}회</strong></div><span>최대 10회</span>`;
+    cards[0].querySelector('.chart-head').innerHTML = `<div><span>신체 변화</span><br><strong>${inbody.length ? `최근 인바디 측정 ${inbody.length}회` : '최근 인바디'}</strong></div><span>최대 10회</span>`;
     const oldBodyChart = cards[0].querySelector('.chart, .chart-empty'); if (oldBodyChart) oldBodyChart.outerHTML = lineChart(inbody);
     const stats = $('#stats');
-    if (stats && !inbody.length) stats.innerHTML = '<article class="stat report-empty-stat"><span>인바디 기록 대기</span><strong>–</strong><em>더보기에서 첫 측정값을 입력해 주세요.</em></article>';
+    if (stats && !inbody.length) stats.innerHTML = '';
+    cards[0].querySelector('.legend')?.classList.toggle('hidden', !inbody.length);
     const bodyComment = [...report.querySelectorAll('.comment')].find(element => !element.id);
-    if (bodyComment) bodyComment.textContent = inbody.length > 1 ? '실제 인바디 기록의 최근 변화입니다. 수치 하나보다 같은 조건에서 측정한 흐름을 함께 보세요.' : inbody.length ? '측정값이 더 쌓이면 변화 속도와 목표 방향을 함께 분석해요.' : '인바디를 입력하면 실제 측정값을 바탕으로 코칭해요.';
+    if (bodyComment) {
+      bodyComment.textContent = inbody.length > 1 ? '실제 인바디 기록의 최근 변화입니다. 수치 하나보다 같은 조건에서 측정한 흐름을 함께 보세요.' : inbody.length ? '측정값이 더 쌓이면 변화 속도와 목표 방향을 함께 분석해요.' : '';
+      bodyComment.classList.toggle('hidden', !inbody.length);
+    }
     const logRows = Object.entries(state.logs || {}).sort(([a],[b])=>a.localeCompare(b));
     const volumeRows = logRows.map(([date,log])=>({date,value:(log.workouts||[]).reduce((sum,w)=>sum+workoutVolume(w),0)})).filter(item=>item.value>0).slice(-10);
-    cards[1].querySelector('.chart-head').innerHTML = `<strong>근력운동 총 볼륨</strong><span>최근 ${volumeRows.length}회 · kg</span>`;
-    const oldVolume = cards[1].querySelector('.chart, .chart-empty'); if (oldVolume) oldVolume.outerHTML = barChart(volumeRows, '#67aef2', 'kg');
-    const legend = cards[1].querySelector('.legend'); if (legend) legend.innerHTML = '<span><i style="background:#67aef2"></i>중량 × 횟수 × 세트 합계</span>';
+    cards[1].querySelector('.chart-head').innerHTML = `<strong>근력운동 총 볼륨</strong><span>${volumeRows.length ? `최근 ${volumeRows.length}회 · kg` : 'kg'}</span>`;
+    const oldVolume = cards[1].querySelector('.chart, .chart-empty'); if (oldVolume) oldVolume.outerHTML = volumeRows.length ? barChart(volumeRows, '#67aef2', 'kg') : svgEmpty('아직 볼륨 기록이 없어요', '운동 내용을 “스쿼트 60kg 10회 5세트”처럼 적으면 자동으로 계산돼요.', '<button type="button" class="primary mint" data-go="workout">운동 기록하기</button>');
+    const legend = cards[1].querySelector('.legend'); if (legend) { legend.innerHTML = '<span><i style="background:#67aef2"></i>중량 × 횟수 × 세트 합계</span>'; legend.classList.toggle('hidden', !volumeRows.length); }
     const kcalTarget = +(state.profile?.targets?.kcal || 2200);
     const calorieRows = logRows.map(([date,log])=>({date,value:calories(log), meals:(log.meals||[]).length})).filter(item=>item.meals>0).slice(-10);
-    cards[2].querySelector('.chart-head').innerHTML = `<strong>하루 섭취 칼로리</strong><span>최근 ${calorieRows.length}일 · kcal</span>`;
-    const oldCalories = cards[2].querySelector('.chart, .chart-empty'); if (oldCalories) oldCalories.outerHTML = barChart(calorieRows, '#ff9e82', 'kcal', kcalTarget);
+    cards[2].querySelector('.chart-head').innerHTML = `<strong>하루 섭취 칼로리</strong><span>${calorieRows.length ? `최근 ${calorieRows.length}일 · ` : ''}목표 ${kcalTarget.toLocaleString()} kcal</span>`;
+    const oldCalories = cards[2].querySelector('.chart, .chart-empty'); if (oldCalories) oldCalories.outerHTML = calorieRows.length ? barChart(calorieRows, '#ff9e82', 'kcal', kcalTarget) : svgEmpty('아직 식단 기록이 없어요', '식사를 기록하면 목표 대비 하루 섭취량이 쌓여요.', '<button type="button" class="primary mint" data-go="meals">식사 기록하기</button>');
     let cardioCard = $('#cardioReportCard');
     const cardioRows = logRows.map(([date, log]) => ({ date, value: (log.workouts || []).reduce((sum, workout) => sum + cardioCalories(workout), 0) })).filter(item => item.value > 0).slice(-7);
     if (cardioRows.length) {
@@ -487,34 +518,6 @@
     if (hour < 21 && !recorded.has('저녁')) result.push('저녁');
     if (!recorded.has('간식')) result.push('간식');
     return result.length ? result : ['가벼운 간식'];
-  }
-
-  function installWorkoutCardioField() {
-    const noteField = $('#workoutNote')?.closest('.field');
-    const saveButton = $('#saveWorkout');
-    if (!noteField || !saveButton || $('#workoutKcal')) return;
-    noteField.insertAdjacentHTML('afterend', `<label class="field cardio-kcal-field"><span>유산소 소모 칼로리 <small>유산소를 기록할 때만 입력</small></span><div class="kcal-input-wrap"><input class="input" id="workoutKcal" inputmode="numeric" placeholder="예: 420"><b>kcal</b></div></label>`);
-    saveButton.addEventListener('click', () => {
-      const kcal = Math.max(0, +$('#workoutKcal')?.value || 0);
-      const cardioSelected = [...document.querySelectorAll('[name="wt"]:checked')].some(input => /유산소|축구/.test(input.value));
-      if (!cardioSelected || !kcal) return;
-      setTimeout(() => {
-        const state = readState();
-        const today = dateKey(new Date());
-        const workouts = state.logs?.[today]?.workouts || [];
-        let changed = false;
-        workouts.forEach(workout => {
-          if (/유산소|축구/.test(String(workout.group || workout.type || '')) && !cardioCalories(workout)) {
-            workout.kcal = kcal;
-            changed = true;
-          }
-        });
-        if (changed) {
-          writeState(state);
-          window.dispatchEvent(new CustomEvent('fitlog:state-updated'));
-        }
-      }, 0);
-    });
   }
 
   function profileContextText(state) {
@@ -842,7 +845,7 @@
     const saveProfileFields = () => {
       const next = readState();
       next.profile ||= {};
-      next.profile.name = $('#ctxName').value.trim() || next.profile.name || '인수';
+      next.profile.name = $('#ctxName').value.trim();
       next.profile.recommendationContext = {
         sex: $('#ctxSex').value,
         birthYear: $('#ctxBirth').value.trim(),
@@ -918,7 +921,7 @@
     trigger.onclick = async () => {
       location.hash = 'meals';
       document.querySelectorAll('.view').forEach(view => view.classList.toggle('active', view.dataset.view === 'meals'));
-      document.querySelectorAll('.nav [data-go]').forEach(button => button.classList.toggle('active', button.dataset.go === 'meals'));
+      document.querySelectorAll('.nav [data-go]').forEach(button => button.classList.toggle('active', button.dataset.go === 'home'));
       const state = readState();
       const today = dateKey(new Date());
       const meals = state.logs?.[today]?.meals || [];
@@ -1041,9 +1044,11 @@
     const oldForm = $('#saveMeal')?.closest('.form');
     if (!oldForm || $('#aiMealComposer')) return;
     oldForm.id = 'aiMealComposer';
+    const hour = new Date().getHours();
+    const defaultMeal = hour >= 4 && hour < 10 ? '아침' : hour >= 10 && hour < 15 ? '점심' : hour >= 15 && hour < 21 ? '저녁' : '간식';
     oldForm.innerHTML = `
       <div class="meal-type-tabs" role="radiogroup" aria-label="끼니 선택">
-        ${['아침', '점심', '저녁', '간식'].map((type, index) => `<label><input type="radio" name="aiMealType" value="${type}" ${index === 0 ? 'checked' : ''}><span>${type}</span></label>`).join('')}
+        ${['아침', '점심', '저녁', '간식'].map(type => `<label><input type="radio" name="aiMealType" value="${type}" ${type === defaultMeal ? 'checked' : ''}><span>${type}</span></label>`).join('')}
       </div>
       <label class="field"><span>먹은 내용을 편하게 적어주세요</span><textarea class="textarea meal-free-text" id="aiMealText" placeholder="예: 햇반 반 공기, 계란후라이 2개, 닭가슴살 150g\n양이나 제품명을 적으면 더 정확해요."></textarea></label>
       <div class="photo-analyzer">
@@ -1075,8 +1080,15 @@
       const notice = $('#aiMealNotice');
       const text = $('#aiMealText').value.trim();
       const meal = $('[name="aiMealType"]:checked')?.value || '아침';
+      notice.classList.remove('warn');
       if (!text && !photoData) {
+        const input = $('#aiMealText');
         notice.textContent = '먹은 내용을 적거나 사진을 추가해 주세요.';
+        notice.classList.add('warn');
+        input.classList.add('invalid');
+        input.classList.remove('shake'); void input.offsetWidth; input.classList.add('shake');
+        input.focus();
+        input.addEventListener('input', () => { input.classList.remove('invalid'); notice.classList.remove('warn'); }, { once: true });
         return;
       }
       const settings = parse(localStorage.getItem(AI_KEY), {}) || {};
@@ -1174,16 +1186,17 @@
   function injectStyles() {
     const style = document.createElement('style');
     style.textContent = `
-      :root{--red:#f25f5c;--soft-red:#ffe1d8;--violet:#8f7ee7}.welcome{background:linear-gradient(135deg,#fff0eb,#fff9dc 62%,#ddf7ed);padding-right:148px}.welcome img{width:145px;height:145px;right:-2px;bottom:-8px;transform-origin:55% 85%}.welcome.mascot-level-5{background:linear-gradient(135deg,#fff0d2,#ffe0d2 55%,#fff5b5)}.welcome.mascot-level-5 img{animation:mascotKick .62s ease-in-out infinite alternate}.welcome.mascot-level-4 img{animation:mascotRun .85s ease-in-out infinite alternate}.welcome.mascot-level-3 img{animation:mascotBreathe 2.4s ease-in-out infinite}.welcome.mascot-level-2 img{animation:mascotSlow 2.2s ease-in-out infinite}.welcome.mascot-level-1 img{animation:mascotDroop 3s ease-in-out infinite}.mascot-meter{margin-top:9px;padding:12px 14px;border:1px solid var(--line);border-radius:18px;background:#fff;box-shadow:0 7px 20px #2666500d}.mascot-meter-head{display:flex;align-items:center;justify-content:space-between;gap:8px}.mascot-meter-head span{color:var(--sub);font-size:10px}.mascot-meter-head strong{font-size:13px}.mascot-levels{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin:8px 0}.mascot-levels i{height:6px;border-radius:9px;background:#e6eeeb}.mascot-levels i.on:nth-child(1){background:#aebac0}.mascot-levels i.on:nth-child(2){background:#9dc9bd}.mascot-levels i.on:nth-child(3){background:#72d1ae}.mascot-levels i.on:nth-child(4){background:#ffb45f}.mascot-levels i.on:nth-child(5){background:#f25f5c}.mascot-meter p{margin:0 0 10px;color:var(--sub);font-size:10px}.mascot-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.mascot-stats span{padding:7px 5px;border-radius:11px;background:#f5faf8;color:var(--sub);font-size:8px;text-align:center}.mascot-stats b{display:block;margin-bottom:2px;color:var(--ink);font-size:11px}@keyframes mascotKick{from{transform:translate(-3px,2px) rotate(-2deg) scale(.98)}to{transform:translate(4px,-5px) rotate(2deg) scale(1.03)}}@keyframes mascotRun{from{transform:translateX(-3px) rotate(-1deg)}to{transform:translate(4px,-3px) rotate(2deg)}}@keyframes mascotBreathe{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-2px) scale(1.015)}}@keyframes mascotSlow{0%,100%{transform:translateX(-1px) rotate(-1deg)}50%{transform:translateX(2px) rotate(1deg)}}@keyframes mascotDroop{0%,100%{transform:translateY(1px) rotate(0)}50%{transform:translateY(4px) rotate(-1deg)}}.bottom{border-top:1px solid #e5ece9;box-shadow:0 -8px 25px #17372c0b}.nav button{gap:3px}.nav button>span:last-child{font-size:9px}.nav-bubble{width:35px;height:35px;border-radius:13px;background:var(--bubble);display:grid;place-items:center;transition:.2s transform}.nav-bubble svg{width:20px;height:20px;fill:none;stroke:#29483e;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.nav button.active .nav-bubble{transform:translateY(-2px);box-shadow:0 5px 12px #17372c18}.nav .plus .nav-bubble{width:46px;height:46px;margin-top:-20px;border-radius:17px;background:#fff09c;box-shadow:0 8px 18px #c7a92435}.quick button{display:grid;place-items:center;gap:7px}.quick-icon{width:43px;height:43px;display:grid;place-items:center;border-radius:15px;font-size:21px}.quick-icon.peach{background:#ffe1d8}.quick-icon.mint{background:#d9f5e8}.quick-icon.lilac{background:#e5ddff}.quick button strong{font-size:11px}
-      .calendar-card{padding:15px}.calendar-head{display:grid;grid-template-columns:38px 1fr 38px;align-items:center;text-align:center}.calendar-head button{width:34px;height:34px;border:0;border-radius:12px;background:#f2f7f5;font-size:24px}.calendar-weekdays,.calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}.calendar-weekdays{margin:13px 0 6px;color:var(--sub);font-size:9px;text-align:center}.calendar-day{position:relative;min-width:0;height:55px;padding:4px 0;border:0;border-radius:13px;background:transparent;display:grid;place-items:center;align-content:start;gap:2px}.calendar-day>span{font-size:10px}.calendar-day.today>span{width:20px;height:20px;display:grid;place-items:center;border-radius:8px;background:#17372c;color:#fff}.calendar-day.selected{background:#f3f8f6;box-shadow:inset 0 0 0 2px #98d9c2}.activity-ring{position:relative;width:29px;height:29px;border-radius:50%;background:conic-gradient(var(--red) var(--move),#f2dddd 0);display:grid;place-items:center}.activity-ring:before{content:"";width:22px;height:22px;border-radius:50%;background:conic-gradient(#65cba5 var(--meal),#deeee8 0)}.activity-ring:after{content:"";position:absolute;width:15px;height:15px;border-radius:50%;background:conic-gradient(#ffb35f var(--kcal),#f3e7d7 0)}.activity-ring i{position:absolute;z-index:1;width:8px;height:8px;border-radius:50%;background:#fff}.empty-dot{width:4px;height:4px;margin-top:8px;border-radius:50%;background:#dce9e4}.ring-legend{display:flex;justify-content:center;gap:12px;margin:12px 0;color:var(--sub);font-size:9px}.ring-legend i{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:4px}.ring-legend .red{background:var(--red)}.ring-legend .green{background:#65cba5}.ring-legend .orange{background:#ffb35f}.day-summary{padding:14px;border-radius:17px;background:#f7fbf9}.summary-head{display:flex;justify-content:space-between;align-items:center}.summary-head span,.summary-head strong{display:block}.summary-head span{color:var(--sub);font-size:10px}.summary-head strong{font-size:19px;margin-top:2px}.summary-count{display:flex;gap:5px}.summary-count span{padding:6px 8px;border-radius:10px;background:#fff;color:var(--ink)}.day-block{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}.day-block h3{margin:0 0 6px;font-size:11px}.day-block div{display:grid;grid-template-columns:35px 1fr;gap:6px;margin:5px 0}.day-block b,.day-block span,.day-block p{font-size:10px}.day-block span,.day-block p{margin:0;color:var(--sub);line-height:1.5}.summary-empty strong,.summary-empty span{display:block}.summary-empty span{margin-top:3px;color:var(--sub);font-size:10px}
-      .meal-type-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:13px}.meal-type-tabs input{position:absolute;opacity:0}.meal-type-tabs span{min-height:42px;border:1px solid var(--line);border-radius:13px;background:#f7fbf9;display:grid;place-items:center;font-size:11px;font-weight:850}.meal-type-tabs input:checked+span{background:#17372c;color:#fff;border-color:#17372c}.meal-free-text{min-height:112px;line-height:1.55}.photo-analyzer{position:relative;margin:10px 0;min-height:82px}.photo-picker{min-height:82px;padding:12px;border:1px dashed #9ecdbc;border-radius:17px;background:#f0faf6;display:grid;grid-template-columns:42px 1fr;align-items:center;column-gap:9px;cursor:pointer}.photo-picker>span{grid-row:1/3;width:42px;height:42px;border-radius:14px;background:#fff;display:grid;place-items:center;font-size:20px}.photo-picker strong,.photo-picker small{display:block}.photo-picker strong{font-size:12px}.photo-picker small{color:var(--sub);font-size:9px}.photo-picker.has-photo{padding-right:92px}.photo-analyzer img{display:none;position:absolute;right:7px;top:7px;width:68px;height:68px;object-fit:cover;border-radius:13px}.photo-analyzer img.show{display:block}.ai-save{background:linear-gradient(135deg,#f26b63,#ff9a6d);box-shadow:0 8px 18px #e2644930}.ai-save span{margin-right:5px}.ai-save:disabled{opacity:.7}.ai-notice{line-height:1.5}.inline-link{border:0;background:transparent;color:#2f8467;font-weight:900;text-decoration:underline}.spinner{display:inline-block;width:14px;height:14px;border:2px solid #ffffff66;border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
-      .analysis-preview{display:none;margin-top:10px;padding:14px}.analysis-preview.show{display:block}.analysis-head{display:flex;justify-content:space-between;align-items:end;gap:8px;margin-bottom:10px}.analysis-head span,.analysis-head strong{display:block}.analysis-head span,.analysis-head small{color:var(--sub);font-size:9px}.analysis-head strong{margin-top:2px;font-size:15px}.analysis-item{padding:12px;margin-bottom:9px;border-radius:16px;background:#f5faf8;border:1px solid #dcebe5}.analysis-item>label{display:block;margin-bottom:8px}.analysis-item>label span,.nutrition-edit span,.portion-row span{display:block;margin-bottom:4px;color:var(--sub);font-size:9px}.analysis-item .input{padding:9px 10px;font-size:13px}.portion-row{display:flex;align-items:center;justify-content:space-between;margin:9px 0}.portion-row strong{font-size:17px}.portion-stepper{display:grid;grid-template-columns:42px 42px;gap:6px}.portion-stepper button{height:36px;border:0;border-radius:12px;background:#fff;font-size:20px;font-weight:900}.nutrition-edit{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}.nutrition-edit input{width:100%;min-width:0;padding:8px 4px;border:1px solid var(--line);border-radius:10px;background:#fff;text-align:center;font-size:11px}.analysis-total{margin:9px 0 0;color:var(--sub);font-size:10px}.analysis-total b{color:var(--ink)}.edit-meal{align-self:center;border:0;border-radius:11px;background:#e7f6f0;color:#28765d;padding:6px 9px;font-weight:800}.item:has(.edit-meal){grid-template-columns:1fr auto auto}
-      .meal-recommendation{display:none;margin:10px 0;padding:14px;background:linear-gradient(145deg,#fff8df,#eefaf5)}.meal-recommendation.show{display:block}.recommend-loading{min-height:92px;display:grid;place-items:center;align-content:center;gap:6px;text-align:center}.recommend-loading strong,.recommend-loading span{display:block}.recommend-loading span{color:var(--sub);font-size:10px}.recommend-loading.bad strong{color:#a65341}.recommend-loading button{border:0;border-radius:11px;background:#17372c;color:#fff;padding:8px 12px;font-weight:800}.spinner.dark{border-color:#17372c33;border-top-color:#17372c}.recommend-head{display:flex;justify-content:space-between;align-items:end;gap:10px;margin-bottom:10px}.recommend-head span,.recommend-head strong{display:block}.recommend-head span{color:#6d827b;font-size:9px}.recommend-head strong{margin-top:2px;font-size:16px}.recommend-head small{max-width:48%;color:#6d827b;font-size:9px;text-align:right}.recommend-list article{display:grid;grid-template-columns:1fr auto;gap:6px;padding:11px;margin-top:7px;border-radius:15px;background:#fff}.recommend-list span,.recommend-list strong,.recommend-list small{display:block}.recommend-list span{color:#378d70;font-size:9px;font-weight:900}.recommend-list strong{margin:2px 0;font-size:13px}.recommend-list small,.recommend-list p{color:var(--sub);font-size:9px}.recommend-list p{grid-column:1/-1;margin:0;line-height:1.45}.recommend-list button{border:0;border-radius:11px;background:#e1f8ef;color:#25755a;padding:7px 10px;font-weight:900}
-      .recommendation-profile>.section-head{margin-top:18px}.recommendation-profile .section-head small{display:block;margin-top:3px;color:var(--sub);font-size:9px}.profile-detail-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:0 8px}.profile-detail-grid .full-field{grid-column:1/-1}.textarea.compact{min-height:68px}
-      .nutrition .cal-line strong{display:flex;align-items:baseline;gap:5px}.nutrition #kcal{font-size:34px;line-height:1;font-weight:950;letter-spacing:-1.5px}.nutrition .cal-line strong{font-size:20px}.nutrition .cal-line strong+span,.nutrition .cal-line>div>span{color:var(--sub);font-size:11px}.body-profile-card,.body-goal-card,.weekly-coach{padding:16px;margin-top:10px}.body-score,.goal-heading{display:flex;justify-content:space-between;align-items:end;margin-bottom:13px}.body-score span,.goal-heading span{display:block;color:#3a8b70;font-size:9px;font-weight:950;letter-spacing:.8px}.body-score strong,.goal-heading strong{display:block;margin-top:3px;font-size:18px}.body-score small{color:var(--sub);font-size:9px}.body-input-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:0 8px}.body-profile-card .primary,.body-goal-card .primary{margin-top:5px}.body-goal-card{background:linear-gradient(145deg,#f1fff9,#fff9df)}.goal-heading{display:block}.weekly-coach{margin:12px 0;background:linear-gradient(145deg,#eef9ff,#f2fff7 55%,#fff7dc)}.coach-title span,.coach-title strong,.coach-title small{display:block}.coach-title span{color:#477e9d;font-size:9px;font-weight:950;letter-spacing:.8px}.coach-title strong{margin:5px 0;font-size:18px}.coach-title small,.coach-note{color:var(--sub);font-size:9px;line-height:1.5}.weekly-coach>.primary{margin-top:13px}.coach-columns{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:13px}.coach-columns>div,.coach-plan{padding:11px;border-radius:14px;background:#fff}.coach-columns b,.coach-plan b{font-size:11px}.coach-columns p,.coach-plan p{margin:7px 0 0;color:var(--sub);font-size:10px;line-height:1.45}.coach-plan{margin-top:7px}.coach-plan p{display:grid;grid-template-columns:20px 1fr;gap:5px}.coach-plan p span{width:18px;height:18px;border-radius:7px;background:#dff4ec;color:#28765d;display:grid;place-items:center;font-weight:900}.coach-note{display:block;margin-top:9px}
-      .kcal-value{font-size:19px;line-height:1;font-weight:950;letter-spacing:-.4px;color:var(--ink)}.meal-row em{display:flex;align-items:baseline;gap:3px;white-space:nowrap;font-size:11px}.meal-row .meal-emoji{width:56px;height:56px;border-radius:17px;background:linear-gradient(145deg,#fff3df,#e9f8f1);display:grid;place-items:center;font-size:31px;box-shadow:inset 0 0 0 1px #e2ede8}.meal-group-row>span:nth-child(2)>span{font-size:11px;line-height:1.45;color:#526a61}.meal-group-row small{display:block;margin-top:4px;color:var(--sub);font-size:9px}.meal-group{padding:5px 0;border-bottom:1px solid var(--line)}.meal-group:last-child{border-bottom:0}.meal-group>header{display:grid;grid-template-columns:42px 1fr auto;gap:9px;align-items:center;padding:9px 0}.meal-emoji.small{width:42px;height:42px;border-radius:14px;background:#f1faf6;display:grid;place-items:center;font-size:23px}.meal-group header strong,.meal-group header span{display:block}.meal-group header span{color:var(--sub);font-size:9px}.meal-group header em{display:flex;align-items:baseline;gap:3px;font-style:normal;font-size:10px}.meal-group-items{margin-left:51px}.meal-group-items article{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:6px;align-items:center;padding:9px 0;border-top:1px dashed #e4efeb}.meal-group-items article strong,.meal-group-items article span{display:block}.meal-group-items article strong{font-size:12px}.meal-group-items article span{margin-top:3px;color:var(--sub);font-size:9px;line-height:1.4}.item-kcal{font-size:16px;white-space:nowrap}.meal-group-items .edit-meal,.meal-group-items .delete{padding:6px 7px;font-size:10px}.analysis-total b,.recommend-list small{font-size:15px;color:var(--ink);font-weight:900}.photo strong #mealKcal{font-size:36px;letter-spacing:-1.5px}.photo strong{display:flex;align-items:baseline;gap:5px}#mealRemain,#kcalMsg{font-size:13px;font-weight:800}.kcal-input-wrap{position:relative}.kcal-input-wrap input{padding-right:55px}.kcal-input-wrap b{position:absolute;right:13px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--sub)}.cardio-kcal-field small{font-size:9px;color:#8a9a94}
-      .settings-fold{margin:10px 0;overflow:hidden}.settings-fold>summary{list-style:none;min-height:72px;padding:12px 15px;display:grid;grid-template-columns:44px 1fr auto;align-items:center;gap:10px;cursor:pointer}.settings-fold>summary::-webkit-details-marker{display:none}.settings-fold>summary .fold-icon{width:44px;height:44px;border-radius:15px;background:#f0faf6;display:grid;place-items:center;font-size:21px}.settings-fold>summary strong,.settings-fold>summary small{display:block}.settings-fold>summary strong{font-size:14px}.settings-fold>summary small{margin-top:3px;color:var(--sub);font-size:9px;line-height:1.4}.settings-fold>summary>b{font-size:21px;transition:.2s transform}.settings-fold[open]>summary>b{transform:rotate(90deg)}.fold-content{padding:3px 15px 16px;border-top:1px solid var(--line)}.body-profile-card{padding:13px 0 0;margin:0;box-shadow:none;border:0}.profile-step{display:grid;grid-template-columns:28px 1fr;gap:8px;align-items:center;margin:15px 0 10px}.profile-step>span{width:27px;height:27px;border-radius:10px;background:#17372c;color:#fff;display:grid;place-items:center;font-weight:900;font-size:11px}.profile-step strong,.profile-step small{display:block}.profile-step strong{font-size:13px}.profile-step small{color:var(--sub);font-size:9px;margin-top:2px}.goal-text{min-height:105px;line-height:1.5}.ai-target-summary{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin:12px 0;padding:11px;border-radius:16px;background:#f4faf7}.ai-target-summary span{padding:7px 8px;border-radius:11px;background:#fff;color:var(--sub);font-size:9px}.ai-target-summary span:last-child{grid-column:1/-1}.ai-target-summary b{display:block;margin-bottom:2px;color:var(--ink);font-size:14px}.event-advice{margin-top:11px;border-top:1px solid #dcebe5}.event-advice>summary{list-style:none;padding:12px 2px 2px;color:#3a8069;font-size:11px;font-weight:900;cursor:pointer}.event-advice>summary::-webkit-details-marker{display:none}.event-advice>summary b{float:right}.event-advice>div{padding-top:8px}.event-advice .primary{font-size:11px}.chart-card#cardioReportCard{background:linear-gradient(145deg,#effbf6,#fff)}
-      @media(max-width:360px){.welcome{padding-right:118px}.welcome img{width:120px;height:120px}.calendar-grid,.calendar-weekdays{gap:2px}.calendar-day{height:52px}.activity-ring{width:26px;height:26px}.activity-ring:before{width:20px;height:20px}.activity-ring:after{width:14px;height:14px}.mascot-stats span{font-size:7px}}
+      :root{--red:#f25f5c;--soft-red:#ffe1d8;--violet:#8f7ee7}.welcome{background:linear-gradient(135deg,#fff0eb,#fff9dc 62%,#ddf7ed);padding-right:148px}.welcome img{width:145px;height:145px;right:-2px;bottom:-8px;transform-origin:55% 85%}.welcome.mascot-level-5{background:linear-gradient(135deg,#fff0d2,#ffe0d2 55%,#fff5b5)}.welcome.mascot-level-5 img{animation:mascotKick .62s ease-in-out infinite alternate}.welcome.mascot-level-4 img{animation:mascotRun .85s ease-in-out infinite alternate}.welcome.mascot-level-3 img{animation:mascotBreathe 2.4s ease-in-out infinite}.welcome.mascot-level-2 img{animation:mascotSlow 2.2s ease-in-out infinite}.welcome.mascot-level-1 img{animation:mascotDroop 3s ease-in-out infinite}.mascot-meter{margin-top:9px;padding:12px 14px;border:1px solid var(--line);border-radius:18px;background:#fff;box-shadow:0 7px 20px #2666500d}.mascot-meter-head{display:flex;align-items:center;justify-content:space-between;gap:8px}.mascot-meter-head span{color:var(--sub);font-size:12px}.mascot-meter-head strong{font-size:13px}.mascot-levels{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin:8px 0}.mascot-levels i{height:6px;border-radius:9px;background:#e6eeeb}.mascot-levels i.on:nth-child(1){background:#aebac0}.mascot-levels i.on:nth-child(2){background:#9dc9bd}.mascot-levels i.on:nth-child(3){background:#72d1ae}.mascot-levels i.on:nth-child(4){background:#ffb45f}.mascot-levels i.on:nth-child(5){background:#f25f5c}.mascot-meter p{margin:0 0 10px;color:var(--sub);font-size:12px}.mascot-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.mascot-stats span{padding:7px 5px;border-radius:11px;background:#f5faf8;color:var(--sub);font-size:11px;text-align:center}.mascot-stats b{display:block;margin-bottom:2px;color:var(--ink);font-size:12px}@keyframes mascotKick{from{transform:translate(-3px,2px) rotate(-2deg) scale(.98)}to{transform:translate(4px,-5px) rotate(2deg) scale(1.03)}}@keyframes mascotRun{from{transform:translateX(-3px) rotate(-1deg)}to{transform:translate(4px,-3px) rotate(2deg)}}@keyframes mascotBreathe{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-2px) scale(1.015)}}@keyframes mascotSlow{0%,100%{transform:translateX(-1px) rotate(-1deg)}50%{transform:translateX(2px) rotate(1deg)}}@keyframes mascotDroop{0%,100%{transform:translateY(1px) rotate(0)}50%{transform:translateY(4px) rotate(-1deg)}}.bottom{border-top:1px solid #e5ece9;box-shadow:0 -8px 25px #17372c0b}.nav button{gap:3px}.nav button>span:last-child{font-size:11px}.nav-bubble{width:35px;height:35px;border-radius:13px;background:var(--bubble);display:grid;place-items:center;transition:.2s transform}.nav-bubble svg{width:20px;height:20px;fill:none;stroke:#29483e;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.nav button.active .nav-bubble{transform:translateY(-2px);box-shadow:0 5px 12px #17372c18}.nav .plus .nav-bubble{width:46px;height:46px;margin-top:-20px;border-radius:17px;background:#fff09c;box-shadow:0 8px 18px #c7a92435}.quick button{display:grid;place-items:center;gap:7px}.quick-icon{width:43px;height:43px;display:grid;place-items:center;border-radius:15px;font-size:21px}.quick-icon.peach{background:#ffe1d8}.quick-icon.mint{background:#d9f5e8}.quick-icon.lilac{background:#e5ddff}.quick button strong{font-size:12px}
+      .calendar-card{padding:15px}.calendar-head{display:grid;grid-template-columns:38px 1fr 38px;align-items:center;text-align:center}.calendar-head button{width:34px;height:34px;border:0;border-radius:12px;background:#f2f7f5;font-size:24px}.calendar-weekdays,.calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}.calendar-weekdays{margin:13px 0 6px;color:var(--sub);font-size:11px;text-align:center}.calendar-day{position:relative;min-width:0;height:55px;padding:4px 0;border:0;border-radius:13px;background:transparent;display:grid;place-items:center;align-content:start;gap:2px}.calendar-day>span{font-size:12px}.calendar-day.today>span{width:20px;height:20px;display:grid;place-items:center;border-radius:8px;background:#17372c;color:#fff}.calendar-day.selected{background:#f3f8f6;box-shadow:inset 0 0 0 2px #98d9c2}.activity-ring{position:relative;width:29px;height:29px;border-radius:50%;background:conic-gradient(var(--red) var(--move),#f2dddd 0);display:grid;place-items:center}.activity-ring:before{content:"";width:22px;height:22px;border-radius:50%;background:conic-gradient(#65cba5 var(--meal),#deeee8 0)}.activity-ring:after{content:"";position:absolute;width:15px;height:15px;border-radius:50%;background:conic-gradient(#ffb35f var(--kcal),#f3e7d7 0)}.activity-ring i{position:absolute;z-index:1;width:8px;height:8px;border-radius:50%;background:#fff}.empty-dot{width:4px;height:4px;margin-top:8px;border-radius:50%;background:#dce9e4}.ring-legend{display:flex;justify-content:center;gap:12px;margin:12px 0;color:var(--sub);font-size:11px}.ring-legend i{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:4px}.ring-legend .red{background:var(--red)}.ring-legend .green{background:#65cba5}.ring-legend .orange{background:#ffb35f}.day-summary{padding:14px;border-radius:17px;background:#f7fbf9}.summary-head{display:flex;justify-content:space-between;align-items:center}.summary-head span,.summary-head strong{display:block}.summary-head span{color:var(--sub);font-size:12px}.summary-head strong{font-size:19px;margin-top:2px}.summary-count{display:flex;gap:5px}.summary-count span{padding:6px 8px;border-radius:10px;background:#fff;color:var(--ink)}.day-block{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}.day-block h3{margin:0 0 6px;font-size:12px}.day-block div{display:grid;grid-template-columns:35px 1fr;gap:6px;margin:5px 0}.day-block b,.day-block span,.day-block p{font-size:12px}.day-block span,.day-block p{margin:0;color:var(--sub);line-height:1.5}.summary-empty strong,.summary-empty span{display:block}.summary-empty span{margin-top:3px;color:var(--sub);font-size:12px}
+      .meal-type-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:13px}.meal-type-tabs input{position:absolute;opacity:0}.meal-type-tabs span{min-height:42px;border:1px solid var(--line);border-radius:13px;background:#f7fbf9;display:grid;place-items:center;font-size:12px;font-weight:850}.meal-type-tabs input:checked+span{background:#17372c;color:#fff;border-color:#17372c}.meal-free-text{min-height:112px;line-height:1.55}.photo-analyzer{position:relative;margin:10px 0;min-height:82px}.photo-picker{min-height:82px;padding:12px;border:1px dashed #9ecdbc;border-radius:17px;background:#f0faf6;display:grid;grid-template-columns:42px 1fr;align-items:center;column-gap:9px;cursor:pointer}.photo-picker>span{grid-row:1/3;width:42px;height:42px;border-radius:14px;background:#fff;display:grid;place-items:center;font-size:20px}.photo-picker strong,.photo-picker small{display:block}.photo-picker strong{font-size:12px}.photo-picker small{color:var(--sub);font-size:11px}.photo-picker.has-photo{padding-right:92px}.photo-analyzer img{display:none;position:absolute;right:7px;top:7px;width:68px;height:68px;object-fit:cover;border-radius:13px}.photo-analyzer img.show{display:block}.ai-save{background:linear-gradient(135deg,#f26b63,#ff9a6d);box-shadow:0 8px 18px #e2644930}.ai-save span{margin-right:5px}.ai-save:disabled{opacity:.7}.ai-notice{line-height:1.5}.inline-link{border:0;background:transparent;color:#2f8467;font-weight:900;text-decoration:underline}.spinner{display:inline-block;width:14px;height:14px;border:2px solid #ffffff66;border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+      .analysis-preview{display:none;margin-top:10px;padding:14px}.analysis-preview.show{display:block}.analysis-head{display:flex;justify-content:space-between;align-items:end;gap:8px;margin-bottom:10px}.analysis-head span,.analysis-head strong{display:block}.analysis-head span,.analysis-head small{color:var(--sub);font-size:11px}.analysis-head strong{margin-top:2px;font-size:15px}.analysis-item{padding:12px;margin-bottom:9px;border-radius:16px;background:#f5faf8;border:1px solid #dcebe5}.analysis-item>label{display:block;margin-bottom:8px}.analysis-item>label span,.nutrition-edit span,.portion-row span{display:block;margin-bottom:4px;color:var(--sub);font-size:11px}.analysis-item .input{padding:9px 10px;font-size:13px}.portion-row{display:flex;align-items:center;justify-content:space-between;margin:9px 0}.portion-row strong{font-size:17px}.portion-stepper{display:grid;grid-template-columns:42px 42px;gap:6px}.portion-stepper button{height:36px;border:0;border-radius:12px;background:#fff;font-size:20px;font-weight:900}.nutrition-edit{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}.nutrition-edit input{width:100%;min-width:0;padding:8px 4px;border:1px solid var(--line);border-radius:10px;background:#fff;text-align:center;font-size:12px}.analysis-total{margin:9px 0 0;color:var(--sub);font-size:12px}.analysis-total b{color:var(--ink)}.edit-meal{align-self:center;border:0;border-radius:11px;background:#e7f6f0;color:#28765d;padding:6px 9px;font-weight:800}.item:has(.edit-meal){grid-template-columns:1fr auto auto}
+      .meal-recommendation{display:none;margin:10px 0;padding:14px;background:linear-gradient(145deg,#fff8df,#eefaf5)}.meal-recommendation.show{display:block}.recommend-loading{min-height:92px;display:grid;place-items:center;align-content:center;gap:6px;text-align:center}.recommend-loading strong,.recommend-loading span{display:block}.recommend-loading span{color:var(--sub);font-size:12px}.recommend-loading.bad strong{color:#a65341}.recommend-loading button{border:0;border-radius:11px;background:#17372c;color:#fff;padding:8px 12px;font-weight:800}.spinner.dark{border-color:#17372c33;border-top-color:#17372c}.recommend-head{display:flex;justify-content:space-between;align-items:end;gap:10px;margin-bottom:10px}.recommend-head span,.recommend-head strong{display:block}.recommend-head span{color:#6d827b;font-size:11px}.recommend-head strong{margin-top:2px;font-size:16px}.recommend-head small{max-width:48%;color:#6d827b;font-size:11px;text-align:right}.recommend-list article{display:grid;grid-template-columns:1fr auto;gap:6px;padding:11px;margin-top:7px;border-radius:15px;background:#fff}.recommend-list span,.recommend-list strong,.recommend-list small{display:block}.recommend-list span{color:#378d70;font-size:11px;font-weight:900}.recommend-list strong{margin:2px 0;font-size:13px}.recommend-list small,.recommend-list p{color:var(--sub);font-size:11px}.recommend-list p{grid-column:1/-1;margin:0;line-height:1.45}.recommend-list button{border:0;border-radius:11px;background:#e1f8ef;color:#25755a;padding:7px 10px;font-weight:900}
+      .recommendation-profile>.section-head{margin-top:18px}.recommendation-profile .section-head small{display:block;margin-top:3px;color:var(--sub);font-size:11px}.profile-detail-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:0 8px}.profile-detail-grid .full-field{grid-column:1/-1}.textarea.compact{min-height:68px}
+      .nutrition .cal-line strong{display:flex;align-items:baseline;gap:5px}.nutrition #kcal{font-size:34px;line-height:1;font-weight:950;letter-spacing:-1.5px}.nutrition .cal-line strong{font-size:20px}.nutrition .cal-line strong+span,.nutrition .cal-line>div>span{color:var(--sub);font-size:12px}.body-profile-card,.body-goal-card,.weekly-coach{padding:16px;margin-top:10px}.body-score,.goal-heading{display:flex;justify-content:space-between;align-items:end;margin-bottom:13px}.body-score span,.goal-heading span{display:block;color:#3a8b70;font-size:11px;font-weight:950;letter-spacing:.8px}.body-score strong,.goal-heading strong{display:block;margin-top:3px;font-size:18px}.body-score small{color:var(--sub);font-size:11px}.body-input-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:0 8px}.body-profile-card .primary,.body-goal-card .primary{margin-top:5px}.body-goal-card{background:linear-gradient(145deg,#f1fff9,#fff9df)}.goal-heading{display:block}.weekly-coach{margin:12px 0;background:linear-gradient(145deg,#eef9ff,#f2fff7 55%,#fff7dc)}.coach-title span,.coach-title strong,.coach-title small{display:block}.coach-title span{color:#477e9d;font-size:11px;font-weight:950;letter-spacing:.8px}.coach-title strong{margin:5px 0;font-size:18px}.coach-title small,.coach-note{color:var(--sub);font-size:11px;line-height:1.5}.weekly-coach>.primary{margin-top:13px}.coach-columns{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:13px}.coach-columns>div,.coach-plan{padding:11px;border-radius:14px;background:#fff}.coach-columns b,.coach-plan b{font-size:12px}.coach-columns p,.coach-plan p{margin:7px 0 0;color:var(--sub);font-size:12px;line-height:1.45}.coach-plan{margin-top:7px}.coach-plan p{display:grid;grid-template-columns:20px 1fr;gap:5px}.coach-plan p span{width:18px;height:18px;border-radius:7px;background:#dff4ec;color:#28765d;display:grid;place-items:center;font-weight:900}.coach-note{display:block;margin-top:9px}
+      .kcal-value{font-size:19px;line-height:1;font-weight:950;letter-spacing:-.4px;color:var(--ink)}.meal-row em{display:flex;align-items:baseline;gap:3px;white-space:nowrap;font-size:12px}.meal-row .meal-emoji{width:56px;height:56px;border-radius:17px;background:linear-gradient(145deg,#fff3df,#e9f8f1);display:grid;place-items:center;font-size:31px;box-shadow:inset 0 0 0 1px #e2ede8}.meal-group-row>span:nth-child(2)>span{font-size:12px;line-height:1.45;color:#526a61}.meal-group-row small{display:block;margin-top:4px;color:var(--sub);font-size:11px}.meal-group{padding:5px 0;border-bottom:1px solid var(--line)}.meal-group:last-child{border-bottom:0}.meal-group>header{display:grid;grid-template-columns:42px 1fr auto;gap:9px;align-items:center;padding:9px 0}.meal-emoji.small{width:42px;height:42px;border-radius:14px;background:#f1faf6;display:grid;place-items:center;font-size:23px}.meal-group header strong,.meal-group header span{display:block}.meal-group header span{color:var(--sub);font-size:11px}.meal-group header em{display:flex;align-items:baseline;gap:3px;font-style:normal;font-size:12px}.meal-group-items{margin-left:51px}.meal-group-items article{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:6px;align-items:center;padding:9px 0;border-top:1px dashed #e4efeb}.meal-group-items article strong,.meal-group-items article span{display:block}.meal-group-items article strong{font-size:12px}.meal-group-items article span{margin-top:3px;color:var(--sub);font-size:11px;line-height:1.4}.item-kcal{font-size:16px;white-space:nowrap}.meal-group-items .edit-meal,.meal-group-items .delete{padding:6px 7px;font-size:12px}.analysis-total b,.recommend-list small{font-size:15px;color:var(--ink);font-weight:900}.photo strong #mealKcal{font-size:36px;letter-spacing:-1.5px}.photo strong{display:flex;align-items:baseline;gap:5px}#mealRemain,#kcalMsg{font-size:13px;font-weight:800}.kcal-input-wrap{position:relative}.kcal-input-wrap input{padding-right:55px}.kcal-input-wrap b{position:absolute;right:13px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--sub)}.cardio-kcal-field small{font-size:11px;color:#8a9a94}
+      .settings-fold{margin:10px 0;overflow:hidden}.settings-fold>summary{list-style:none;min-height:72px;padding:12px 15px;display:grid;grid-template-columns:44px 1fr auto;align-items:center;gap:10px;cursor:pointer}.settings-fold>summary::-webkit-details-marker{display:none}.settings-fold>summary .fold-icon{width:44px;height:44px;border-radius:15px;background:#f0faf6;display:grid;place-items:center;font-size:21px}.settings-fold>summary strong,.settings-fold>summary small{display:block}.settings-fold>summary strong{font-size:14px}.settings-fold>summary small{margin-top:3px;color:var(--sub);font-size:11px;line-height:1.4}.settings-fold>summary>b{font-size:21px;transition:.2s transform}.settings-fold[open]>summary>b{transform:rotate(90deg)}.fold-content{padding:3px 15px 16px;border-top:1px solid var(--line)}.body-profile-card{padding:13px 0 0;margin:0;box-shadow:none;border:0}.profile-step{display:grid;grid-template-columns:28px 1fr;gap:8px;align-items:center;margin:15px 0 10px}.profile-step>span{width:27px;height:27px;border-radius:10px;background:#17372c;color:#fff;display:grid;place-items:center;font-weight:900;font-size:12px}.profile-step strong,.profile-step small{display:block}.profile-step strong{font-size:13px}.profile-step small{color:var(--sub);font-size:11px;margin-top:2px}.goal-text{min-height:105px;line-height:1.5}.ai-target-summary{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin:12px 0;padding:11px;border-radius:16px;background:#f4faf7}.ai-target-summary span{padding:7px 8px;border-radius:11px;background:#fff;color:var(--sub);font-size:11px}.ai-target-summary span:last-child{grid-column:1/-1}.ai-target-summary b{display:block;margin-bottom:2px;color:var(--ink);font-size:14px}.event-advice{margin-top:11px;border-top:1px solid #dcebe5}.event-advice>summary{list-style:none;padding:12px 2px 2px;color:#3a8069;font-size:12px;font-weight:900;cursor:pointer}.event-advice>summary::-webkit-details-marker{display:none}.event-advice>summary b{float:right}.event-advice>div{padding-top:8px}.event-advice .primary{font-size:12px}.chart-card#cardioReportCard{background:linear-gradient(145deg,#effbf6,#fff)}
+      .mascot-levels.warmup{grid-template-columns:repeat(3,1fr)}.mascot-levels.warmup i.on{background:#72d1ae}
+      @media(max-width:360px){.welcome{padding-right:118px}.welcome img{width:120px;height:120px}.calendar-grid,.calendar-weekdays{gap:2px}.calendar-day{height:52px}.activity-ring{width:26px;height:26px}.activity-ring:before{width:20px;height:20px}.activity-ring:after{width:14px;height:14px}.mascot-stats span{font-size:10px}}
     `;
     document.head.appendChild(style);
   }
@@ -1198,7 +1211,6 @@
   updatePlanHero();
   refreshIcons();
   installCalendar();
-  installWorkoutCardioField();
   installMealComposer();
   installMealRecommendation();
   installUserContext();
@@ -1208,7 +1220,6 @@
   renderGroupedMeals();
   removeDuplicateArchive();
   [$('#mealPreview'), $('#mealList')].filter(Boolean).forEach(target => new MutationObserver(() => renderGroupedMeals()).observe(target, { childList: true }));
-  $('#saveWorkout')?.addEventListener('click', () => setTimeout(updateMascot, 850));
   window.addEventListener('hashchange', () => {
     if (location.hash === '#workout') renderCalendar();
     if (location.hash === '#report') renderRealReportCharts();

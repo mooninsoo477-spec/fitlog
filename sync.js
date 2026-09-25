@@ -50,7 +50,7 @@
       ...source,
       profile: {
         ...oldProfile,
-        name: oldProfile.name || '인수',
+        name: oldProfile.name || '',
         workoutGoal: Number(oldProfile.workoutGoal || oldProfile.workoutDays || 5),
         targetFat: Number(oldProfile.targetFat || oldProfile.goalBodyFat || 15),
         targets: {
@@ -273,7 +273,7 @@
     more.insertBefore(panel, dataHeading || null);
 
     const style = document.createElement('style');
-    style.textContent = `.sync-card{padding:15px}.sync-help{margin:0 0 12px;color:var(--sub);font-size:12px;line-height:1.55}.sync-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.sync-status{min-height:20px;margin:10px 0 0;color:var(--sub);font-size:12px}.sync-status[data-tone="ok"]{color:#2f8467}.sync-status[data-tone="bad"]{color:#b05243}.sync-history-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}.sync-history-row:last-child{border-bottom:0}.sync-history-row strong,.sync-history-row span{display:block}.sync-history-row strong{font-size:13px}.sync-history-row span{margin-top:2px;color:var(--sub);font-size:10px}.sync-history-row b{font-size:11px;white-space:nowrap}`;
+    style.textContent = `.sync-card{padding:15px}.sync-help{margin:0 0 12px;color:var(--sub);font-size:12px;line-height:1.55}.sync-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.sync-status{min-height:20px;margin:10px 0 0;color:var(--sub);font-size:12px}.sync-status[data-tone="ok"]{color:#2f8467}.sync-status[data-tone="bad"]{color:#b05243}.sync-history-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}.sync-history-row:last-child{border-bottom:0}.sync-history-row strong,.sync-history-row span{display:block}.sync-history-row strong{font-size:13px}.sync-history-row span{margin-top:2px;color:var(--sub);font-size:12px}.sync-history-row b{font-size:12px;white-space:nowrap}`;
     document.head.appendChild(style);
 
     const config = readSync();
