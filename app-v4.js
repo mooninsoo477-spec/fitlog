@@ -262,12 +262,7 @@
     if (sync.url) localStorage.setItem(SYNC_KEY, JSON.stringify(sync));
     if (!sync.url || !sync.key) throw new Error('더보기에서 여러 기기 동기화를 먼저 연결해 주세요.');
     if (!settings.token) throw new Error('더보기에서 AI 연결 토큰을 입력해 주세요.');
-    const headers = {
-      'Content-Type': 'application/json',
-      apikey: sync.key,
-      'x-fitlog-token': settings.token
-    };
-    if (String(sync.key).startsWith('eyJ')) headers.Authorization = `Bearer ${sync.key}`;
+    const headers = { 'Content-Type': 'text/plain;charset=UTF-8' };
     const functionName = settings.functionName || 'smart-endpoint';
     const projectOrigin = new URL(sync.url).origin;
     const endpoint = `${projectOrigin}/functions/v1/${encodeURIComponent(functionName)}`;
@@ -277,6 +272,7 @@
         method: 'POST',
         headers,
         body: JSON.stringify({
+          functionToken: settings.token,
           mode,
           prompt,
           hasText: Boolean($('#aiMealText')?.value.trim()),
