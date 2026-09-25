@@ -356,7 +356,7 @@
     return JSON.parse(cleaned.slice(start, end + 1));
   }
 
-  async function analyzeWithAi(settings, prompt, mode = 'analyze') {
+  async function analyzeWithAi(settings, prompt, mode = 'analyze', includeMealPhoto = true) {
     const sync = parse(localStorage.getItem(SYNC_KEY), {}) || {};
     sync.url = normalizeProjectUrl(sync.url);
     if (sync.url) localStorage.setItem(SYNC_KEY, JSON.stringify(sync));
@@ -371,6 +371,7 @@
     const functionName = settings.functionName || 'smart-endpoint';
     const projectOrigin = new URL(sync.url).origin;
     const endpoint = `${projectOrigin}/functions/v1/${encodeURIComponent(functionName)}`;
+    const shouldAttachPhoto = includeMealPhoto && mode === 'analyze';
     let response;
     try {
       response = await fetch(endpoint, {
@@ -379,8 +380,8 @@
         body: JSON.stringify({
           mode,
           prompt,
-          hasText: Boolean($('#aiMealText')?.value.trim()),
-          photo: photoData ? { mimeType: photoData.mimeType, data: photoData.data } : null,
+          hasText: shouldAttachPhoto && Boolean($('#aiMealText')?.value.trim()),
+          photo: shouldAttachPhoto && photoData ? { mimeType: photoData.mimeType, data: photoData.data } : null,
           model: settings.model || 'gpt-5.6-luna'
         })
       });
@@ -571,6 +572,38 @@
     };
   }
 
+  function splitCoachText(value, count) {
+    const parts = String(value || '').split(/\s*\|\|\s*/).map(item => item.trim()).filter(Boolean);
+    while (parts.length < count) parts.push('기록을 이어가며 다음 분석의 정확도를 높여보세요.');
+    return parts.slice(0, count);
+  }
+
+  async function analyzeCoachingSafely(settings, context, kind = 'weekly') {
+    const format = kind === 'weekly'
+      ? `items를 정확히 4개 반환한다. 1번: name=한줄제목과 요약, referenceAmount=운동강도(낮음/중간/높음 중 하나), servings=주간운동횟수, kcalPerServing=목표kcal, proteinPerServing=단백질g, carbsPerServing=탄수g, fatPerServing=지방g. 2번: name에 잘한 점 2개를 || 로 구분. 3번: name에 조정할 점 2개를 || 로 구분. 4번: name에 다음 행동 3개를 || 로 구분. 2~4번 숫자 필드는 0, referenceAmount는 기록분석, servings는 1로 쓴다. confidence는 모두 보통. `
+      : `items를 정확히 1개 반환한다. name=계산 근거 요약, referenceAmount=운동강도(낮음/중간/높음 중 하나), servings=주간운동횟수, kcalPerServing=목표kcal, proteinPerServing=단백질g, carbsPerServing=탄수g, fatPerServing=지방g, confidence=보통. `;
+    const raw = await analyzeWithAi(settings, `${format}${context}`, 'analyze', false);
+    const items = Array.isArray(raw?.items) ? raw.items : [];
+    if (!items.length) throw new Error('AI 목표 계산 결과를 읽지 못했어요.');
+    const planItem = items[0];
+    const result = {
+      headline: String(planItem.name || '다음 목표를 계산했어요.'),
+      summary: String(planItem.name || ''),
+      strengths: splitCoachText(items[1]?.name, 2),
+      adjustments: splitCoachText(items[2]?.name, 2),
+      nextActions: splitCoachText(items[3]?.name, 3)
+    };
+    const plan = {
+      kcal: planItem.kcalPerServing,
+      protein: planItem.proteinPerServing,
+      carbs: planItem.carbsPerServing,
+      fat: planItem.fatPerServing,
+      workouts: planItem.servings,
+      intensity: String(planItem.referenceAmount || '').match(/낮음|중간|높음/)?.[0]
+    };
+    return { result, plan };
+  }
+
   function saveAiTargets(state, plan, reason) {
     if (!plan) return false;
     state.profile ||= {};
@@ -658,21 +691,29 @@
       const rows = weekRows(state);
       const button = $('#runWeeklyCoach') || $('#refreshCoach');
       const current = state.profile?.targets || { kcal: 2200, protein: 153, carbs: 260, fat: 61 };
-      const prompt = `summary 맨 앞에 반드시 [TARGETS:kcal=정수;protein=정수;carbs=정수;fat=정수;workouts=정수;intensity=낮음/중간/높음]을 넣는다. 대한민국 최고 수준의 스포츠영양·피트니스 코치처럼 분석한다. 현재 목표: ${JSON.stringify(current)}, 주 ${state.profile?.workoutGoal || 4}회, ${state.profile?.trainingIntensity || '중간'} 강도. 사용자: ${profileContextText(state)}. 최근 7일: ${JSON.stringify(rows)}. 미기록은 0kcal로 보지 않는다. 최신 인바디와 실제 기록으로 다음 7일 기준을 보수적으로 조정한다. kcal은 주당 최대 100, 운동은 최대 1회만 바꾸며 과식 후 굶기는 금지한다. 잘한 점 2개, 조정할 점 2개, 실행계획 3개를 구체적으로 제시하고 의료 진단은 하지 않는다.`;
+      const prompt = `대한민국 최고 수준의 스포츠영양·피트니스 코치처럼 분석한다. 현재 목표: ${JSON.stringify(current)}, 주 ${state.profile?.workoutGoal || 4}회, ${state.profile?.trainingIntensity || '중간'} 강도. 사용자: ${profileContextText(state)}. 최근 7일: ${JSON.stringify(rows)}. 미기록은 0kcal로 보지 않는다. 최신 인바디와 실제 기록으로 다음 7일 기준을 보수적으로 조정한다. kcal은 주당 최대 100, 운동은 최대 1회만 바꾸며 과식 후 굶기는 금지한다. 의료 진단은 하지 않는다.`;
       const settings = parse(localStorage.getItem(AI_KEY), {}) || {};
       if (!settings.token) return showToast('더보기에서 AI 연결 토큰을 먼저 설정해 주세요.');
       if (!rows.some(row => row.recorded)) return showToast('이번 주 기록이 생기면 주간 코칭을 만들 수 있어요.');
       if (button) { button.disabled = true; button.textContent = '기록을 분석하는 중…'; }
       try {
-        const result = await analyzeWithAi(settings, prompt, 'coach');
+        const coaching = await analyzeCoachingSafely(settings, prompt, 'weekly');
+        const result = coaching.result;
         const next = readState();
-        const proposed = targetPlanFromCoach(result, next);
+        const proposed = coaching.plan ? {
+          kcal: clamp(coaching.plan.kcal, 1200, 4500, current.kcal),
+          protein: clamp(coaching.plan.protein, 40, 350, current.protein),
+          carbs: clamp(coaching.plan.carbs, 60, 650, current.carbs),
+          fat: clamp(coaching.plan.fat, 30, 180, current.fat),
+          workouts: clamp(coaching.plan.workouts, 1, 7, next.profile?.workoutGoal || 4),
+          intensity: ['낮음', '중간', '높음'].includes(coaching.plan.intensity) ? coaching.plan.intensity : (next.profile?.trainingIntensity || '중간')
+        } : null;
         if (proposed) {
           proposed.kcal = clamp(proposed.kcal, current.kcal - 100, current.kcal + 100, current.kcal);
           proposed.workouts = clamp(proposed.workouts, Math.max(1, (next.profile?.workoutGoal || 4) - 1), Math.min(7, (next.profile?.workoutGoal || 4) + 1), next.profile?.workoutGoal || 4);
           saveAiTargets(next, proposed, '주간 리포트 자동 조정');
         }
-        const savedCoach = { ...result, summary: String(result.summary || '').replace(/\[TARGETS:[^\]]+\]\s*/i, ''), createdAt: new Date().toISOString(), auto };
+        const savedCoach = { ...result, createdAt: new Date().toISOString(), auto };
         next.profile ||= {};
         next.profile.weeklyCoach = savedCoach;
         next.profile.weeklyCoachKey = scheduledCoachKey();
@@ -701,18 +742,19 @@
       const button = $('#runEventAdvice');
       button.disabled = true; button.textContent = '조정안을 계산하는 중…';
       try {
-        const prompt = `summary 맨 앞에 반드시 [TARGETS:kcal=정수;protein=${state.profile?.targets?.protein || 153};carbs=${state.profile?.targets?.carbs || 260};fat=${state.profile?.targets?.fat || 61};workouts=${state.profile?.workoutGoal || 4};intensity=낮음/중간/높음]을 넣는다. 사용자 정보: ${profileContextText(state)}. 현재 목표 ${JSON.stringify(state.profile?.targets || {})}, 운동강도 ${state.profile?.trainingIntensity || '중간'}. 특별 상황: ${text}. 건강한 보상행동 원칙을 지키며 목표 kcal와 운동강도만 보수적으로 수정한다. 영양소와 운동 횟수는 유지한다. 근거와 strengths 2개, adjustments 2개, nextActions 3개를 작성한다.`;
-        const result = await analyzeWithAi(settings, prompt, 'coach');
-        const next = readState(); const plan = targetPlanFromCoach(result, next);
+        const prompt = `사용자 정보: ${profileContextText(state)}. 현재 목표 ${JSON.stringify(state.profile?.targets || {})}, 운동강도 ${state.profile?.trainingIntensity || '중간'}. 특별 상황: ${text}. 건강한 보상행동 원칙을 지키며 목표 kcal와 운동강도만 보수적으로 수정하고 영양소와 운동 횟수는 유지한다.`;
+        const coaching = await analyzeCoachingSafely(settings, prompt, 'event');
+        const result = coaching.result;
+        const next = readState(); const plan = coaching.plan;
         if (!plan) throw new Error('조정값을 읽지 못했어요.');
         next.profile.targets.kcal = clamp(plan.kcal, next.profile.targets.kcal - 150, next.profile.targets.kcal + 150, next.profile.targets.kcal);
-        next.profile.trainingIntensity = plan.intensity;
+        next.profile.trainingIntensity = ['낮음', '중간', '높음'].includes(plan.intensity) ? plan.intensity : (next.profile.trainingIntensity || '중간');
         next.profile.recommendationContext ||= {};
         next.profile.recommendationContext.eventContext = text;
         next.profile.targetUpdatedAt = new Date().toISOString();
         next.profile.targetReason = '특별 일정 조언';
         writeState(next);
-        notice.textContent = String(result.summary || '').replace(/\[TARGETS:[^\]]+\]\s*/i, '') || '목표를 조정했어요.';
+        notice.textContent = result.summary || '목표를 조정했어요.';
         window.dispatchEvent(new CustomEvent('fitlog:state-updated'));
       } catch (error) {
         notice.textContent = error.message || '조정하지 못했어요.';
@@ -836,15 +878,23 @@
       button.textContent = 'AI 코치가 기준을 계산하는 중…';
       notice.textContent = '목표·생활패턴·인바디를 함께 분석하고 있어요.';
       try {
-        const prompt = `대한민국 최고 수준의 스포츠영양·피트니스 코치처럼 안전하고 현실적으로 설계한다. 사용자 정보: ${profileContextText(state)}. 현재 목표값: ${JSON.stringify(state.profile?.targets || {})}, 주간 운동 ${state.profile?.workoutGoal || 4}회. 사용자가 직접 숫자를 정하지 않도록 현재 상태와 목표에 맞는 하루 kcal, 단백질g, 탄수g, 지방g, 주간 운동횟수, 운동강도를 결정한다. 급격한 감량은 피하고 의학적 진단은 하지 않는다. summary의 맨 앞에 반드시 [TARGETS:kcal=정수;protein=정수;carbs=정수;fat=정수;workouts=정수;intensity=낮음/중간/높음]을 넣고 이어서 근거를 설명한다. strengths 2개, adjustments 2개, nextActions 3개도 작성한다.`;
-        const result = await analyzeWithAi(settings, prompt, 'coach');
+        const prompt = `대한민국 최고 수준의 스포츠영양·피트니스 코치처럼 안전하고 현실적으로 설계한다. 사용자 정보: ${profileContextText(state)}. 현재 목표값: ${JSON.stringify(state.profile?.targets || {})}, 주간 운동 ${state.profile?.workoutGoal || 4}회. 현재 상태와 자유롭게 적은 목표에 맞는 하루 kcal, 단백질g, 탄수g, 지방g, 주간 운동횟수, 운동강도를 결정한다. 급격한 감량과 의학적 진단은 피한다.`;
+        const coaching = await analyzeCoachingSafely(settings, prompt, 'goal');
+        const result = coaching.result;
         const latest = readState();
-        const plan = targetPlanFromCoach(result, latest);
+        const plan = coaching.plan ? {
+          kcal: clamp(coaching.plan.kcal, 1200, 4500, latest.profile?.targets?.kcal || 2200),
+          protein: clamp(coaching.plan.protein, 40, 350, latest.profile?.targets?.protein || 153),
+          carbs: clamp(coaching.plan.carbs, 60, 650, latest.profile?.targets?.carbs || 260),
+          fat: clamp(coaching.plan.fat, 30, 180, latest.profile?.targets?.fat || 61),
+          workouts: clamp(coaching.plan.workouts, 1, 7, latest.profile?.workoutGoal || 4),
+          intensity: ['낮음', '중간', '높음'].includes(coaching.plan.intensity) ? coaching.plan.intensity : (latest.profile?.trainingIntensity || '중간')
+        } : null;
         if (!plan) throw new Error('AI 목표 숫자를 읽지 못했어요. 다시 시도해 주세요.');
-        saveAiTargets(latest, plan, String(result.summary || '').replace(/\[TARGETS:[^\]]+\]\s*/i, ''));
+        saveAiTargets(latest, plan, result.summary || 'AI 목표 분석');
         writeState(latest);
         $('#currentAiTargets').innerHTML = targetSummary(latest);
-        notice.textContent = String(result.summary || '').replace(/\[TARGETS:[^\]]+\]\s*/i, '') || '목표 기준을 새로 계산했어요.';
+        notice.textContent = result.summary || '목표 기준을 새로 계산했어요.';
         window.dispatchEvent(new CustomEvent('fitlog:state-updated'));
       } catch (error) {
         notice.textContent = error.message || '목표를 계산하지 못했어요.';
