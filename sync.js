@@ -306,6 +306,7 @@
         model: $('#aiModel').value,
         token: $('#aiToken').value.trim()
       };
+      delete next.proxyUrl;
       nativeSetItem.call(localStorage, AI_KEY, JSON.stringify(next));
       renderAiStatus();
       sessionStorage.setItem('fitlog:notice', next.token ? 'GPT 연결 설정을 이 기기에 저장했어요.' : 'AI 연결 토큰을 비웠어요.');
