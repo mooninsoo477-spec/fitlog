@@ -2120,6 +2120,14 @@
     document.head.appendChild(style);
   }
 
+  // 급식표 모듈(lunch.js)처럼 따로 불러오는 기능이 앱의 저장·알림을 쓸 수 있게 열어둔다.
+  window.FitLogCore = { readState, writeState, showToast, dateKey, esc, goTo };
+  window.FitLogAI = {
+    enabled: () => Boolean((parse(localStorage.getItem(AI_KEY), {}) || {}).token),
+    context: state => profileContextText(state),
+    analyze: prompt => analyzeWithAi(parse(localStorage.getItem(AI_KEY), {}) || {}, prompt, 'analyze', false)
+  };
+
   if (migrateMonthlyLog()) {
     location.reload();
     return;

@@ -1,4 +1,4 @@
-const CACHE = 'fitlog-shell-20260926-2';
+const CACHE = 'fitlog-shell-20260928-1';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon.png'];
 
 self.addEventListener('install', event => {
@@ -6,7 +6,7 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('activate', event => {
-  event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key)))).then(() => self.clients.claim()));
+  event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith('fitlog-shell-') && key !== CACHE).map(key => caches.delete(key)))).then(() => self.clients.claim()));
 });
 
 self.addEventListener('fetch', event => {
