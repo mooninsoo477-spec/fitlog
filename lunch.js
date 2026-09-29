@@ -350,26 +350,32 @@
   // ---------------------------------------------------------------
   // [패턴, 역할, kcal, 단백질, 탄수, 지방] — 위에서부터 먼저 맞는 규칙을 쓴다.
   const FOOD_RULES = [
+    // 급식에서는 밥이 따로 나오므로 국밥·곰탕류는 진한 국물 요리로 본다.
+    [/국밥|부대찌개|감자탕|순대국|뼈해장국|해장국|육개장|닭개장|곰탕|갈비탕|설렁탕|짜글이/, 'soup', 300, 16, 18, 17],
+    // "피자갈떡"(피자맛 떡갈비)처럼 이름에 피자·떡이 들어간 고기 반찬
+    [/떡갈비|갈떡|함박|너비아니/, 'protein', 230, 15, 12, 13],
     [/(수제비|어묵|유부|만두|떡)국$/, 'soup', 150, 6, 18, 5],
     [/떡국|만둣국|만두국|칼국수|수제비|라면|우동|짬뽕|짜장|국수|냉면|쫄면|파스타|스파게티|볶음면|비빔면|쌀국수|잔치국수/, 'staple', 480, 15, 78, 11],
-    [/볶음밥|비빔밥|덮밥|주먹밥|김밥|오므라이스|라이스|필라프|리조또|유부초밥|초밥|컵밥|국밥|카레밥|치밥|곤드레|콩나물밥|무밥|버섯밥|굴밥|김치밥/, 'staple', 560, 16, 88, 14],
+    [/볶음밥|비빔밥|덮밥|주먹밥|김밥|오므라이스|라이스|필라프|리조또|유부초밥|초밥|컵밥|카레밥|치밥|곤드레|콩나물밥|무밥|버섯밥|굴밥|김치밥/, 'staple', 560, 16, 88, 14],
     [/밥($|&|\s|\()|쌀밥|잡곡밥|현미밥|흑미밥|보리밥|기장밥|찰밥|콩밥|영양밥|수수밥/, 'staple', 300, 6, 66, 1],
     [/죽$/, 'staple', 250, 7, 45, 4],
     [/떡볶이|떡꼬치|라볶이/, 'staple', 350, 7, 70, 5],
     [/빵|토스트|버거|샌드위치|피자|베이글|또띠아|팬케이크|핫케이크/, 'staple', 300, 9, 42, 10],
     [/부대찌개|감자탕|순대국|뼈해장국|해장국|육개장|닭개장|곰탕|갈비탕|설렁탕|짜글이|돼지국밥/, 'soup', 300, 16, 18, 17],
     [/국$|탕$|찌개|전골|스프$|수프$|냉국|개장/, 'soup', 120, 7, 8, 6],
+    // "보쌈김치"처럼 고기 이름이 들어가도 김치류로 끝나면 김치로 본다.
+    [/김치$|깍두기$|겉절이$|석박지$|섞박지$/, 'kimchi', 20, 1, 4, 0],
     [/멸치|진미채|오징어채|김자반|김구이|^김$|파래/, 'side', 70, 5, 6, 3],
-    [/튀김|까스|가스|커틀릿|강정|탕수|치킨|너겟|전$|전\(|부침|타코야끼|핫바|동그랑땡|핫도그|꿔바로우|깐풍|유린기|고로케|크로켓/, 'fried', 290, 12, 22, 17],
+    [/튀김|까스|가스|커틀릿|강정|탕수|치킨|너겟|전$|전\(|부침|타코야끼|핫바|회오리감자|감자튀김|웨지감자|동그랑땡|핫도그|꿔바로우|깐풍|유린기|고로케|크로켓/, 'fried', 290, 12, 22, 17],
     [/불고기|제육|갈비|돼지|돈육|소고기|쇠고기|우육|닭|오리|햄|소시지|소세지|떡갈비|장조림|수육|보쌈|스테이크|미트볼|함박|주물럭|족발|삼겹|목살|베이컨|구이|바베큐|바비큐|편육|동파육/, 'protein', 230, 17, 8, 14],
     [/생선|고등어|삼치|꽁치|연어|갈치|명태|동태|코다리|오징어|낙지|새우|어묵|조기|가자미|참치|쭈꾸미|주꾸미|홍합|조개|굴|임연수|해물/, 'protein', 170, 15, 6, 9],
     [/계란|달걀|에그|두부|메추리알|콩자반|유부/, 'protein', 130, 9, 5, 8],
-    [/맛살|게살|크래미|스팸|너비아니|닭가슴살|훈제오리/, 'protein', 110, 8, 8, 5],
+    [/맛살|게살|크래미|스팸|닭가슴살|훈제오리|골뱅이/, 'protein', 110, 8, 8, 5],
     [/김치|깍두기|섞박지|석박지|겉절이|단무지|피클|장아찌|총각|열무|동치미|나박/, 'kimchi', 20, 1, 4, 0],
-    [/케이크|케익|쿠키|머핀|와플|도넛|도너츠|아이스|젤리|푸딩|주스|쥬스|음료|에이드|스무디|초코|과자|약과|티라미수|마카롱|츄러스|꿀떡|파이|타르트|빙수|슈크림|카스텔라|브라우니|시리얼|식혜|수정과|유과|한과|라떼|요거트볼/, 'treat', 170, 3, 28, 6],
+    [/케이크|케익|쿠키|머핀|와플|도넛|도너츠|아이스|젤리|푸딩|주스|쥬스|음료|에이드|스무디|초코|과자|약과|티라미수|마카롱|츄러스|꿀떡|파이$|타르트|빙수|슈크림|카스텔라|브라우니|시리얼|식혜|수정과|유과|한과|라떼|요거트볼/, 'treat', 170, 3, 28, 6],
     [/우유|요구르트|요거트|요플레|치즈|두유/, 'dairy', 120, 6, 10, 6],
     [/과일|사과|배$|귤|오렌지|바나나|포도|수박|멜론|키위|파인애플|딸기|자두|복숭아|토마토|망고|참외|천혜향|한라봉|샤인|블루베리|체리|메론|머스캣|자몽|석류/, 'fruit', 60, 1, 15, 0],
-    [/잡채|감자|고구마|옥수수|단호박|떡$|당면|묵$/, 'carbside', 150, 3, 26, 4],
+    [/잡채|감자|고구마(?!줄기)|옥수수|단호박|떡$|당면|묵$/, 'carbside', 150, 3, 26, 4],
     [/나물|무침|샐러드|쌈|숙주|시금치|브로콜리|양배추|오이|버섯|채소|야채|볶음|찜$|조림|콩나물|미역|다시마|가지|호박|생채|양상추|파프리카/, 'veg', 60, 2, 7, 3],
     [/소스|양념|쌈장|초장|고추장|케첩|드레싱|간장|와사비|머스타드|마요/, 'condiment', 25, 0, 4, 1]
   ];
@@ -495,14 +501,15 @@
     const list = state.lunch?.days?.[date] || [];
     return list.find(item => item.meal === '중식') || list[0] || null;
   };
-  const GUIDE_VERSION = 'v5';
+  const GUIDE_VERSION = 'v6';
   const signature = entry => entry ? `${GUIDE_VERSION}|${entry.items.join('|')}#${entry.kcal || ''}#${entry.protein || ''}` : '';
 
   function displayDate(state) {
     const now = new Date();
     const today = dateKey(now);
-    if (now.getHours() < 15 && lunchEntry(state, today)) return today;
-    // 점심이 지났거나 오늘 급식이 없으면(주말 등) 가장 가까운 다음 급식일을 미리 보여준다.
+    // 급식이 있는 날은 점심이 지나도 자정까지 그날 급식을 그대로 보여준다.
+    if (lunchEntry(state, today)) return today;
+    // 오늘 급식이 없으면(주말·휴일) 가장 가까운 다음 급식일을 미리 보여준다.
     for (let offset = 1; offset <= 4; offset++) {
       const date = new Date(now);
       date.setDate(now.getDate() + offset);
@@ -574,53 +581,66 @@
     return parts.join(', ') || '골고루 적당히';
   }
 
+  let lunchExpanded = false;
+
+  // 급식 카드는 하루 칼로리(오늘의 영양) 카드 바로 아래에 둔다.
+  function placeCard(card) {
+    const anchor = $('[data-view="home"] .card.nutrition') || $('#checkin') || $('.welcome');
+    if (anchor && anchor.nextElementSibling !== card) anchor.insertAdjacentElement('afterend', card);
+  }
+
   function renderHomeCard() {
     const home = $('[data-view="home"] .content');
     if (!home) return;
     let card = $('#lunchGuide');
     const state = readState();
     const hasMenu = Object.keys(state.lunch?.days || {}).length > 0;
-    // 급식표를 아직 안 올렸으면 홈에서 바로 찾을 수 있게 안내 카드를 보여준다. "안 먹어요"로 닫으면 다시 안 뜬다.
+    if (!card && (hasMenu || !state.lunchPromptHidden)) {
+      card = document.createElement('section');
+      card.id = 'lunchGuide';
+    }
+    // 급식표를 아직 안 올렸으면 작은 안내만 보여준다. "안 먹어요"로 닫으면 다시 안 뜬다.
     if (!hasMenu) {
       if (state.lunchPromptHidden) { card?.remove(); return; }
-      if (!card) {
-        card = document.createElement('section');
-        card.id = 'lunchGuide';
-        ($('#checkin') || $('.welcome'))?.insertAdjacentElement('afterend', card);
-      }
-      card.className = 'card lunch-card lunch-prompt';
+      placeCard(card);
+      card.className = 'card lunch-card compact lunch-prompt';
       delete card.dataset.date;
-      card.innerHTML = `<div class="lunch-head"><div><span class="lunch-eyebrow">🍱 급식 먹는다면</span><strong>급식표를 올리면 매일 점심 먹을 양을 알려드려요</strong><small>엑셀·CSV 급식표를 올리면 목표 칼로리에 맞춰 밥·반찬 양을 계산해요.</small></div></div>
-        <div class="lunch-actions"><button type="button" class="primary mint" data-go="meals" data-open="lunchManager">급식표 올리기</button><button type="button" class="link" data-lunch-dismiss>급식 안 먹어요</button></div>`;
+      card.innerHTML = `<div class="lunch-row"><div><span class="lunch-eyebrow">🍱 급식 먹는다면</span><strong>급식표를 올리면 점심 먹을 양을 알려드려요</strong></div></div>
+        <div class="lunch-actions"><button type="button" class="primary mint small" data-go="meals" data-open="lunchManager">급식표 올리기</button><button type="button" class="link" data-lunch-dismiss>급식 안 먹어요</button></div>`;
       return;
     }
     const date = displayDate(state);
     if (!date) { card?.remove(); return; }
-    if (!card) {
-      card = document.createElement('section');
-      card.id = 'lunchGuide';
-      card.className = 'card lunch-card';
-      ($('#checkin') || $('.welcome'))?.insertAdjacentElement('afterend', card);
-    }
-    card.className = 'card lunch-card';
+    placeCard(card);
     const guide = ensureGuide(date);
     if (!guide) { card.remove(); return; }
     guide.items = guide.items.filter(item => isMenuItem(item.name));
     const today = dateKey(new Date());
-    const label = date === today ? '오늘 점심 급식' : `${prettyDate(date)} 점심 급식`;
+    const isToday = date === today;
     const kcal = sumOf(guide.items, 'kcal');
     const protein = sumOf(guide.items, 'protein');
     const ratio = Math.min(130, Math.round(kcal / Math.max(1, guide.target.kcal) * 100));
     const busy = aiBusyDate === date;
+    const badge = busy ? 'AI 계산 중…' : guide.source === 'ai' ? 'AI 추천' : guide.edited ? '직접 조절' : '기본 추정';
+    card.className = `card lunch-card compact${lunchExpanded ? ' open' : ''}`;
     card.dataset.date = date;
     card.innerHTML = `
-      <div class="lunch-head"><div><span class="lunch-eyebrow">🍱 ${label} · ${date === today ? prettyDate(date) : '미리 보기'}</span><strong>${esc(headline(guide))}</strong></div><i class="badge ${guide.source === 'ai' ? 'up' : ''}">${busy ? 'AI 계산 중…' : guide.source === 'ai' ? 'AI 추천' : guide.edited ? '직접 조절' : '기본 추정'}</i></div>
-      <p class="lunch-target">점심 목표 약 ${guide.target.kcal.toLocaleString()}kcal · 단백질 ${guide.target.protein}g <em>${esc(guide.goal)}</em></p>
-      <ul class="lunch-items">${guide.items.map((item, index) => `<li class="${item.portion === 0 ? 'skip' : ''}"><div><b>${esc(item.name)}</b>${item.note ? `<small>${esc(item.note)}</small>` : ''}</div><div class="lunch-portion"><button type="button" data-lunch-step="-1" data-index="${index}" aria-label="${esc(item.name)} 줄이기">−</button><span>${portionText(item.portion, item.role, item.name)}</span><button type="button" data-lunch-step="1" data-index="${index}" aria-label="${esc(item.name)} 늘리기">＋</button></div></li>`).join('')}</ul>
-      ${(guide.tips || []).length ? `<ul class="lunch-tips">${guide.tips.map(tip => `<li>💡 ${esc(tip)}</li>`).join('')}</ul>` : ''}
-      <div class="lunch-total"><div><span>이대로 먹으면</span><b>약 ${kcal.toLocaleString()}kcal · 단백질 ${protein}g</b></div><div class="lunch-bar"><i style="width:${Math.min(100, ratio)}%" class="${ratio > 110 ? 'over' : ''}"></i></div></div>
-      <div class="lunch-actions">${date === today ? (guide.loggedAt ? '<button type="button" class="ghost" disabled>점심 기록됨 ✓</button>' : '<button type="button" class="primary mint" data-lunch-log>이대로 먹었어요</button>') : ''}${ai?.enabled() ? `<button type="button" class="ghost" data-lunch-ai ${busy ? 'disabled' : ''}>${guide.source === 'ai' ? 'AI로 다시 계산' : 'AI로 정확하게'}</button>` : ''}<button type="button" class="link" data-go="meals">급식표</button></div>
-      <small class="lunch-note">${guide.menuKcal ? `급식표 표기 ${guide.menuKcal}kcal 기준 · ` : ''}급식 1인분 기준 추정치예요. 실제 배식량에 따라 달라요.</small>`;
+      <div class="lunch-row"><div>
+        <span class="lunch-eyebrow">🍱 ${isToday ? '오늘 급식' : `${prettyDate(date)} 급식 미리 보기`} · ${prettyDate(date)} <i class="badge ${guide.source === 'ai' ? 'up' : ''}">${badge}</i></span>
+        <strong>${esc(headline(guide))}</strong>
+        <small>이대로 먹으면 약 ${kcal.toLocaleString()}kcal · 단백질 ${protein}g <span>(점심 목표 ${guide.target.kcal.toLocaleString()}kcal)</span></small>
+      </div></div>
+      ${lunchExpanded ? `
+        <ul class="lunch-items">${guide.items.map((item, index) => `<li class="${item.portion === 0 ? 'skip' : ''}"><div><b>${esc(item.name)}</b>${item.note ? `<small>${esc(item.note)}</small>` : ''}</div><div class="lunch-portion"><button type="button" data-lunch-step="-1" data-index="${index}" aria-label="${esc(item.name)} 줄이기">−</button><span>${portionText(item.portion, item.role, item.name)}</span><button type="button" data-lunch-step="1" data-index="${index}" aria-label="${esc(item.name)} 늘리기">＋</button></div></li>`).join('')}</ul>
+        ${(guide.tips || []).length ? `<ul class="lunch-tips">${guide.tips.map(tip => `<li>💡 ${esc(tip)}</li>`).join('')}</ul>` : ''}
+        <div class="lunch-bar"><i style="width:${Math.min(100, ratio)}%" class="${ratio > 110 ? 'over' : ''}"></i></div>
+        <small class="lunch-note">점심 목표 약 ${guide.target.kcal.toLocaleString()}kcal · 단백질 ${guide.target.protein}g (${esc(guide.goal)}) · ${guide.menuKcal ? `급식표 표기 ${guide.menuKcal}kcal 기준 · ` : ''}급식 1인분 기준 추정치예요.</small>` : ''}
+      <div class="lunch-actions">
+        ${isToday ? (guide.loggedAt ? '<span class="lunch-done">점심 기록됨 ✓</span>' : '<button type="button" class="primary mint small" data-lunch-log>이대로 먹었어요</button>') : ''}
+        <button type="button" class="link" data-lunch-toggle aria-expanded="${lunchExpanded}">${lunchExpanded ? '접기 ▴' : '음식별 양 보기 ▾'}</button>
+        ${lunchExpanded && ai?.enabled() ? `<button type="button" class="link" data-lunch-ai ${busy ? 'disabled' : ''}>${guide.source === 'ai' ? 'AI로 다시 계산' : 'AI로 정확하게'}</button>` : ''}
+        ${lunchExpanded ? '<button type="button" class="link" data-go="meals" data-open="lunchManager">급식표</button>' : ''}
+      </div>`;
     // AI가 연결돼 있으면 날짜마다 한 번만 자동으로 더 정확하게 계산한다(직접 조절했거나 이미 기록했으면 건드리지 않음).
     if (ai?.enabled() && guide.source !== 'ai' && !guide.aiTriedAt && !guide.edited && !guide.loggedAt && !busy) setTimeout(() => upgradeWithAi(date), 0);
   }
@@ -701,6 +721,8 @@
     cleanSavedMenus();
     const style = document.createElement('style');
     style.textContent = `
+      .section-head.first{margin-top:6px}
+      .lunch-card.compact{margin-top:8px;padding:11px 13px}.lunch-card.compact .lunch-row strong{display:block;margin-top:3px;font-size:14px;line-height:1.35}.lunch-card.compact .lunch-row small{display:block;margin-top:3px;color:var(--sub);font-size:12px}.lunch-card.compact .lunch-row small span{opacity:.8}.lunch-card.compact .lunch-eyebrow .badge{margin-left:4px;padding:1px 6px;font-size:10px;vertical-align:1px}.lunch-card.compact .lunch-actions{margin-top:8px;gap:6px}.lunch-card.compact .lunch-actions .link{padding:6px 4px;font-size:12px}.primary.small{min-height:34px;padding:0 12px;border-radius:11px;font-size:13px}.lunch-done{color:#2f8467;font-size:12px;font-weight:900}.lunch-card.compact .lunch-items b{font-size:13px}.lunch-card.compact .lunch-bar{margin-top:8px}
       .lunch-card{margin-top:9px;padding:14px;background:linear-gradient(150deg,#fffaf0,#fff 60%)}.lunch-head{display:flex;justify-content:space-between;align-items:start;gap:8px}.lunch-head strong{display:block;margin-top:3px;font-size:16px;line-height:1.35}.lunch-head small{display:block;margin-top:4px;color:var(--sub);font-size:12px;line-height:1.5}.lunch-eyebrow{color:#b0701e;font-size:11px;font-weight:900}
       .lunch-target{margin:8px 0 4px;color:var(--sub);font-size:12px}.lunch-target em{margin-left:4px;padding:2px 7px;border-radius:99px;background:#f1f6f4;font-style:normal;font-weight:800}
       .lunch-items{margin:6px 0 0;padding:0;list-style:none}.lunch-items li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-top:1px dashed #ece3d2}.lunch-items li.skip b{color:#a3b3ad;text-decoration:line-through}.lunch-items b{display:block;font-size:14px}.lunch-items small{display:block;margin-top:2px;color:#8b6a3e;font-size:11px}
@@ -761,6 +783,11 @@
       if (event.target.closest('[data-lunch-ai]')) {
         const date = $('#lunchGuide')?.dataset.date;
         if (date) upgradeWithAi(date, true);
+        return;
+      }
+      if (event.target.closest('[data-lunch-toggle]')) {
+        lunchExpanded = !lunchExpanded;
+        renderHomeCard();
         return;
       }
       if (event.target.closest('[data-lunch-dismiss]')) {
