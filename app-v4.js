@@ -1302,23 +1302,32 @@
   let selectedRpe = null;
   let prefilledPlanDate = null;
   const goTo = view => $(`.nav [data-go="${view}"]`)?.click();
-  const selectedGroups = () => [...document.querySelectorAll('[name="wt"]:checked')].map(input => input.value);
+  // 체크 없이 적은 종목으로 밀기·당기기·하체·유산소를 판단한다.
+  const ROUTINES = ['밀기', '당기기', '하체', '유산소'];
 
-  function planGroups(text) {
-    const groups = [];
-    if (/가슴|어깨|삼두|밀기|푸시|push/i.test(text)) groups.push('밀기');
-    if (/등|이두|당기기|풀|pull|로우/i.test(text)) groups.push('당기기');
-    if (/하체|다리|스쿼트|레그|런지/.test(text)) groups.push('하체');
-    if (/전신|full/i.test(text)) groups.push('전신');
-    if (/유산소|축구|러닝|달리기|cardio/i.test(text)) groups.push('유산소(축구)');
-    return groups;
+  function exerciseRoutine(exercise) {
+    if (exercise.cardio) return '유산소';
+    if (exercise.part === '팔') return /삼두|트라이셉|푸쉬다운|푸시다운|킥백|딥스|스컬|익스텐션/.test(exercise.name) ? '밀기' : '당기기';
+    return { 가슴: '밀기', 어깨: '밀기', 등: '당기기', 하체: '하체' }[exercise.part] || null;
+  }
+
+  function routinesOf(exercises) {
+    const found = ROUTINES.filter(routine => exercises.some(exercise => exerciseRoutine(exercise) === routine));
+    return found.length ? found : exercises.length ? ['기타'] : [];
+  }
+
+  // 예전 기록은 저장된 분류(밀기·유산소(축구)·근력 등)와 실제 종목을 함께 본다.
+  function workoutRoutines(workout) {
+    const text = String(workout.group || workout.type || '');
+    const fromGroup = ROUTINES.filter(routine => text.includes(routine) || (routine === '유산소' && /축구/.test(text)));
+    return [...new Set([...routinesOf(workoutExercises(workout)).filter(routine => routine !== '기타'), ...fromGroup])];
   }
 
   function workoutDraft() {
     const state = readState();
-    const groups = selectedGroups();
-    const exercises = parseWorkoutText($('#workoutNote')?.value, groups.join('·'));
-    const cardio = groups.some(group => /유산소/.test(group));
+    const exercises = parseWorkoutText($('#workoutNote')?.value);
+    const groups = routinesOf(exercises);
+    const cardio = groups.includes('유산소');
     const estimate = estimateWorkout(exercises, {
       minutes: +$('#workoutMinutes')?.value || 0, rpe: selectedRpe, groups,
       manualCardioKcal: cardio ? +$('#workoutKcal')?.value || 0 : 0, bodyWeight: latestBodyWeight(state)
@@ -1329,17 +1338,19 @@
   function renderWorkoutDraft() {
     const target = $('#workoutParsed');
     if (!target) return;
-    const { state, exercises, estimate } = workoutDraft();
+    const { state, groups, exercises, estimate } = workoutDraft();
+    syncCardioField();
     if (!exercises.length) { target.innerHTML = ''; return; }
     const history = exerciseHistory(state, dateKey(new Date()));
     const volume = exercises.reduce((sum, exercise) => sum + exercise.volume, 0);
-    target.innerHTML = `<div class="parsed-head"><span>인식된 운동 ${exercises.length}개</span><b>약 ${estimate.kcal.toLocaleString()} kcal 소모</b></div>
+    target.innerHTML = `<div class="parsed-head"><span><b class="routine-tag">${esc(groups.join('·'))}</b> 인식된 운동 ${exercises.length}개</span><b>약 ${estimate.kcal.toLocaleString()} kcal 소모</b></div>
       <ul>${exercises.map(exercise => `<li><div><strong>${esc(exercise.name)}</strong><span>${esc(setSummary(exercise))}</span></div><div class="badges">${progressBadges(exerciseProgress(exercise, history))}</div></li>`).join('')}</ul>
       <div class="parsed-foot">${volume ? `총 볼륨 <b>${volume.toLocaleString()}kg</b> · ` : ''}${estimate.strengthSets ? `${estimate.strengthSets}세트 · ` : ''}${estimate.minutes ? `${estimate.estimatedTime ? '약 ' : ''}${estimate.minutes}분 · ` : ''}체중 ${estimate.bodyWeight}kg 기준</div>`;
   }
 
   function syncCardioField() {
-    $('#cardioField')?.classList.toggle('hidden', !selectedGroups().some(group => /유산소/.test(group)));
+    const exercises = parseWorkoutText($('#workoutNote')?.value);
+    $('#cardioField')?.classList.toggle('hidden', !exercises.some(exercise => exercise.cardio));
   }
 
   function setRpe(value) {
@@ -1352,23 +1363,23 @@
     const notice = $('#workoutNotice');
     notice.textContent = message;
     notice.classList.add('warn');
-    const choices = $('.choices');
-    choices.classList.remove('shake'); void choices.offsetWidth; choices.classList.add('shake');
+    const note = $('#workoutNote');
+    note.classList.remove('shake'); void note.offsetWidth; note.classList.add('shake');
+    note.focus();
   }
 
   function resetWorkoutForm() {
-    document.querySelectorAll('[name="wt"]').forEach(input => { input.checked = false; });
     ['#workoutNote', '#workoutKcal', '#workoutMinutes', '#workoutComment'].forEach(selector => { if ($(selector)) $(selector).value = ''; });
     prefilledPlanDate = null;
     setRpe(null);
-    syncCardioField();
     renderWorkoutDraft();
+    renderExerciseChips();
   }
 
   function saveWorkoutRecord() {
     const notice = $('#workoutNotice');
     const { state, groups, exercises, estimate, cardio } = workoutDraft();
-    if (!groups.length) return workoutWarn('운동 종류를 하나 이상 선택해 주세요.');
+    if (!exercises.length) return workoutWarn('운동 내용을 한 줄 이상 적어주세요. 예: 벤치프레스 60kg 10x5');
     const today = dateKey(new Date());
     const note = $('#workoutNote').value.trim();
     const history = exerciseHistory(state, today);
@@ -1391,8 +1402,85 @@
     window.dispatchEvent(new CustomEvent('fitlog:state-updated'));
     resetWorkoutForm();
     notice.classList.remove('warn');
-    notice.textContent = ['저장했어요', totalVolume ? `볼륨 ${totalVolume.toLocaleString()}kg` : '', estimate.kcal ? `약 ${estimate.kcal.toLocaleString()}kcal 소모` : '', prs ? `🏆 PR ${prs}개` : ''].filter(Boolean).join(' · ');
+    notice.textContent = [`${groups.join('·')} 저장했어요`, totalVolume ? `볼륨 ${totalVolume.toLocaleString()}kg` : '', estimate.kcal ? `약 ${estimate.kcal.toLocaleString()}kcal 소모` : '', prs ? `🏆 PR ${prs}개` : ''].filter(Boolean).join(' · ');
     setTimeout(() => { notice.textContent = ''; goTo('home'); }, 1400);
+  }
+
+  // ---- 빠른 입력: 지난 루틴 불러오기(한 단계 증량 제안) · 자주 한 운동 ----
+  const kgText = value => `${Math.round(value * 10) / 10}kg`;
+
+  // 세트 목록을 입력 형식으로 되돌린다. bump만큼 본세트(최고 무게) 무게를 올린다.
+  function exerciseLine(exercise, bump = 0) {
+    if (exercise.cardio || !exercise.setList?.length) return exercise.minutes ? `${exercise.name} ${exercise.minutes}분` : exercise.name;
+    const top = Math.max(...exercise.setList.map(set => set.weight));
+    const groups = [];
+    exercise.setList.forEach(set => {
+      const weight = top > 0 && set.weight === top ? top + bump : set.weight;
+      const last = groups.at(-1);
+      if (last && last.weight === weight) last.reps.push(set.reps); else groups.push({ weight, reps: [set.reps] });
+    });
+    return `${exercise.name} ${groups.map(group => `${group.weight ? `${kgText(group.weight)} ` : ''}${group.reps.join('/')}`).join(' ')}`;
+  }
+
+  // 지난번 본세트 횟수를 모두 채웠고 RPE 8 이하였다면 상체 +2.5kg, 하체 +5kg을 제안한다.
+  function overloadStep(exercise, rpe) {
+    if (exercise.cardio || !exercise.weight || rpe >= 9) return 0;
+    const topReps = exercise.setList.filter(set => set.weight === exercise.weight).map(set => set.reps);
+    return topReps.length > 1 && topReps.every(rep => rep === topReps[0]) ? (exercise.part === '하체' ? 5 : 2.5) : 0;
+  }
+
+  function lastWorkout(state, predicate) {
+    for (const date of Object.keys(state.logs || {}).filter(validDate).sort().reverse()) {
+      const found = [...(state.logs[date].workouts || [])].reverse().find(predicate);
+      if (found) return { date, workout: found };
+    }
+    return null;
+  }
+
+  function loadRoutine(routine) {
+    const state = readState();
+    const hit = routine === '최근' ? lastWorkout(state, () => true) : lastWorkout(state, workout => workoutRoutines(workout).includes(routine));
+    if (!hit) return showToast(routine === '최근' ? '불러올 운동 기록이 아직 없어요.' : `아직 ${routine} 기록이 없어요. 한 번 적어두면 다음부터 불러올 수 있어요.`);
+    const all = workoutExercises(hit.workout);
+    // 해당 루틴 종목과 복근·기타 보조 종목을 가져온다.
+    const exercises = routine === '최근' ? all : all.filter(exercise => exerciseRoutine(exercise) === routine || (routine !== '유산소' && !exercise.cardio && !exerciseRoutine(exercise)));
+    let bumped = 0;
+    const lines = exercises.map(exercise => {
+      const step = overloadStep(exercise, hit.workout.rpe);
+      if (step) bumped++;
+      return exerciseLine(exercise, step);
+    });
+    const note = $('#workoutNote');
+    note.value = lines.length ? lines.join('\n') : (hit.workout.note || hit.workout.name || '');
+    renderWorkoutDraft();
+    note.focus();
+    showToast(`${shortDate(hit.date)} ${routine === '최근' ? '최근' : routine} 기록을 불러왔어요.${bumped ? ` ${bumped}종목은 한 단계 무게를 올렸어요.` : ''} 실제로 한 대로 고쳐 저장하세요.`);
+  }
+
+  function renderExerciseChips() {
+    const box = $('#exerciseChips');
+    if (!box) return;
+    const state = readState();
+    const counts = new Map();
+    const latest = new Map();
+    Object.keys(state.logs || {}).filter(validDate).sort().forEach(date => (state.logs[date].workouts || []).forEach(workout => workoutExercises(workout).forEach(exercise => {
+      const key = exerciseKey(exercise.name);
+      counts.set(key, (counts.get(key) || 0) + 1);
+      latest.set(key, { exercise, rpe: workout.rpe });
+    })));
+    const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([key]) => latest.get(key));
+    renderExerciseChips.items = top;
+    box.innerHTML = top.length ? `<span>자주 한 운동 · 누르면 지난 기록이 한 줄 추가돼요</span><div>${top.map((item, index) => `<button type="button" data-exercise-chip="${index}">${esc(item.exercise.name)}</button>`).join('')}</div>` : '';
+  }
+
+  function addExerciseLine(index) {
+    const item = renderExerciseChips.items?.[index];
+    if (!item) return;
+    const note = $('#workoutNote');
+    const line = exerciseLine(item.exercise, overloadStep(item.exercise, item.rpe));
+    note.value = note.value.trim() ? `${note.value.replace(/\s+$/, '')}\n${line}` : line;
+    renderWorkoutDraft();
+    note.focus();
   }
 
   function prefillWorkout(day) {
@@ -1403,11 +1491,8 @@
       return `${exercise.name} ${+exercise.weight ? `${+exercise.weight}kg ` : ''}${reps ? Array(sets).fill(reps).join('/') : `${sets}세트`}`;
     });
     if (cardioMatch) lines.push(`${cardioMatch[1].trim()} ${cardioMatch[2]}분`);
-    const groups = planGroups(`${day.focus} ${(day.exercises || []).map(exercise => exercise.name).join(' ')} ${cardioMatch ? '유산소' : ''}`);
-    document.querySelectorAll('[name="wt"]').forEach(input => { input.checked = groups.includes(input.value); });
     $('#workoutNote').value = lines.join('\n');
     prefilledPlanDate = day.date;
-    syncCardioField();
     renderWorkoutDraft();
     if (location.hash !== '#workout') goTo('workout');
     setTimeout(() => $('#workoutForm')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
@@ -1418,31 +1503,24 @@
     const note = $('#workoutNote');
     if (!note || note.dataset.enhanced) return;
     note.dataset.enhanced = 'true';
-    note.addEventListener('input', renderWorkoutDraft);
-    ['#workoutMinutes', '#workoutKcal'].forEach(selector => $(selector)?.addEventListener('input', renderWorkoutDraft));
-    document.querySelectorAll('[name="wt"]').forEach(input => input.addEventListener('change', () => {
-      syncCardioField();
+    note.addEventListener('input', () => {
       renderWorkoutDraft();
       $('#workoutNotice').classList.remove('warn');
-      $('#workoutNotice').textContent = '';
-    }));
+    });
+    ['#workoutMinutes', '#workoutKcal'].forEach(selector => $(selector)?.addEventListener('input', renderWorkoutDraft));
     document.querySelectorAll('[data-rpe]').forEach(button => button.addEventListener('click', () => {
       setRpe(selectedRpe === +button.dataset.rpe ? null : +button.dataset.rpe);
       renderWorkoutDraft();
     }));
-    $('#loadLastWorkout').onclick = () => {
-      const state = readState();
-      const last = Object.keys(state.logs || {}).filter(validDate).sort().reverse().map(date => (state.logs[date].workouts || []).at(-1)).find(Boolean);
-      if (!last) return showToast('불러올 운동 기록이 아직 없어요.');
-      const groups = String(last.group || last.type || '').split('·');
-      document.querySelectorAll('[name="wt"]').forEach(input => { input.checked = groups.includes(input.value); });
-      note.value = last.note || last.name || '';
-      syncCardioField();
-      renderWorkoutDraft();
-      showToast('최근 기록을 불러왔어요. 무게·횟수만 바꿔 저장하세요.');
-    };
+    $('#workoutForm')?.addEventListener('click', event => {
+      const routine = event.target.closest('[data-routine]');
+      if (routine) { loadRoutine(routine.dataset.routine); return; }
+      const chip = event.target.closest('[data-exercise-chip]');
+      if (chip) addExerciseLine(+chip.dataset.exerciseChip);
+    });
     $('#saveWorkout').onclick = saveWorkoutRecord;
     setRpe(null);
+    renderExerciseChips();
   }
 
   // ---- AI 주간 운동 계획 ----
@@ -2097,6 +2175,7 @@
       .badge{display:inline-flex;align-items:center;padding:3px 7px;border-radius:99px;background:#eef3f1;color:#5d736b;font-size:11px;font-style:normal;font-weight:800;white-space:nowrap}.badge.up{background:#dcf5eb;color:#23775a}.badge.down{background:#ffece6;color:#b05243}.badge.pr{background:#fff1c7;color:#8a6200}.badges{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end}
       .input-hint{margin:6px 2px 0;color:var(--sub);font-size:12px;line-height:1.5}.input-hint b{color:var(--ink)}
       .parsed{margin:0 0 12px;padding:12px;border-radius:15px;background:#f3f9f6;color:var(--sub);font-size:12px}.parsed-head{display:flex;justify-content:space-between;align-items:center;gap:8px}.parsed-head b{color:#c2573c;font-size:14px}.parsed ul{margin:8px 0 0;padding:0;list-style:none}.parsed li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-top:1px dashed #dcebe5}.parsed li strong,.parsed li span{display:block}.parsed li strong{color:var(--ink);font-size:13px}.parsed li span{margin-top:2px;font-size:12px}.parsed-foot{margin-top:6px;padding-top:8px;border-top:1px solid #dcebe5;font-size:12px}.parsed-foot b{color:#2f8467}
+      .routine-bar{margin-bottom:12px}.routine-bar>span{display:block;margin-bottom:6px;color:var(--sub);font-size:12px;font-weight:800}.routine-bar>span small{font-weight:600;color:#2f8467}.routine-chips{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}.routine-chips button{min-height:54px;border:1px solid var(--line);border-radius:14px;background:#f3f9f6;display:grid;place-items:center;align-content:center;gap:2px;padding:4px 2px}.routine-chips b{font-size:14px}.routine-chips small{color:var(--sub);font-size:10px;line-height:1.2}.routine-chips button:active{background:#dcf5eb;border-color:#72d1ae}.exercise-chips{margin-top:8px}.exercise-chips>span{display:block;margin-bottom:5px;color:var(--sub);font-size:11px}.exercise-chips>div{display:flex;flex-wrap:wrap;gap:5px}.exercise-chips button{padding:6px 10px;border:1px solid var(--line);border-radius:99px;background:#fff;font-size:12px;font-weight:700}.routine-tag{margin-right:4px;padding:2px 7px;border-radius:99px;background:#17372c;color:#fff;font-size:11px}#workoutNote.shake{animation:shake .35s;border-color:#f0a494}
       .workout-meta{display:grid;grid-template-columns:112px 1fr;gap:10px}.workout-meta .field>span small{color:#2f8467;font-weight:800}.rpe-chips{display:grid;grid-template-columns:repeat(6,1fr);gap:4px}.rpe-chips button{height:44px;border:1px solid var(--line);border-radius:12px;background:#f9fcfb;font-weight:900}.rpe-chips button.on{background:#17372c;border-color:#17372c;color:#fff}
       .plan-card{margin-bottom:12px;padding:15px}.plan-card:empty{display:none}.plan-eyebrow{display:block;color:#477e9d;font-size:11px;font-weight:950;letter-spacing:.3px}.plan-empty{display:grid;gap:6px}.plan-empty strong{font-size:17px}.plan-empty small{color:var(--sub);font-size:12px;line-height:1.55}.plan-empty .primary{margin-top:6px}.plan-loading{min-height:120px;display:grid;place-items:center;align-content:center;gap:6px;text-align:center}.plan-loading small{color:var(--sub);font-size:12px}
       .plan-head{display:flex;justify-content:space-between;align-items:start;gap:8px}.plan-head strong{display:block;margin-top:3px;font-size:18px}.plan-principle{margin:10px 0 0;padding:10px 12px;border-radius:13px;background:#eef7ff;color:#335f79;font-size:12px;line-height:1.55}.plan-alert{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;padding:10px 12px;border-radius:13px;background:#fff1ec;color:#a4492f;font-size:12px;font-weight:800}.plan-alert button{flex:none;border:0;border-radius:10px;background:#c2573c;color:#fff;padding:8px 10px;font-size:12px;font-weight:900}
@@ -2152,7 +2231,7 @@
   removeDuplicateArchive();
   [$('#mealPreview'), $('#mealList')].filter(Boolean).forEach(target => new MutationObserver(() => renderGroupedMeals()).observe(target, { childList: true }));
   window.addEventListener('hashchange', () => {
-    if (location.hash === '#workout') { renderCalendar(); renderPlanCard(); renderWorkoutDraft(); }
+    if (location.hash === '#workout') { renderCalendar(); renderPlanCard(); renderWorkoutDraft(); renderExerciseChips(); }
     if (location.hash === '#report') renderRealReportCharts();
     if (location.hash === '#home') { updatePlanHero(); renderCheckin(); }
     removeDuplicateArchive();
