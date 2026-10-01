@@ -571,7 +571,7 @@
     const banner = document.createElement('div');
     banner.id = 'loginBanner';
     banner.className = 'login-banner hidden';
-    banner.innerHTML = '<span>🔐 로그인하면 기기를 바꿔도 기록·AI 설정이 그대로예요.</span><button type="button" class="link" data-login-go>로그인</button><button type="button" class="link close" data-login-off aria-label="닫기">×</button>';
+    banner.innerHTML = '<span>로그인하면 기기를 바꿔도 기록과 AI 설정이 이어져요.</span><button type="button" class="link" data-login-go>로그인</button><button type="button" class="link close" data-login-off aria-label="닫기">×</button>';
     const header = home.querySelector('header');
     header ? header.after(banner) : home.prepend(banner);
     banner.addEventListener('click', event => {

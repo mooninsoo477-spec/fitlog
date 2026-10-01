@@ -56,6 +56,7 @@
   };
 
   function refreshIcons() {
+    return;
     const nav = $('.nav');
     if (!nav) return;
     const buttons = [...nav.querySelectorAll('button')];
@@ -105,6 +106,7 @@
 
   function updateMascot() {
     const mascot = $('.welcome img');
+    $('#mascotMeter')?.remove();
     if (!mascot) return;
     const metrics = mascotMetrics();
     const states = {
@@ -314,7 +316,7 @@
     if (!progress) return '';
     if (progress.first) return '<i class="badge">첫 기록</i>';
     const badges = [];
-    if (progress.pr) badges.push('<i class="badge pr">🏆 PR</i>');
+    if (progress.pr) badges.push('<i class="badge pr">PR</i>');
     if (progress.weightDiff) badges.push(`<i class="badge ${progress.weightDiff > 0 ? 'up' : 'down'}">${progress.weightDiff > 0 ? '+' : ''}${progress.weightDiff}kg ${progress.weightDiff > 0 ? '↑' : '↓'}</i>`);
     if (progress.volumePct) badges.push(`<i class="badge ${progress.volumePct > 0 ? 'up' : 'down'}">볼륨 ${progress.volumePct > 0 ? '+' : ''}${progress.volumePct}%</i>`);
     if (progress.repsDiff) badges.push(`<i class="badge ${progress.repsDiff > 0 ? 'up' : 'down'}">${progress.repsDiff > 0 ? '+' : ''}${progress.repsDiff}회</i>`);
@@ -322,7 +324,7 @@
     return badges.join('');
   }
 
-  const conditionText = value => CONDITIONS[value] ? `${CONDITIONS[value][0]} ${CONDITIONS[value][1]}` : (value ? String(value) : '');
+  const conditionText = value => CONDITIONS[value] ? CONDITIONS[value][1] : (value ? String(value) : '');
   const addDays = (key, days) => { const date = new Date(`${key}T12:00:00`); date.setDate(date.getDate() + days); return dateKey(date); };
   const mondayKey = (date = new Date()) => dateKey(new Date(date.getFullYear(), date.getMonth(), date.getDate() - ((date.getDay() + 6) % 7)));
   const weekdayName = key => ['일', '월', '화', '수', '목', '금', '토'][new Date(`${key}T12:00:00`).getDay()];
@@ -527,7 +529,7 @@
         const kcal = group.items.reduce((sum, item) => sum + (+item.kcal || 0), 0);
         const protein = group.items.reduce((sum, item) => sum + (+item.protein || 0), 0);
         return `<button class="meal-row meal-group-row" data-go="meals"><span class="meal-emoji" aria-hidden="true">${mealEmoji(group.items, group.meal)}</span><span><strong>${esc(group.meal)}</strong><span>${esc(group.items.map(item => item.name).join(' · '))}</span><small>단백질 ${Math.round(protein)}g</small></span><em><b class="kcal-value">${Math.round(kcal).toLocaleString()}</b> kcal</em></button>`;
-      }).join('') : `<button class="meal-row" data-go="meals"><span class="meal-emoji" aria-hidden="true">🍽️</span><span><strong>아직 기록이 없어요</strong><span>눌러서 식사를 추가하세요</span></span><em>＋</em></button>`;
+      }).join('') : `<button class="meal-row" data-go="meals"><span class="meal-emoji" aria-hidden="true"></span><span><strong>아직 기록이 없어요</strong><span>눌러서 식사를 추가하세요</span></span><em>＋</em></button>`;
       if (preview.dataset.mealSignature !== signature || !preview.querySelector('.meal-emoji')) {
         preview.dataset.mealSignature = signature;
         preview.innerHTML = markup;
@@ -602,7 +604,7 @@
       const meta = [workout.minutes ? `${workout.minutesEstimated ? '약 ' : ''}${workout.minutes}분` : '', workout.rpe ? `RPE ${workout.rpe}` : '', workout.burnKcal ? `약 ${workout.burnKcal}kcal` : '', workoutVolume(workout) ? `볼륨 ${Math.round(workoutVolume(workout)).toLocaleString()}kg` : ''].filter(Boolean).join(' · ');
       return `<div class="day-workout"><b>${esc(workout.group || workout.type || '운동')}</b>${meta ? `<small>${meta}</small>` : ''}
         ${exercises.length ? `<ul>${exercises.map(exercise => `<li><span>${esc(exercise.name)} <em>${esc(setSummary(exercise))}</em></span><span class="badges">${progressBadges(exerciseProgress(exercise, history))}</span></li>`).join('')}</ul>` : `<p>${esc(workout.note || workout.name || '')}</p>`}
-        ${workout.comment ? `<p class="day-comment">💬 ${esc(workout.comment)}</p>` : ''}
+        ${workout.comment ? `<p class="day-comment">${esc(workout.comment)}</p>` : ''}
         <div class="day-workout-actions"><button type="button" class="link" data-workout-edit="${esc(workout.id)}">수정</button><button type="button" class="link danger" data-workout-del="${esc(workout.id)}">삭제</button></div></div>`;
     });
     const extras = [
@@ -630,7 +632,7 @@
       banner.className = 'edit-banner';
       $('#workoutForm')?.prepend(banner);
     }
-    banner.innerHTML = `<span>✏️ ${shortDate(info.date)} 운동 기록 수정 중</span><button type="button" class="link" data-workout-edit-cancel>취소</button>`;
+    banner.innerHTML = `<span>${shortDate(info.date)} 운동 기록 수정 중</span><button type="button" class="link" data-workout-edit-cancel>취소</button>`;
   }
 
   function startWorkoutEdit(date, id) {
@@ -645,6 +647,7 @@
     setRpe(workout.rpe || null);
     setWorkoutEditMode({ date, id });
     renderWorkoutDraft();
+    goTo('workout');
     $('#workoutForm')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     showToast('기록을 불러왔어요. 고친 뒤 "수정 저장"을 눌러주세요.');
   }
@@ -771,7 +774,7 @@
   };
 
   function svgEmpty(message, hint = '기록을 추가하면 최근 10회 흐름이 자동으로 나타나요.', action = '') {
-    return `<div class="chart-empty"><span aria-hidden="true">📊</span><strong>${message}</strong><small>${hint}</small>${action}</div>`;
+    return `<div class="chart-empty"><strong>${message}</strong><small>${hint}</small>${action}</div>`;
   }
 
   // ---- 인바디 결과지형 신체 변화 ----
@@ -868,7 +871,7 @@
       ${records.length > 1 ? `<div class="ib-section"><div class="ib-title"><strong>변화 기록</strong><span>${records.length}회 측정</span></div>
         <div class="ib-tabs" role="tablist" aria-label="변화 기록 지표">${BODY_METRICS.map((metric, index) => `<button type="button" role="tab" aria-selected="${index === bodyMetricIndex}" class="${index === bodyMetricIndex ? 'on' : ''}" data-body-metric="${index}" style="--metric:${metric.color}">${metric.label}</button>`).join('')}</div>
         <div id="bodyTrend">${bodyTrend(records, BODY_METRICS[bodyMetricIndex])}</div></div>` : ''}
-      ${targetFat && pbf ? `<p class="ib-target">🎯 목표 체지방률 ${targetFat}% · ${pbf > targetFat ? `${Math.round((pbf - targetFat) * 10) / 10}%p 남음` : '목표 달성!'}</p>` : ''}`;
+      ${targetFat && pbf ? `<p class="ib-target">목표 체지방률 ${targetFat}% · ${pbf > targetFat ? `${Math.round((pbf - targetFat) * 10) / 10}%p 남음` : '목표 달성!'}</p>` : ''}`;
   }
 
   function workoutVolume(workout) {
@@ -956,12 +959,12 @@
     const logRows = Object.entries(state.logs || {}).filter(([date]) => validDate(date)).sort(([a], [b]) => a.localeCompare(b));
     const volumeRows = logRows.map(([date, log]) => ({ date, value: (log.workouts || []).reduce((sum, workout) => sum + workoutVolume(workout), 0) })).filter(item => item.value > 0).slice(-10);
     $('#volumeCard .chart-head').innerHTML = `<strong>근력운동 총 볼륨</strong><span>${volumeRows.length ? `최근 ${volumeRows.length}회 · ` : ''}kg</span>`;
-    $('#volumeCard .chart-body').innerHTML = volumeRows.length ? `${barChart(volumeRows, '#67aef2', 'kg')}<div class="legend"><span><i style="background:#67aef2"></i>무게 × 횟수 합계</span></div>` : svgEmpty('아직 볼륨 기록이 없어요', '운동 내용을 “스쿼트 60kg 10회 5세트”처럼 적으면 자동으로 계산돼요.', '<button type="button" class="primary mint" data-go="workout">운동 기록하기</button>');
+    $('#volumeCard .chart-body').innerHTML = volumeRows.length ? `${barChart(volumeRows, '#1d9e75', 'kg')}<div class="legend"><span><i style="background:#1d9e75"></i>무게 × 횟수 합계</span></div>` : svgEmpty('아직 볼륨 기록이 없어요', '운동 내용을 “스쿼트 60kg 10회 5세트”처럼 적으면 자동으로 계산돼요.', '<button type="button" class="primary mint" data-go="workout">운동 기록하기</button>');
     $('#partSetsCard .chart-body').innerHTML = partSetsChart(state);
     const kcalTarget = +(state.profile?.targets?.kcal || 2200);
     const calorieRows = logRows.map(([date, log]) => ({ date, value: calories(log), meals: (log.meals || []).length })).filter(item => item.meals > 0).slice(-10).map(item => ({ ...item, over: item.value > kcalTarget * 1.05 }));
     $('#calorieCard .chart-head').innerHTML = `<strong>하루 섭취 칼로리</strong><span>${calorieRows.length ? `최근 ${calorieRows.length}일 · ` : ''}kcal</span>`;
-    $('#calorieCard .chart-body').innerHTML = calorieRows.length ? `${barChart(calorieRows, '#72d1ae', 'kcal', kcalTarget)}<div class="legend"><span><i style="background:#72d1ae"></i>목표 이내</span><span><i style="background:#ff9e82"></i>목표 5% 초과</span></div>` : svgEmpty('아직 식단 기록이 없어요', '식사를 기록하면 목표 대비 하루 섭취량이 쌓여요.', '<button type="button" class="primary mint" data-go="meals">식사 기록하기</button>');
+    $('#calorieCard .chart-body').innerHTML = calorieRows.length ? `${barChart(calorieRows, '#1d9e75', 'kcal', kcalTarget)}<div class="legend"><span><i style="background:#1d9e75"></i>목표 이내</span><span><i style="background:#ff9e82"></i>목표 5% 초과</span></div>` : svgEmpty('아직 식단 기록이 없어요', '식사를 기록하면 목표 대비 하루 섭취량이 쌓여요.', '<button type="button" class="primary mint" data-go="meals">식사 기록하기</button>');
     let burnCard = $('#cardioReportCard');
     const burnRows = logRows.map(([date, log]) => ({ date, value: (log.workouts || []).reduce((sum, workout) => sum + (+workout.burnKcal || cardioCalories(workout)), 0) })).filter(item => item.value > 0).slice(-10);
     if (burnRows.length) {
@@ -1102,7 +1105,7 @@
     panel.id = 'inbodyPanel';
     panel.className = 'card settings-fold';
     panel.innerHTML = `
-      <summary><span class="fold-icon">⚖️</span><span><strong>인바디 기록</strong><small>${latest.date ? `최근 측정 ${esc(latest.date)}` : '측정값을 입력하면 추세와 코칭에 반영돼요'}</small></span><b>›</b></summary>
+      <summary><span><strong>인바디 기록</strong><small>${latest.date ? `최근 측정 ${esc(latest.date)}` : '측정값을 입력하면 추세와 코칭에 반영돼요'}</small></span><b>›</b></summary>
       <div class="fold-content body-profile-card">
         <div class="body-score"><div><span>BODY PROFILE</span><strong>${esc(latest.score || '기록 전')}</strong></div><small>${latest.date ? `최근 측정 ${esc(latest.date)}` : '첫 측정값을 입력해 주세요'}</small></div>
         <div class="body-input-grid">
@@ -1359,7 +1362,17 @@
   // ---- 운동 기록 폼 ----
   let selectedRpe = null;
   let prefilledPlanDate = null;
-  const goTo = view => $(`.nav [data-go="${view}"]`)?.click();
+  // 하단 탭에 없는 화면(식사·운동)도 같은 방식으로 연다.
+  const goTo = view => {
+    const tab = $(`.nav [data-go="${view}"]`);
+    if (tab) return tab.click();
+    const link = document.createElement('button');
+    link.hidden = true;
+    link.dataset.go = view;
+    document.body.append(link);
+    link.click();
+    link.remove();
+  };
   // 체크 없이 적은 종목으로 밀기·당기기·하체·유산소를 판단한다.
   const ROUTINES = ['밀기', '당기기', '하체', '유산소'];
 
@@ -1465,7 +1478,7 @@
         notice.textContent = `${shortDate(editedDate)} 운동 기록을 수정했어요.`;
         selectedDate = editedDate;
         renderCalendar();
-        setTimeout(() => { notice.textContent = ''; $('#calendarArchive')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 600);
+        setTimeout(() => { notice.textContent = ''; goTo('report'); setTimeout(() => $('#calendarArchive')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80); }, 600);
         return;
       }
     }
@@ -1791,19 +1804,19 @@
     return `<div class="plan-detail">
       <div class="plan-detail-head"><strong>${weekdayName(day.date)}요일 · ${esc(day.focus)}</strong>${status === 'done' ? '<i class="badge up">완료</i>' : status === 'missed' ? '<i class="badge down">놓침</i>' : ''}</div>
       <ol class="plan-exercises">${day.exercises.map(exercise => `<li><div><strong>${esc(exercise.name)}</strong>${exercise.note ? `<small>${esc(exercise.note)}</small>` : ''}</div><b>${exercise.weight ? `${exercise.weight}kg · ` : ''}${esc(exercise.reps)}회 × ${exercise.sets}</b></li>`).join('')}</ol>
-      ${day.cardio && day.cardio !== '없음' ? `<p class="plan-note">🏃 ${esc(day.cardio)}</p>` : ''}
-      ${day.tip ? `<p class="plan-note">💡 ${esc(day.tip)}</p>` : ''}
+      ${day.cardio && day.cardio !== '없음' ? `<p class="plan-note">유산소 · ${esc(day.cardio)}</p>` : ''}
+      ${day.tip ? `<p class="plan-note">${esc(day.tip)}</p>` : ''}
       ${day.date === today && status !== 'done' ? `<button class="primary mint full" data-plan-action="log" data-date="${day.date}">이 계획으로 기록하기</button>` : ''}
     </div>`;
   }
 
   function soccerRow(state, weekStart, plan) {
     const rules = trainingRules(state);
-    if (rules.legs !== 'alternate-soccer') return `<p class="plan-rule">🦵 ${LEG_RULES[rules.legs]}${rules.custom ? ` · ${esc(rules.custom)}` : ''}</p>`;
+    if (rules.legs !== 'alternate-soccer') return `<p class="plan-rule">${LEG_RULES[rules.legs]}${rules.custom ? ` · ${esc(rules.custom)}` : ''}</p>`;
     const { soccer, source } = soccerWeek(state, weekStart);
     const stale = plan && plan.weekStart === weekStart && typeof plan.soccer === 'boolean' && plan.soccer !== soccer;
-    return `<div class="soccer-row"><span>⚽ ${shortDate(weekStart)}주 축구 <small>${source}</small></span><div><button type="button" class="${soccer ? 'on' : ''}" data-soccer="${weekStart}" data-value="1">있음</button><button type="button" class="${soccer ? '' : 'on'}" data-soccer="${weekStart}" data-value="0">없음</button></div></div>
-      <p class="plan-rule">🦵 ${soccer ? '축구 주 → 하체 근력운동은 쉬어요' : '축구 없는 주 → 하체 1회'}${stale ? ' · <b>계획과 달라요. 다시 짜기를 눌러주세요</b>' : ''}</p>`;
+    return `<div class="soccer-row"><span>${shortDate(weekStart)}주 축구 <small>${source}</small></span><div><button type="button" class="${soccer ? 'on' : ''}" data-soccer="${weekStart}" data-value="1">있음</button><button type="button" class="${soccer ? '' : 'on'}" data-soccer="${weekStart}" data-value="0">없음</button></div></div>
+      <p class="plan-rule">${soccer ? '축구 주 → 하체 근력운동은 쉬어요' : '축구 없는 주 → 하체 1회'}${stale ? ' · <b>계획과 달라요. 다시 짜기를 눌러주세요</b>' : ''}</p>`;
   }
 
   function renderPlanCard() {
@@ -1829,8 +1842,8 @@
     card.innerHTML = `
       <div class="plan-head"><div><span class="plan-eyebrow">AI 주간 계획 · ${shortDate(plan.weekStart)}~${shortDate(addDays(plan.weekStart, 6))}</span><strong>${esc(plan.title)}</strong></div>${isCurrent ? '<button class="link" data-plan-action="week">다시 짜기</button>' : '<span class="badge">다음 주</span>'}</div>
       ${soccerRow(state, plan.weekStart, plan)}
-      ${plan.principle ? `<p class="plan-principle">📈 ${esc(plan.principle)}</p>` : ''}
-      ${(plan.ruleNotes || []).length ? `<p class="plan-rule-note">✂️ ${plan.ruleNotes.map(esc).join(' ')}</p>` : ''}
+      ${plan.principle ? `<p class="plan-principle">${esc(plan.principle)}</p>` : ''}
+      ${(plan.ruleNotes || []).length ? `<p class="plan-rule-note">${plan.ruleNotes.map(esc).join(' ')}</p>` : ''}
       ${missed.length ? `<div class="plan-alert"><span>${missed.map(item => weekdayName(item.date)).join('·')}요일 운동을 놓쳤어요.</span><button type="button" data-plan-action="week">남은 요일 다시 짜기</button></div>` : ''}
       <div class="plan-strip">${week.map(date => {
         const item = plan.days.find(entry => entry.date === date);
@@ -1881,12 +1894,12 @@
     const complete = +log.weight && +log.sleep && log.condition;
     if (complete && !checkinEditing) {
       card.className = 'card checkin done';
-      card.innerHTML = `<span class="checkin-title">☀️ 오늘 체크인</span><b>${log.weight}kg · ${log.sleep}시간 · ${conditionText(log.condition)}</b><button type="button" class="link" data-checkin-edit>수정</button>`;
+      card.innerHTML = `<span class="checkin-title">오늘 체크인</span><b>${log.weight}kg · ${log.sleep}시간 · ${conditionText(log.condition)}</b><button type="button" class="link" data-checkin-edit>수정</button>`;
       return;
     }
     card.className = 'card checkin';
     card.innerHTML = `
-      <div class="checkin-head"><strong>☀️ 아침 체크인</strong><small>AI 코칭에 반영돼요</small><span class="checkin-saved" id="checkinSaved"></span></div>
+      <div class="checkin-head"><strong>아침 체크인</strong><small>AI 코칭에 반영돼요</small><span class="checkin-saved" id="checkinSaved"></span></div>
       <div class="checkin-grid">
         <label><span>공복 체중</span><div class="unit-input"><input id="ciWeight" inputmode="decimal" value="${esc(log.weight || '')}" placeholder="${latestBodyWeight(state)}"><b>kg</b></div></label>
         <label><span>수면</span><div class="unit-input"><input id="ciSleep" inputmode="decimal" value="${esc(log.sleep || '')}" placeholder="7"><b>시간</b></div></label>
@@ -1984,7 +1997,7 @@
     section.id = 'recommendationProfile';
     section.className = 'card settings-fold recommendation-profile';
     section.innerHTML = `
-      <summary><span class="fold-icon">🎯</span><span><strong>목표 설정과 나의 정보</strong><small>한 번 입력하면 AI가 식단·운동 기준을 계산해요</small></span><b>›</b></summary>
+      <summary><span><strong>목표 설정과 나의 정보</strong><small>한 번 입력하면 AI가 식단·운동 기준을 계산해요</small></span><b>›</b></summary>
       <div class="fold-content">
         <section class="profile-step"><span>1</span><div><strong>기본 정보</strong><small>필요한 계산에만 사용해요.</small></div></section>
         <div class="profile-detail-grid">
@@ -2233,11 +2246,11 @@
       </div>
       <label class="field"><span>먹은 내용을 편하게 적어주세요</span><textarea class="textarea meal-free-text" id="aiMealText" placeholder="예: 햇반 반 공기, 계란후라이 2개, 닭가슴살 150g\n양이나 제품명을 적으면 더 정확해요."></textarea></label>
       <div class="photo-analyzer">
-        <label class="photo-picker" for="mealPhoto"><span>📷</span><strong>사진으로 분석</strong><small>음식 전체가 보이게 찍어주세요</small></label>
+        <label class="photo-picker" for="mealPhoto"><strong>사진으로 분석</strong><small>음식 전체가 보이게 찍어주세요</small></label>
         <input class="hidden" id="mealPhoto" type="file" accept="image/*" capture="environment">
         <img id="mealPhotoPreview" alt="선택한 식사 사진 미리보기">
       </div>
-      <button class="primary ai-save full" id="analyzeMeal"><span>✦</span> AI로 음식별 분석</button>
+      <button class="primary ai-save full" id="analyzeMeal">AI로 음식별 분석</button>
       <p class="notice ai-notice" id="aiMealNotice">설명과 사진을 함께 쓰면 양을 더 정확하게 계산해요.</p>`;
     oldForm.insertAdjacentHTML('afterend', '<section class="card analysis-preview" id="aiMealPreview"></section>');
 
@@ -2287,12 +2300,12 @@
         renderMealPreview();
         notice.textContent = `${pendingMealItems.length}개 음식으로 나눴어요. 양과 수치를 확인해 주세요.`;
         button.disabled = false;
-        button.innerHTML = '<span>✦</span> 다시 분석';
+        button.innerHTML = '다시 분석';
         $('#aiMealPreview')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       } catch (error) {
         notice.textContent = error.message || '분석하지 못했어요. 잠시 후 다시 시도해 주세요.';
         button.disabled = false;
-        button.innerHTML = '<span>✦</span> AI로 음식별 분석';
+        button.innerHTML = 'AI로 음식별 분석';
       }
     };
 
