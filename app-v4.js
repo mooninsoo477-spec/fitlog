@@ -739,8 +739,138 @@
     return { mimeType: 'image/jpeg', data: dataUrl.split(',')[1], preview: dataUrl };
   }
 
-  function nutritionPrompt(mealType, text) {
-    return `한국 식단의 실제 섭취량을 음식별로 분리해 분석한다. 입력에 음식이 여러 개면 절대 합쳐 이름을 만들지 말고 각각 별도 항목으로 반환한다. "밥 갈비 1/3"이면 밥과 갈비를 나누고 1/3은 갈비에 적용한다. 텍스트의 제품명·중량·개수를 사진보다 우선한다. 각 음식마다 급식 또는 일반 식사의 현실적인 추천 1인분 기준량과, 사용자가 먹은 양을 0.25 단위 servings로 추정한다. kcal과 영양소는 추천 1인분 기준값으로 반환한다. 끼니: ${mealType}. 기록: ${text || '사진만 제공'}.`;
+  // ---- 음식 칼로리: 한국 식당 1인분 대표값(근사) · 사용자가 고친 값 기억 ----
+  // [이름 패턴, 표시 이름, kcal, 단백질, 탄수, 지방, 기준량, 1인분 단위 패턴] — 위에서부터 먼저 맞는 것을 쓴다.
+  const SERVING = /인분|그릇|접시|공기|세트|1\s*개|한\s*개|^\s*$/;
+  const FOOD_REFS = [
+    [/치즈\s*(돈까스|돈가스|카츠)/, '치즈돈까스', 900, 34, 62, 56, '1인분 약 260g', SERVING],
+    [/생선\s*(까스|가스)/, '생선까스', 650, 24, 56, 36, '1인분 약 220g', SERVING],
+    [/돈까스|돈가스|카츠/, '돈까스', 760, 30, 58, 44, '1인분 약 230g', SERVING],
+    [/공기밥|쌀밥|흰\s*밥|햇반|^밥$/, '공기밥', 310, 6, 68, 1, '1공기 210g', /공기|그릇|210|인분|^\s*$/],
+    [/제육\s*덮밥/, '제육덮밥', 850, 33, 105, 30, '1그릇 약 450g', SERVING],
+    [/제육/, '제육볶음', 600, 32, 25, 40, '1인분 약 250g', SERVING],
+    [/김치\s*볶음밥/, '김치볶음밥', 750, 18, 105, 28, '1그릇 약 400g', SERVING],
+    [/볶음밥/, '볶음밥', 750, 18, 105, 28, '1그릇 약 400g', SERVING],
+    [/오므라이스/, '오므라이스', 800, 22, 110, 28, '1그릇', SERVING],
+    [/카레/, '카레라이스', 750, 18, 115, 22, '1그릇(밥 포함)', SERVING],
+    [/비빔밥/, '비빔밥', 650, 20, 100, 18, '1그릇(밥 포함)', SERVING],
+    [/부대\s*찌개/, '부대찌개', 650, 30, 35, 42, '1인분(밥 제외)', SERVING],
+    [/순두부/, '순두부찌개', 400, 22, 15, 26, '1인분(밥 제외)', SERVING],
+    [/김치\s*찌개/, '김치찌개', 400, 24, 15, 26, '1인분(밥 제외)', SERVING],
+    [/된장\s*찌개/, '된장찌개', 280, 18, 18, 14, '1인분(밥 제외)', SERVING],
+    [/짜장면|자장면/, '짜장면', 800, 22, 120, 24, '1그릇', SERVING],
+    [/짬뽕/, '짬뽕', 750, 30, 100, 22, '1그릇', SERVING],
+    [/탕수육/, '탕수육', 650, 22, 70, 30, '1인분(소 1/2)', SERVING],
+    [/컵\s*라면/, '컵라면', 350, 7, 50, 14, '1개(큰 컵 기준 500)', /개|컵|^\s*$/],
+    [/라면/, '라면', 500, 10, 79, 16, '1봉', /봉|그릇|개|인분|^\s*$/],
+    [/떡볶이/, '떡볶이', 500, 10, 100, 6, '1인분 약 300g', SERVING],
+    [/참치\s*김밥/, '참치김밥', 550, 18, 75, 20, '1줄', /줄|^\s*$/],
+    [/김밥/, '김밥', 450, 12, 75, 10, '1줄', /줄|^\s*$/],
+    [/비빔\s*냉면/, '비빔냉면', 600, 15, 115, 8, '1그릇', SERVING],
+    [/냉면/, '물냉면', 550, 18, 105, 6, '1그릇', SERVING],
+    [/칼국수/, '칼국수', 600, 22, 105, 10, '1그릇', SERVING],
+    [/잔치\s*국수/, '잔치국수', 450, 14, 85, 5, '1그릇', SERVING],
+    [/쌀국수/, '쌀국수', 500, 25, 80, 8, '1그릇', SERVING],
+    [/우동/, '우동', 500, 15, 90, 6, '1그릇', SERVING],
+    [/순대\s*국/, '순대국밥', 750, 35, 80, 30, '1그릇(밥 포함)', SERVING],
+    [/국밥/, '돼지국밥', 700, 35, 80, 25, '1그릇(밥 포함)', SERVING],
+    [/설렁탕|곰탕/, '설렁탕', 600, 35, 75, 15, '1그릇(밥 포함)', SERVING],
+    [/갈비탕/, '갈비탕', 650, 35, 75, 22, '1그릇(밥 포함)', SERVING],
+    [/삼계탕/, '삼계탕', 900, 75, 45, 45, '1그릇', SERVING],
+    [/마라탕/, '마라탕', 800, 25, 80, 42, '1그릇', SERVING],
+    [/크림\s*(파스타|스파게티)|까르보나라/, '크림파스타', 850, 25, 90, 42, '1접시', SERVING],
+    [/파스타|스파게티/, '토마토파스타', 650, 22, 95, 18, '1접시', SERVING],
+    [/텐동/, '텐동', 950, 25, 125, 38, '1그릇', SERVING],
+    [/규동/, '규동', 750, 28, 105, 22, '1그릇', SERVING],
+    [/닭갈비/, '닭갈비', 650, 45, 35, 35, '1인분 약 250g', SERVING],
+    [/찜닭/, '찜닭', 800, 50, 70, 32, '1인분', SERVING],
+    [/삼겹살/, '삼겹살', 900, 35, 0, 85, '1인분 200g', /인분|200|^\s*$/],
+    [/버거/, '햄버거(단품)', 550, 26, 45, 28, '1개', /개|단품|^\s*$/],
+    [/도시락/, '편의점 도시락', 750, 25, 100, 26, '1개', /개|^\s*$/],
+    [/샌드위치/, '샌드위치', 400, 18, 40, 18, '1개', /개|^\s*$/],
+    [/떡국/, '떡국', 600, 20, 100, 12, '1그릇', SERVING]
+  ];
+  const foodKey = name => String(name || '').replace(/\s+/g, '').toLowerCase();
+  const findFoodRef = name => FOOD_REFS.find(([pattern]) => pattern.test(String(name || '').trim()));
+
+  const PLACE_HINTS = {
+    자동: '음식 이름으로 식당·배달·집밥·급식 중 알맞은 상황을 판단한다.',
+    '식당·배달': '식당이나 배달 음식이다. 한국 식당의 실제 판매 1인분(넉넉한 양, 소스·기름 포함)으로 계산한다.',
+    집밥: '집에서 만든 음식이다. 가정식 보통 1인분으로 계산하되 조리용 기름은 포함한다.',
+    급식: '학교·회사 급식이다. 급식 배식량 1인분으로 계산한다.',
+    편의점: '편의점·포장 제품이다. 제품 표기 영양성분 수준으로 계산한다.'
+  };
+
+  function nutritionPrompt(mealType, text, place = '자동') {
+    const state = readState();
+    // 적은 음식마다 가장 알맞은 대표값 하나씩만 붙인다("치즈돈까스"에 돈까스 값까지 붙지 않게).
+    const tokens = String(text || '').split(/[,\n·+/]|그리고|랑|하고/).map(part => part.replace(/\d+(\.\d+)?\s*(g|kg|개|인분|공기|그릇|조각|줄|봉|접시)?|반|곱빼기|한|두|세/g, '').trim()).filter(Boolean);
+    const matched = tokens.flatMap(token => {
+      const whole = findFoodRef(token);
+      // 띄어쓰기로만 적은 경우("김치찌개 밥 반공기")를 위해 단어별로도 찾되, 이미 찾은 음식의 일부 이름은 빼고 붙인다.
+      const words = token.split(/\s+/).map(findFoodRef).filter(ref => ref && ref !== whole && !(whole && whole[1].includes(ref[1])));
+      return [whole, ...words];
+    });
+    const refs = [...new Set(matched.filter(Boolean))].slice(0, 8)
+      .map(([, name, kcal, protein, , , amount]) => `${name} ${amount} ${kcal}kcal 단백질${protein}g`);
+    const personal = Object.values(state.profile?.foodRefs || {})
+      .filter(ref => foodKey(text).includes(foodKey(ref.name).slice(0, 4)))
+      .slice(0, 8).map(ref => `${ref.name} 1인분 ${ref.kcal}kcal`);
+    return [
+      '한국 식단 기록을 음식별로 나눠 영양을 계산한다.',
+      '- kcalPerServing·단백질·탄수·지방은 한국에서 실제로 파는(먹는) 보통 1인분 기준이다. 식약처 식품영양성분 DB와 프랜차이즈 영양정보 수준으로 잡고, 건강식 권장량처럼 줄여 잡지 않는다.',
+      '- 튀김옷, 조리용 기름, 소스, 치즈, 드레싱, 설탕을 반드시 포함한다. 튀김·볶음·치즈 요리는 같은 재료의 구이·찜보다 열량이 높다.',
+      '- 확신이 없으면 범위의 가운데보다 약간 높은 값을 고른다. 식사 기록은 보통 실제보다 적게 잡히기 때문이다.',
+      '- 음식이 여러 개면 각각 따로 반환하고 합쳐 이름을 만들지 않는다. "밥 갈비 1/3"이면 밥과 갈비로 나누고 1/3은 갈비에 적용한다.',
+      '- "정식/세트"라고 적었을 때만 함께 나오는 밥·국·반찬을 각각 항목으로 넣는다. 적지 않은 음식은 만들지 않는다.',
+      '- 먹은 양(반 공기, 2조각, 200g, 곱빼기=1.5)은 servings에 0.25 단위로 반영한다. referenceAmount에는 1인분의 실제 양을 g이나 개수로 적는다.',
+      `- 먹은 곳: ${PLACE_HINTS[place] || PLACE_HINTS.자동}`,
+      refs.length ? `- 참고 대표값(1인분, 이보다 크게 낮추지 말 것): ${refs.join(' / ')}` : '',
+      personal.length ? `- 이 사용자가 직접 고친 값(가장 우선): ${personal.join(' / ')}` : '',
+      `끼니: ${mealType}. 기록: ${text || '사진만 제공'}.`
+    ].filter(Boolean).join('\n');
+  }
+
+  // AI 결과를 사용자가 고친 값 → 대표값 순서로 점검한다. 대표값의 75%보다 낮으면 대표값으로 올린다.
+  function calibrateItems(items) {
+    const state = readState();
+    const memory = state.profile?.foodRefs || {};
+    return items.map(item => {
+      const result = { ...item, aiKcal: item.kcalPerServing };
+      const scale = target => {
+        const ratio = item.kcalPerServing > 0 ? target / item.kcalPerServing : 1;
+        result.kcalPerServing = Math.round(target);
+        ['proteinPerServing', 'carbsPerServing', 'fatPerServing'].forEach(key => { result[key] = Math.round(item[key] * ratio * 10) / 10; });
+      };
+      const own = memory[foodKey(item.name)];
+      if (own) {
+        Object.assign(result, { kcalPerServing: own.kcal, proteinPerServing: own.protein, carbsPerServing: own.carbs, fatPerServing: own.fat, aiKcal: own.kcal });
+        result.adjusted = '지난번에 직접 고친 값을 썼어요';
+        return result;
+      }
+      const ref = findFoodRef(item.name);
+      if (ref && ref[7].test(String(item.referenceAmount || '').replace(/추천|기준|보통|약/g, '').trim()) && item.kcalPerServing < ref[2] * 0.75) {
+        scale(ref[2]);
+        // 대표값으로 맞춘 값은 사용자가 고친 값이 아니므로 기억 기준도 함께 맞춘다.
+        result.aiKcal = result.kcalPerServing;
+        result.adjusted = `AI 값 ${Math.round(item.kcalPerServing)}kcal가 보통 1인분(${ref[2]}kcal)보다 많이 낮아 대표값으로 맞췄어요`;
+      }
+      return result;
+    });
+  }
+
+  // 사용자가 1인분 칼로리를 고쳐 저장하면 다음 분석부터 그 값을 쓴다.
+  function rememberFoodRefs(state, items) {
+    items.forEach(item => {
+      if (item.aiKcal == null || !item.name) return;
+      if (Math.abs(item.kcalPerServing - item.aiKcal) <= Math.max(10, item.aiKcal * 0.05)) return;
+      state.profile ||= {};
+      state.profile.foodRefs ||= {};
+      state.profile.foodRefs[foodKey(item.name)] = {
+        name: item.name, kcal: Math.round(item.kcalPerServing), protein: +item.proteinPerServing || 0,
+        carbs: +item.carbsPerServing || 0, fat: +item.fatPerServing || 0, updatedAt: new Date().toISOString()
+      };
+    });
   }
 
   function extractJson(text) {
@@ -2208,7 +2338,7 @@
         const value = actualNutrition(item);
         return `<article class="analysis-item" data-analysis-index="${index}">
           <label><span>음식 이름</span><input class="input" data-meal-field="name" value="${esc(item.name)}"></label>
-          <label><span>추천 기준량</span><input class="input" data-meal-field="referenceAmount" value="${esc(item.referenceAmount)}"></label>
+          <label><span>1인분 기준량</span><input class="input" data-meal-field="referenceAmount" value="${esc(item.referenceAmount)}"></label>
           <div class="portion-row"><div><span>먹은 양</span><strong>${item.servings}인분</strong></div><div class="portion-stepper"><button type="button" data-portion="-.25">−</button><button type="button" data-portion=".25">＋</button></div></div>
           <div class="nutrition-edit">
             <label><span>1인분 kcal</span><input inputmode="decimal" data-meal-field="kcalPerServing" value="${item.kcalPerServing}"></label>
@@ -2217,6 +2347,8 @@
             <label><span>지방 g</span><input inputmode="decimal" data-meal-field="fatPerServing" value="${item.fatPerServing}"></label>
           </div>
           <p class="analysis-total">현재 양 기준 <b>${value.kcal} kcal</b> · 단백질 ${value.protein}g · 탄수 ${value.carbs}g · 지방 ${value.fat}g</p>
+          ${item.adjusted ? `<p class="analysis-adjust">${esc(item.adjusted)}</p>` : ''}
+          ${pendingMealItems.length > 1 && !editingMealId ? '<button type="button" class="link danger analysis-remove" data-remove-item>이 음식 빼기</button>' : ''}
         </article>`;
       }).join('')}</div>
       <button type="button" class="primary mint full" id="saveAnalyzedMeals">${editingMealId ? '수정 내용 저장' : `${pendingMealItems.length}개 음식 저장`}</button>`;
@@ -2262,6 +2394,9 @@
     oldForm.innerHTML = `
       <div class="meal-type-tabs" role="radiogroup" aria-label="끼니 선택">
         ${['아침', '점심', '저녁', '간식'].map(type => `<label><input type="radio" name="aiMealType" value="${type}" ${type === defaultMeal ? 'checked' : ''}><span>${type}</span></label>`).join('')}
+      </div>
+      <div class="place-chips" role="radiogroup" aria-label="먹은 곳">
+        ${Object.keys(PLACE_HINTS).map(place => `<label><input type="radio" name="aiMealPlace" value="${place}" ${place === '자동' ? 'checked' : ''}><span>${place}</span></label>`).join('')}
       </div>
       <label class="field"><span>먹은 내용을 편하게 적어주세요</span><textarea class="textarea meal-free-text" id="aiMealText" placeholder="예: 햇반 반 공기, 계란후라이 2개, 닭가슴살 150g\n양이나 제품명을 적으면 더 정확해요."></textarea></label>
       <div class="photo-analyzer">
@@ -2313,9 +2448,10 @@
       button.innerHTML = '<span class="spinner"></span> 사진과 설명을 함께 분석 중…';
       notice.textContent = '양과 조리법까지 반영해 계산하고 있어요.';
       try {
-        const result = await analyzeWithAi(settings, nutritionPrompt(meal, text));
+        const place = $('[name="aiMealPlace"]:checked')?.value || '자동';
+        const result = await analyzeWithAi(settings, nutritionPrompt(meal, text, place));
         editingMealId = null;
-        pendingMealItems = normalizedMealItems(result);
+        pendingMealItems = calibrateItems(normalizedMealItems(result));
         renderMealPreview();
         notice.textContent = `${pendingMealItems.length}개 음식으로 나눴어요. 양과 수치를 확인해 주세요.`;
         button.disabled = false;
@@ -2331,6 +2467,11 @@
     $('#aiMealPreview').addEventListener('click', event => {
       const card = event.target.closest('[data-analysis-index]');
       const portion = event.target.closest('[data-portion]');
+      if (card && event.target.closest('[data-remove-item]')) {
+        pendingMealItems.splice(+card.dataset.analysisIndex, 1);
+        renderMealPreview();
+        return;
+      }
       if (card && portion) {
         const item = pendingMealItems[+card.dataset.analysisIndex];
         item.servings = Math.min(5, Math.max(.25, Math.round((item.servings + +portion.dataset.portion) * 4) / 4));
@@ -2344,6 +2485,7 @@
         state.logs ||= {};
         state.logs[today] ||= { meals: [], workouts: [] };
         state.logs[today].meals ||= [];
+        rememberFoodRefs(state, pendingMealItems);
         if (editingMealId) {
           const index = state.logs[today].meals.findIndex(item => item.id === editingMealId);
           if (index >= 0) state.logs[today].meals[index] = mealRecord(pendingMealItems[0], meal, editingMealId);
@@ -2384,7 +2526,7 @@
         proteinPerServing: +meal.proteinPerServing || (+meal.protein || 0) / servings,
         carbsPerServing: +meal.carbsPerServing || (+meal.carbs || 0) / servings,
         fatPerServing: +meal.fatPerServing || (+meal.fat || 0) / servings
-      });
+      }).map(item => ({ ...item, aiKcal: item.kcalPerServing }));
       const radio = $(`[name="aiMealType"][value="${meal.meal}"]`);
       if (radio) radio.checked = true;
       renderMealPreview();
@@ -2654,7 +2796,7 @@
     context: state => profileContextText(state),
     analyze: prompt => analyzeWithAi(parse(localStorage.getItem(AI_KEY), {}) || {}, prompt, 'analyze', false),
     // 먹은 내용을 음식별 기록으로 바꿔 준다(저장은 부르는 쪽에서).
-    analyzeMeal: async (text, meal) => normalizedMealItems(await analyzeWithAi(parse(localStorage.getItem(AI_KEY), {}) || {}, nutritionPrompt(meal, text), 'analyze', false)).map(item => mealRecord(item, meal))
+    analyzeMeal: async (text, meal, place = '자동') => calibrateItems(normalizedMealItems(await analyzeWithAi(parse(localStorage.getItem(AI_KEY), {}) || {}, nutritionPrompt(meal, text, place), 'analyze', false))).map(item => mealRecord(item, meal))
   };
 
   if (migrateMonthlyLog()) {

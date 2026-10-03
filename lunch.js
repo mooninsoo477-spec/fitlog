@@ -806,6 +806,13 @@
     else {
       const meal = meals.find(item => item.id === id);
       if (!meal) return;
+      // AI로 계산한 음식의 칼로리를 고치면 다음 분석부터 그 값을 쓰도록 기억한다.
+      const servingsBefore = +meal.servings || 1;
+      if (meal.src === 'ai' && Math.round(+meal.kcal || 0) !== values.kcal && values.name) {
+        state.profile ||= {};
+        state.profile.foodRefs ||= {};
+        state.profile.foodRefs[values.name.replace(/\s+/g, '').toLowerCase()] = { name: values.name, kcal: Math.round(values.kcal / servingsBefore), protein: values.protein / servingsBefore, carbs: values.carbs / servingsBefore, fat: values.fat / servingsBefore, updatedAt: values.updatedAt };
+      }
       Object.assign(meal, values);
       // AI로 분석한 기록은 1인분 값도 같이 맞춰 다른 화면의 계산이 어긋나지 않게 한다.
       const servings = +meal.servings || 1;

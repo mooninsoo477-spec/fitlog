@@ -276,3 +276,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .cb-empty { margin: 0; color: var(--sub); font-size: 13px; }
 .meal-ai-row .select, .workout-date .select { padding-top: 0 !important; padding-bottom: 0 !important; font-size: 14px; line-height: 36px; }
 .ci-row .condition-chips button { height: 30px !important; padding: 0 !important; }
+
+/* ---------- 식사 AI: 먹은 곳 선택 · 보정 안내 ---------- */
+.place-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 12px; }
+.place-chips input { position: absolute; opacity: 0; }
+.place-chips span { display: inline-block; padding: 5px 11px; border: 1px solid var(--line); border-radius: 999px; background: #fff; font-size: 12px; font-weight: 600; color: var(--sub); cursor: pointer; }
+.place-chips input:checked + span { background: var(--accent-soft); border-color: var(--accent-bar); color: var(--accent-ink); }
+.place-chips input:focus-visible + span { outline: 2px solid #1d9e7566; }
+.analysis-adjust { margin: 6px 0 0; padding: 6px 9px; border-radius: 8px; background: #fbf1dc; color: #854f0b; font-size: 12px; line-height: 1.45; }
+.analysis-remove { display: block; margin: 6px 0 0 auto; padding: 2px 4px; font-size: 12px; }
