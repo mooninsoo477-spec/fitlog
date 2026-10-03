@@ -418,6 +418,20 @@
     ].join('\n');
   }
 
+  // 홈 운동 카드: 최근 7일 운동 여부 줄 + 오늘 할(한) 운동 전체 목록
+  function workoutWeekStrip(state, today) {
+    const days = Array.from({ length: 7 }, (_, index) => addDays(today, index - 6));
+    return `<div class="workout-week" aria-label="최근 7일 운동">${days.map(date => {
+      const workouts = state.logs?.[date]?.workouts || [];
+      const planned = planDay(state, date);
+      const label = workouts.length
+        ? [...new Set(workouts.flatMap(workout => workoutRoutines(workout)))].join('·').slice(0, 5) || '운동'
+        : planned && !planned.rest ? shortFocus(planned) : '';
+      const status = workouts.length ? 'done' : planned && !planned.rest ? (date < today ? 'missed' : 'planned') : 'rest';
+      return `<div class="ww ${status}${date === today ? ' today' : ''}"><span>${date === today ? '오늘' : weekdayName(date)}</span><i>${workouts.length ? '✓' : +date.slice(8)}</i><small>${esc(label) || '&nbsp;'}</small></div>`;
+    }).join('')}</div>`;
+  }
+
   function updatePlanHero() {
     const hero = $('.hero');
     if (!hero) return;
@@ -441,25 +455,28 @@
     const volume = todayWorkouts.reduce((sum, workout) => sum + workoutVolume(workout), 0);
     const day = planDay(state, today);
     const nextDay = (currentPlan(state)?.days || []).find(item => item.date > today && !item.rest);
-    const progress = `<div class="hero-progress"><div class="track"><i style="width:${Math.min(100, doneDays / Math.max(1, weeklyGoal) * 100)}%"></i></div><b>이번 주 ${doneDays}/${weeklyGoal}회</b></div>`;
+    const head = `<div class="hero-top"><span class="tag">${todayWorkouts.length ? '오늘 운동 완료' : day && !day.rest ? `오늘 · ${esc(shortFocus(day))}` : day?.rest ? '오늘은 회복일' : '오늘 운동'}</span><b class="hero-count">이번 주 ${doneDays}/${weeklyGoal}회</b></div>${workoutWeekStrip(state, today)}`;
     hero.className = 'hero';
     if (todayWorkouts.length) {
-      hero.innerHTML = `<span class="tag">오늘 운동 완료 ✓</span>
-        <h2>${burned ? `약 ${burned.toLocaleString()}kcal 소모` : '오늘도 해냈어요'}</h2>
-        <p>${[volume ? `총 볼륨 ${Math.round(volume).toLocaleString()}kg` : '', nextDay ? `다음 운동 ${weekdayName(nextDay.date)}요일 · ${nextDay.focus}` : '충분히 먹고 푹 자는 것도 훈련이에요.'].filter(Boolean).join(' · ')}</p>
-        ${progress}<div class="hero-actions"><button class="ghost" data-go="workout">기록 보기</button></div>`;
+      const rows = todayWorkouts.flatMap(workout => workoutExercises(workout)).map(exercise => `<li><span>${esc(exercise.name)}</span><b>${esc(setSummary(exercise))}</b></li>`).join('');
+      hero.innerHTML = `${head}
+        <h2>${[volume ? `볼륨 ${Math.round(volume).toLocaleString()}kg` : '', burned ? `약 ${burned.toLocaleString()}kcal 소모` : ''].filter(Boolean).join(' · ') || '오늘도 해냈어요'}</h2>
+        ${rows ? `<ul class="hero-list">${rows}</ul>` : ''}
+        ${nextDay ? `<p>다음 운동 ${weekdayName(nextDay.date)}요일 · ${esc(nextDay.focus)}</p>` : ''}
+        <div class="hero-actions"><button class="ghost" data-go="workout">운동 더 기록하기</button></div>`;
     } else if (day && !day.rest) {
-      hero.innerHTML = `<span class="tag">오늘의 운동 · ${esc(shortFocus(day))}</span>
+      hero.innerHTML = `${head}
         <h2>${esc(day.focus)}</h2>
-        <ul class="hero-list">${day.exercises.slice(0, 3).map(exercise => `<li><span>${esc(exercise.name)}</span><b>${exercise.weight ? `${exercise.weight}kg · ` : ''}${esc(exercise.reps)}회 × ${exercise.sets}</b></li>`).join('')}${day.exercises.length > 3 ? `<li class="more">외 ${day.exercises.length - 3}종목</li>` : ''}</ul>
-        ${progress}<div class="hero-actions"><button class="primary" data-plan-action="log" data-date="${today}">이 계획으로 기록하기</button><button class="ghost" data-go="workout">전체 계획</button></div>`;
+        <ul class="hero-list">${day.exercises.map(exercise => `<li><span>${esc(exercise.name)}</span><b>${exercise.weight ? `${exercise.weight}kg · ` : ''}${esc(exercise.reps)}회 × ${exercise.sets}</b></li>`).join('')}</ul>
+        ${day.cardio && day.cardio !== '없음' ? `<p>유산소 · ${esc(day.cardio)}</p>` : ''}
+        <div class="hero-actions"><button class="primary" data-plan-action="log" data-date="${today}">이 계획으로 기록하기</button><button class="ghost" data-go="workout">전체 계획</button></div>`;
     } else if (day?.rest) {
-      hero.innerHTML = `<span class="tag">오늘은 회복일</span><h2>쉬는 것도 계획의 일부예요</h2><p>${esc(day.tip || '가벼운 걷기와 스트레칭으로 회복해요.')}</p>
-        ${progress}<div class="hero-actions"><button class="ghost" data-go="workout">그래도 운동 기록하기</button></div>`;
+      hero.innerHTML = `${head}<h2>쉬는 것도 계획의 일부예요</h2><p>${esc(day.tip || '가벼운 걷기와 스트레칭으로 회복해요.')}</p>
+        <div class="hero-actions"><button class="ghost" data-go="workout">그래도 운동 기록하기</button></div>`;
     } else {
-      hero.innerHTML = `<span class="tag">AI 코치 · ${esc(state.profile?.trainingIntensity || '중간')} 강도</span><h2>이번 주 ${doneDays}회 완료</h2>
+      hero.innerHTML = `${head}<h2>이번 주 ${doneDays}회 완료</h2>
         <p>AI 주간 계획을 받으면 오늘 할 종목과 무게를 알려드려요.</p>
-        ${progress}<div class="hero-actions">${planBusy ? '<button class="primary" disabled>계획을 짜는 중…</button>' : '<button class="primary" data-plan-action="week">이번 주 계획 받기</button>'}<button class="ghost" data-go="workout">운동 기록</button></div>`;
+        <div class="hero-actions">${planBusy ? '<button class="primary" disabled>계획을 짜는 중…</button>' : '<button class="primary" data-plan-action="week">이번 주 계획 받기</button>'}<button class="ghost" data-go="workout">운동 기록</button></div>`;
     }
   }
 
@@ -545,6 +562,7 @@
         list.innerHTML = markup;
       }
     }
+    renderKcalWeek();
   }
 
   function activityRing(log, target) {
@@ -622,6 +640,8 @@
 
   function setWorkoutEditMode(info) {
     editingWorkout = info;
+    const dateRow = $('.workout-date');
+    if (dateRow) dateRow.hidden = Boolean(info);
     const save = $('#saveWorkout');
     if (save) save.textContent = info ? '수정 저장' : '운동 저장';
     let banner = $('#workoutEditBanner');
@@ -980,6 +1000,7 @@
     }
     const header = report.querySelector('.eyebrow');
     if (header) header.textContent = '실제 기록 기준 · 최근 10회';
+    renderCoachBoard();
   }
 
   function remainingMealTypes(meals) {
@@ -1452,7 +1473,7 @@
     const notice = $('#workoutNotice');
     const { state, groups, exercises, estimate, cardio } = workoutDraft();
     if (!exercises.length) return workoutWarn('운동 내용을 한 줄 이상 적어주세요. 예: 벤치프레스 60kg 10x5');
-    const today = dateKey(new Date());
+    const today = workoutFormDate();
     const note = $('#workoutNote').value.trim();
     const history = exerciseHistory(state, today);
     const prs = exercises.filter(exercise => exerciseProgress(exercise, history)?.pr).length;
@@ -1491,8 +1512,11 @@
     window.dispatchEvent(new CustomEvent('fitlog:state-updated'));
     resetWorkoutForm();
     notice.classList.remove('warn');
-    notice.textContent = [`${groups.join('·')} 저장했어요`, totalVolume ? `볼륨 ${totalVolume.toLocaleString()}kg` : '', estimate.kcal ? `약 ${estimate.kcal.toLocaleString()}kcal 소모` : '', prs ? `🏆 PR ${prs}개` : ''].filter(Boolean).join(' · ');
-    setTimeout(() => { notice.textContent = ''; goTo('home'); }, 1400);
+    notice.textContent = [`${groups.join('·')} 저장했어요`, totalVolume ? `볼륨 ${totalVolume.toLocaleString()}kg` : '', estimate.kcal ? `약 ${estimate.kcal.toLocaleString()}kcal 소모` : '', prs ? `PR ${prs}개` : '', '이어서 다른 운동도 기록할 수 있어요'].filter(Boolean).join(' · ');
+    renderDayWorkouts();
+    $('#dayWorkouts')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    clearTimeout(saveWorkoutRecord.timer);
+    saveWorkoutRecord.timer = setTimeout(() => { notice.textContent = ''; }, 4000);
   }
 
   // ---- 빠른 입력: 지난 루틴 불러오기(한 단계 증량 제안) · 자주 한 운동 ----
@@ -1899,13 +1923,8 @@
     }
     card.className = 'card checkin';
     card.innerHTML = `
-      <div class="checkin-head"><strong>아침 체크인</strong><small>AI 코칭에 반영돼요</small><span class="checkin-saved" id="checkinSaved"></span></div>
-      <div class="checkin-grid">
-        <label><span>공복 체중</span><div class="unit-input"><input id="ciWeight" inputmode="decimal" value="${esc(log.weight || '')}" placeholder="${latestBodyWeight(state)}"><b>kg</b></div></label>
-        <label><span>수면</span><div class="unit-input"><input id="ciSleep" inputmode="decimal" value="${esc(log.sleep || '')}" placeholder="7"><b>시간</b></div></label>
-      </div>
-      <div class="condition-chips" role="radiogroup" aria-label="컨디션">${Object.entries(CONDITIONS).map(([value, [emoji, label]]) => `<button type="button" data-condition="${value}" class="${+log.condition === +value ? 'on' : ''}" aria-label="컨디션 ${label}"><span>${emoji}</span><small>${label}</small></button>`).join('')}</div>
-      <button type="button" class="primary mint small full checkin-save" data-checkin-save>체크인 저장</button>`;
+      <div class="ci-row"><strong>아침 체크인</strong><label class="ci-field"><input id="ciWeight" inputmode="decimal" aria-label="공복 체중" value="${esc(log.weight || '')}" placeholder="${latestBodyWeight(state)}"><b>kg</b></label><label class="ci-field"><input id="ciSleep" inputmode="decimal" aria-label="수면 시간" value="${esc(log.sleep || '')}" placeholder="7"><b>시간</b></label><span class="checkin-saved" id="checkinSaved"></span></div>
+      <div class="ci-row"><div class="condition-chips" role="radiogroup" aria-label="컨디션">${Object.entries(CONDITIONS).map(([value, [emoji, label]]) => `<button type="button" data-condition="${value}" class="${+log.condition === +value ? 'on' : ''}" aria-label="컨디션 ${label}"><span>${emoji}</span><small>${label}</small></button>`).join('')}</div><button type="button" class="primary mint small checkin-save" data-checkin-save>저장</button></div>`;
   }
 
   const parseSleep = raw => {
@@ -2377,6 +2396,214 @@
     if (mealList) new MutationObserver(enhanceMealList).observe(mealList, { childList: true, subtree: true });
   }
 
+  // ---- 홈: 오늘의 영양 카드 안의 최근 7일 섭취 막대 ----
+  function renderKcalWeek() {
+    const card = $('[data-view="home"] .card.nutrition');
+    if (!card) return;
+    let box = $('#kcalWeek');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'kcalWeek';
+      box.className = 'kcal-week';
+      card.append(box);
+    }
+    const state = readState();
+    const today = dateKey(new Date());
+    const target = +state.profile?.targets?.kcal || 2200;
+    const days = Array.from({ length: 7 }, (_, index) => addDays(today, index - 6));
+    const values = days.map(date => Math.round(calories(state.logs?.[date])));
+    const past = values.filter((value, index) => value > 0 && days[index] !== today);
+    const average = past.length ? Math.round(past.reduce((sum, value) => sum + value, 0) / past.length) : null;
+    const max = Math.max(target * 1.3, ...values);
+    const diff = average == null ? null : Math.round((average - target) / target * 100);
+    box.innerHTML = `<div class="kw-head"><span>최근 7일 섭취</span><b>${average == null ? '기록이 쌓이면 보여드려요' : `평균 ${average.toLocaleString()}kcal · 목표 ${diff > 0 ? '+' : ''}${diff}%`}</b></div>
+      <div class="kw-bars" style="--target:${(target / max * 100).toFixed(1)}%">${days.map((date, index) => {
+        const value = values[index];
+        const tone = !value ? '' : value > target * 1.1 ? 'over' : value < target * 0.8 && date !== today ? 'under' : 'ok';
+        return `<div class="kw ${date === today ? 'today' : ''}"><small>${value ? (value >= 1000 ? `${(value / 1000).toFixed(1)}k` : value) : '–'}</small><div class="kw-track"><i class="${tone}" style="height:${value ? Math.max(4, value / max * 100) : 0}%"></i></div><span>${date === today ? '오늘' : weekdayName(date)}</span></div>`;
+      }).join('')}</div>`;
+  }
+
+  // ---- 운동 기록: 날짜 선택 + 그날 기록한 운동을 폼 아래에 쌓아 보여주기 ----
+  function workoutFormDate() {
+    return $('#workoutDate')?.value || dateKey(new Date());
+  }
+
+  function installWorkoutExtras() {
+    const form = $('#workoutForm');
+    if (!form || $('#workoutDate')) return;
+    const today = dateKey(new Date());
+    const row = document.createElement('label');
+    row.className = 'workout-date';
+    row.innerHTML = `<span>기록할 날짜</span><select class="select" id="workoutDate">${Array.from({ length: 7 }, (_, index) => addDays(today, -index)).map((date, index) => `<option value="${date}">${index === 0 ? '오늘' : index === 1 ? '어제' : `${shortDate(date)}(${weekdayName(date)})`}</option>`).join('')}</select>`;
+    form.prepend(row);
+    const list = document.createElement('section');
+    list.id = 'dayWorkouts';
+    list.className = 'card day-workouts';
+    form.after(list);
+    $('#workoutDate').addEventListener('change', renderDayWorkouts);
+    list.addEventListener('click', event => {
+      const edit = event.target.closest('[data-day-workout-edit]');
+      if (edit) { startWorkoutEdit(workoutFormDate(), edit.dataset.dayWorkoutEdit); return; }
+      const del = event.target.closest('[data-day-workout-del]');
+      if (!del || !confirm('이 운동 기록을 삭제할까요?')) return;
+      const state = readState();
+      const log = state.logs?.[workoutFormDate()];
+      if (!log) return;
+      log.workouts = (log.workouts || []).filter(workout => workout.id !== del.dataset.dayWorkoutDel);
+      state.deletedIds = { ...(state.deletedIds || {}), [del.dataset.dayWorkoutDel]: new Date().toISOString() };
+      writeState(state);
+      window.dispatchEvent(new CustomEvent('fitlog:state-updated'));
+      showToast('운동 기록을 삭제했어요.');
+    });
+    renderDayWorkouts();
+  }
+
+  function renderDayWorkouts() {
+    const list = $('#dayWorkouts');
+    if (!list) return;
+    const date = workoutFormDate();
+    const state = readState();
+    const workouts = state.logs?.[date]?.workouts || [];
+    const label = date === dateKey(new Date()) ? '오늘' : `${shortDate(date)}(${weekdayName(date)})`;
+    if (!workouts.length) { list.innerHTML = `<p class="dw-empty">${label} 기록한 운동이 아직 없어요. 저장할 때마다 여기에 쌓여요.</p>`; return; }
+    const volume = workouts.reduce((sum, workout) => sum + workoutVolume(workout), 0);
+    const burned = workouts.reduce((sum, workout) => sum + (+workout.burnKcal || 0), 0);
+    list.innerHTML = `<div class="dw-head"><strong>${label} 기록 ${workouts.length}개</strong><span>${[volume ? `볼륨 ${Math.round(volume).toLocaleString()}kg` : '', burned ? `약 ${burned.toLocaleString()}kcal` : ''].filter(Boolean).join(' · ')}</span></div>
+      ${workouts.map(workout => `<article class="dw-item"><div class="dw-title"><b>${esc(workout.group || '운동')}</b><span>${[workout.minutes ? `${workout.minutes}분` : '', workout.rpe ? `RPE ${workout.rpe}` : ''].filter(Boolean).join(' · ')}</span><button type="button" class="link" data-day-workout-edit="${esc(workout.id)}">수정</button><button type="button" class="link danger" data-day-workout-del="${esc(workout.id)}">삭제</button></div>
+        <ul>${workoutExercises(workout).map(exercise => `<li><span>${esc(exercise.name)}</span><b>${esc(setSummary(exercise))}</b></li>`).join('')}</ul>
+        ${workout.comment ? `<p>${esc(workout.comment)}</p>` : ''}</article>`).join('')}`;
+  }
+
+  // ---- 리포트: 운동하는 사람 입장의 코칭 보드 ----
+  const PART_TIPS = { 가슴: '벤치프레스·인클라인 덤벨', 등: '랫풀다운·바벨로우', 어깨: '레터럴 레이즈·오버헤드 프레스', 하체: '스쿼트·레그프레스', 팔: '바벨컬·푸시다운' };
+  const e1rm = set => set.weight * (1 + set.reps / 30);
+
+  function sessionBest(exercise) {
+    const best = (exercise.setList || []).reduce((top, set) => (set.weight > 0 && e1rm(set) > e1rm(top) ? set : top), { weight: 0, reps: 0 });
+    return { ...best, e1rm: best.weight ? e1rm(best) : 0 };
+  }
+
+  function exerciseTrends(state, today) {
+    const since = addDays(today, -41);
+    const history = exerciseHistory(state, today);
+    return [...history.values()].map(items => {
+      const recent = items.filter(item => item.date >= since && item.weight > 0);
+      if (!recent.length) return null;
+      const sessions = recent.map(item => ({ ...item, best: sessionBest(item) }));
+      const last = sessions.at(-1);
+      const first = sessions[0];
+      const change = sessions.length > 1 && first.best.e1rm ? Math.round((last.best.e1rm - first.best.e1rm) / first.best.e1rm * 1000) / 10 : null;
+      const lastThree = sessions.slice(-3);
+      const stalled = lastThree.length === 3 && lastThree[2].best.e1rm <= Math.max(lastThree[0].best.e1rm, lastThree[1].best.e1rm) + 0.1;
+      // 정체 중이면 무게를 올리지 않고 반복부터 늘린다.
+      const step = stalled ? 0 : overloadStep(last, last.rpe);
+      const next = step ? `${kgText(last.best.weight + step)} × ${last.best.reps}회` : `${kgText(last.best.weight)} × ${last.best.reps + 1}회`;
+      return { name: last.name, sessions: sessions.length, last, change, stalled, next, step };
+    }).filter(Boolean).sort((a, b) => b.sessions - a.sessions || b.last.date.localeCompare(a.last.date)).slice(0, 6);
+  }
+
+  function coachRows(state) {
+    const today = dateKey(new Date());
+    const metrics = weeklyMetrics(state, today);
+    const rows = [];
+    // 1) 이번 주 운동 횟수
+    const monday = mondayKey();
+    let done = 0;
+    for (let key = monday; key <= today; key = addDays(key, 1)) if ((state.logs?.[key]?.workouts || []).length) done++;
+    const daysLeft = 7 - ((new Date().getDay() + 6) % 7) - 1;
+    const need = Math.max(0, metrics.goal - done);
+    rows.push({
+      key: '빈도', title: '운동 횟수', value: `이번 주 ${done}/${metrics.goal}회`,
+      tone: need === 0 ? 'good' : need <= daysLeft ? 'warn' : 'bad', priority: 3,
+      action: need === 0 ? '목표를 채웠어요. 남은 날은 회복과 가벼운 유산소로.' : need <= daysLeft ? `남은 ${daysLeft}일 중 ${need}회 더 하면 목표예요.` : `이번 주 목표는 어려워요. 남은 날 ${Math.min(need, daysLeft)}회만 확실히 해요.`
+    });
+    // 2) 부위별 주간 세트 (권장 10~20세트)
+    const soccer = trainingRules(state).legs === 'alternate-soccer' && soccerWeek(state, monday).soccer;
+    const low = ['가슴', '등', '어깨', '하체', '팔'].filter(part => !(part === '하체' && soccer) && metrics.parts[part] < 10);
+    const high = PART_ORDER.filter(part => metrics.parts[part] > 22);
+    rows.push({
+      key: '세트', title: '부위별 훈련량', value: PART_ORDER.filter(part => part !== '코어').map(part => `${part} ${metrics.parts[part]}`).join(' · '),
+      tone: low.length > 2 ? 'bad' : low.length || high.length ? 'warn' : 'good', priority: 2,
+      action: low.length ? `${low.slice(0, 2).map(part => `${part} ${10 - metrics.parts[part]}세트 더(${PART_TIPS[part]})`).join(', ')}${soccer ? ' · 축구 주라 하체는 제외' : ''}` : high.length ? `${high.join('·')}는 주 20세트를 넘었어요. 회복이 더디면 줄여요.` : '모든 부위가 주 10~20세트 안이에요.'
+    });
+    // 3) 점진적 과부하
+    const trends = exerciseTrends(state, today);
+    const stalled = trends.filter(item => item.stalled);
+    const rising = trends.filter(item => item.change > 0);
+    rows.push({
+      key: '과부하', title: '점진적 과부하', value: trends.length ? `상승 ${rising.length} · 정체 ${stalled.length}` : '기록 부족',
+      tone: !trends.length ? 'none' : stalled.length ? 'warn' : 'good', priority: 1,
+      action: !trends.length ? '같은 종목을 2번 이상 기록하면 진척을 계산해요.' : stalled.length ? `${stalled[0].name} 3회째 제자리 → 무게 유지하고 반복 +1회, 그래도 막히면 10% 낮춰 다시 쌓기.` : `${(rising[0] || trends[0]).name} 다음 목표 ${(rising[0] || trends[0]).next}.`
+    });
+    // 4) 단백질
+    const proteinDays = Array.from({ length: 7 }, (_, index) => addDays(today, -index - 1)).map(date => state.logs?.[date]?.meals || []).filter(list => list.length);
+    const hit = proteinDays.filter(list => list.reduce((sum, meal) => sum + (+meal.protein || 0), 0) >= metrics.proteinTarget * 0.9).length;
+    const short = metrics.protein == null ? null : Math.round(metrics.proteinTarget - metrics.protein);
+    rows.push({
+      key: '단백질', title: '단백질', value: metrics.protein == null ? '기록 없음' : `평균 ${Math.round(metrics.protein)}g / ${metrics.proteinTarget}g · ${hit}/${proteinDays.length}일 달성`,
+      tone: metrics.protein == null ? 'none' : short <= metrics.proteinTarget * 0.1 ? 'good' : short <= metrics.proteinTarget * 0.25 ? 'warn' : 'bad', priority: 2,
+      action: metrics.protein == null ? '식사를 기록하면 단백질 달성률을 봐드려요.' : short > metrics.proteinTarget * 0.1 ? `하루 ${short}g 부족해요. 닭가슴살 1팩(약 25g)이나 그릭요거트(약 15g)를 한 끼에 더해요.` : '목표 근처를 잘 지키고 있어요.'
+    });
+    // 5) 칼로리 · 체중 추세
+    const weights = Array.from({ length: 14 }, (_, index) => addDays(today, index - 13)).map(date => ({ date, weight: +state.logs?.[date]?.weight })).filter(item => item.weight > 20);
+    const perWeek = weights.length >= 2 ? Math.round((weights.at(-1).weight - weights[0].weight) / Math.max(1, (new Date(weights.at(-1).date) - new Date(weights[0].date)) / 6048e5) * 100) / 100 : null;
+    const latestPbf = +((state.inbody || []).filter(item => !item.excluded).at(-1)?.pbf) || null;
+    const cutting = /감량|체지방|다이어트|빼/.test(state.profile?.recommendationContext?.goalStatement || '') || (latestPbf && latestPbf > +(state.profile?.targetFat || 0) + 1);
+    const kcalDiff = metrics.kcal == null ? null : Math.round((metrics.kcal - metrics.kcalTarget) / metrics.kcalTarget * 100);
+    let weightTone = 'none';
+    let weightAction = '아침 체크인에 체중을 2번 이상 적으면 주간 변화 속도를 계산해요.';
+    if (perWeek != null) {
+      if (cutting) {
+        weightTone = perWeek <= -0.2 && perWeek >= -0.9 ? 'good' : perWeek < -0.9 ? 'warn' : 'warn';
+        weightAction = perWeek < -0.9 ? '너무 빨리 빠지고 있어요. 근손실을 막게 하루 150~200kcal 더 먹어요.' : perWeek > -0.2 ? '감량이 멈췄어요. 하루 200kcal 줄이거나 걷기 30분을 더해요.' : '주 0.2~0.9kg 감량 구간이라 근육을 지키기 좋은 속도예요.';
+      } else {
+        weightTone = perWeek >= 0 && perWeek <= 0.4 ? 'good' : 'warn';
+        weightAction = perWeek < 0 ? '체중이 줄고 있어요. 근성장이 목표면 하루 200kcal 더 먹어요.' : perWeek > 0.4 ? '체중이 빨리 늘고 있어요. 지방이 함께 늘 수 있어 섭취를 조금 줄여요.' : '천천히 늘어 근성장에 알맞은 속도예요.';
+      }
+    }
+    rows.push({
+      key: '체중', title: cutting ? '감량 속도' : '체중 추세', value: [perWeek == null ? '체중 기록 부족' : `주 ${perWeek > 0 ? '+' : ''}${perWeek}kg`, kcalDiff == null ? '' : `섭취 목표 ${kcalDiff > 0 ? '+' : ''}${kcalDiff}%`].filter(Boolean).join(' · '),
+      tone: weightTone, priority: 2, action: weightAction
+    });
+    // 6) 회복
+    const sleep = metrics.sleep;
+    const rpe = metrics.rpe;
+    const tired = (sleep && sleep < 6.5) || (rpe && rpe >= 9);
+    rows.push({
+      key: '회복', title: '회복', value: [sleep ? `수면 평균 ${sleep.toFixed(1)}h` : '수면 기록 없음', rpe ? `RPE 평균 ${rpe.toFixed(1)}` : ''].filter(Boolean).join(' · '),
+      tone: !sleep && !rpe ? 'none' : tired ? 'bad' : sleep && sleep < 7 ? 'warn' : 'good', priority: 1,
+      action: rpe && rpe >= 9 ? '거의 매번 한계까지 했어요. 다음 주는 세트를 RPE 8(2회 남김)에서 멈춰요.' : sleep && sleep < 7 ? `수면이 ${sleep.toFixed(1)}시간이에요. 7시간 이상이 근회복에 유리해요.` : !sleep && !rpe ? '체크인 수면과 운동 RPE를 적으면 회복 상태를 봐드려요.' : '수면과 강도가 적절해요.'
+    });
+    return { rows, trends };
+  }
+
+  function renderCoachBoard() {
+    const report = $('[data-view="report"] .content');
+    if (!report) return;
+    let board = $('#coachBoard');
+    if (!board) {
+      board = document.createElement('div');
+      board.id = 'coachBoard';
+      report.querySelector('header')?.after(board);
+    }
+    const state = readState();
+    const { rows, trends } = coachRows(state);
+    const order = { bad: 0, warn: 1 };
+    const focus = rows.filter(row => row.tone in order).sort((a, b) => order[a.tone] - order[b.tone] || a.priority - b.priority).slice(0, 2);
+    board.innerHTML = `
+      <section class="card coach-board">
+        <div class="cb-head"><span>이번 주 코칭</span><small>최근 7일 기록 기준</small></div>
+        <div class="cb-focus">${focus.length ? `<b>이번 주 우선순위</b><ol>${focus.map(row => `<li>${esc(row.action)}</li>`).join('')}</ol>` : '<b>잘하고 있어요</b><p>지금 리듬을 유지하면 돼요.</p>'}</div>
+        ${rows.map(row => `<div class="cb-row ${row.tone}"><i aria-hidden="true"></i><div><div class="cb-line"><strong>${row.title}</strong><span>${esc(row.value)}</span></div><p>${esc(row.action)}</p></div></div>`).join('')}
+      </section>
+      <section class="card coach-lifts">
+        <div class="cb-head"><span>운동별 진척</span><small>최근 6주 · 추정 1RM 기준</small></div>
+        ${trends.length ? `<div class="lift-table">${trends.map(item => `<div class="lift"><div><strong>${esc(item.name)}</strong><small>최근 ${shortDate(item.last.date)} · ${kgText(item.last.best.weight)} × ${item.last.best.reps}회 · ${item.sessions}회 기록</small></div><div class="lift-trend ${item.stalled ? 'flat' : item.change > 0 ? 'up' : item.change < 0 ? 'down' : 'flat'}">${item.stalled ? '정체' : item.change == null ? '첫 기록' : `${item.change > 0 ? '▲' : item.change < 0 ? '▼' : '–'} ${Math.abs(item.change)}%`}</div><div class="lift-next"><small>다음 목표</small><b>${esc(item.next)}</b></div></div>`).join('')}</div>` : '<p class="cb-empty">무게를 적은 근력 운동을 기록하면 종목별 진척과 다음 목표 무게를 알려드려요.</p>'}
+      </section>
+      <div class="section-head"><h2>상세 기록</h2></div>`;
+  }
+
   function injectStyles() {
     const style = document.createElement('style');
     style.textContent = `
@@ -2425,7 +2652,9 @@
   window.FitLogAI = {
     enabled: () => aiReady(parse(localStorage.getItem(AI_KEY), {}) || {}),
     context: state => profileContextText(state),
-    analyze: prompt => analyzeWithAi(parse(localStorage.getItem(AI_KEY), {}) || {}, prompt, 'analyze', false)
+    analyze: prompt => analyzeWithAi(parse(localStorage.getItem(AI_KEY), {}) || {}, prompt, 'analyze', false),
+    // 먹은 내용을 음식별 기록으로 바꿔 준다(저장은 부르는 쪽에서).
+    analyzeMeal: async (text, meal) => normalizedMealItems(await analyzeWithAi(parse(localStorage.getItem(AI_KEY), {}) || {}, nutritionPrompt(meal, text), 'analyze', false)).map(item => mealRecord(item, meal))
   };
 
   if (migrateMonthlyLog()) {
@@ -2447,12 +2676,13 @@
   installUserContext();
   installBodyGoals();
   installWeeklyCoach();
+  installWorkoutExtras();
   renderRealReportCharts();
   renderGroupedMeals();
   removeDuplicateArchive();
   [$('#mealPreview'), $('#mealList')].filter(Boolean).forEach(target => new MutationObserver(() => renderGroupedMeals()).observe(target, { childList: true }));
   window.addEventListener('hashchange', () => {
-    if (location.hash === '#workout') { renderCalendar(); renderPlanCard(); renderWorkoutDraft(); renderExerciseChips(); }
+    if (location.hash === '#workout') { renderCalendar(); renderPlanCard(); renderWorkoutDraft(); renderExerciseChips(); renderDayWorkouts(); }
     if (location.hash === '#report') renderRealReportCharts();
     if (location.hash === '#home') { updatePlanHero(); renderCheckin(); }
     removeDuplicateArchive();
@@ -2465,5 +2695,6 @@
     renderCalendar();
     renderRealReportCharts();
     renderGroupedMeals();
+    renderDayWorkouts();
   });
 })();

@@ -656,6 +656,8 @@
   let editingMealId = null;
   let highlightMealId = null;
   let relogDate = null;
+  // 지난 날짜 식사를 AI로 계산하는 칸의 상태(다시 그려도 적던 내용이 남게 여기에 둔다)
+  let mealAi = { date: null, text: '', type: '', items: null, busy: false, error: '' };
   const recentDates = () => Array.from({ length: 5 }, (_, index) => { const date = new Date(); date.setDate(date.getDate() - index); return dateKey(date); });
   const mealTotal = (meals, key = 'kcal') => Math.round(meals.reduce((sum, meal) => sum + (+meal[key] || 0), 0));
   const newId = () => crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`;
@@ -691,6 +693,52 @@
   function defaultMealType() {
     const hour = new Date().getHours();
     return hour < 10 ? '아침' : hour < 15 ? '점심' : hour < 21 ? '저녁' : '간식';
+  }
+
+  function mealAiMarkup(dayLabel) {
+    if (!ai?.analyzeMeal || !ai.enabled()) return '';
+    if (mealAi.date !== mealDate) mealAi = { date: mealDate, text: '', type: '점심', items: null, busy: false, error: '' };
+    const total = key => Math.round((mealAi.items || []).reduce((sum, item) => sum + (+item[key] || 0), 0));
+    return `<div class="meal-ai">
+      <b>${dayLabel} 먹은 것 AI로 기록</b>
+      <textarea class="textarea compact" id="mealAiText" placeholder="예: 김치찌개 1인분, 밥 반 공기, 계란말이 2조각">${esc(mealAi.text)}</textarea>
+      <div class="meal-ai-row"><select class="select" id="mealAiType">${MEAL_TYPES.map(type => `<option ${mealAi.type === type ? 'selected' : ''}>${type}</option>`).join('')}</select><button type="button" class="primary mint small" data-meal-ai-run ${mealAi.busy ? 'disabled' : ''}>${mealAi.busy ? '계산 중…' : 'AI로 계산'}</button></div>
+      ${mealAi.error ? `<p class="meal-ai-error">${esc(mealAi.error)}</p>` : ''}
+      ${mealAi.items ? `<div class="meal-ai-result"><ul>${mealAi.items.map(item => `<li><span>${esc(item.name)} <small>${esc(item.amount || '')}</small></span><b>${Math.round(item.kcal)}kcal</b></li>`).join('')}</ul>
+        <p>합계 ${total('kcal').toLocaleString()}kcal · 단백질 ${total('protein')}g</p>
+        <div class="meal-ai-row"><button type="button" class="primary mint small" data-meal-ai-save>${dayLabel} ${esc(mealAi.type)}으로 저장</button><button type="button" class="link" data-meal-ai-clear>다시 적기</button></div></div>` : ''}
+    </div>`;
+  }
+
+  async function runMealAi() {
+    const text = mealAi.text.trim();
+    if (!text) { mealAi.error = '먹은 내용을 적어주세요.'; renderMealDays(); return; }
+    mealAi.busy = true; mealAi.error = ''; mealAi.items = null;
+    renderMealDays();
+    try {
+      mealAi.items = await ai.analyzeMeal(text, mealAi.type);
+      if (!mealAi.items.length) mealAi.error = '음식을 찾지 못했어요. 조금 더 자세히 적어주세요.';
+    } catch (error) {
+      mealAi.error = error.message || 'AI 계산에 실패했어요.';
+    }
+    mealAi.busy = false;
+    renderMealDays();
+  }
+
+  function saveMealAi() {
+    if (!mealAi.items?.length) return;
+    const state = readState();
+    state.logs ||= {};
+    state.logs[mealDate] ||= { meals: [], workouts: [] };
+    state.logs[mealDate].meals ||= [];
+    const now = new Date().toISOString();
+    mealAi.items.forEach(item => state.logs[mealDate].meals.push({ ...item, id: newId(), meal: mealAi.type, updatedAt: now }));
+    writeState(state);
+    const count = mealAi.items.length;
+    mealAi = { date: mealDate, text: '', type: mealAi.type, items: null, busy: false, error: '' };
+    window.dispatchEvent(new CustomEvent('fitlog:state-updated'));
+    renderMealDays();
+    showToast(`${prettyDate(mealDate)} ${count}가지 음식을 저장했어요.`);
   }
 
   function renderMealDays() {
@@ -738,6 +786,7 @@
       <p class="meal-day-summary">${label(mealDate)} 합계 <b>${mealTotal(meals).toLocaleString()}kcal</b> · 단백질 ${mealTotal(meals, 'protein')}g</p>
       ${lunchBlock}
       ${list}
+      ${mealDate !== today ? mealAiMarkup(label(mealDate)) : ''}
       ${editingMealId === 'new' ? mealEditForm(null, defaultMealType()) : `<button type="button" class="ghost full meal-add" data-meal-new>＋ ${label(mealDate)} 식사 직접 추가</button>`}`;
   }
 
@@ -1025,6 +1074,13 @@
     refresh();
   }
 
+  document.addEventListener('input', event => { if (event.target.id === 'mealAiText') mealAi.text = event.target.value; });
+  document.addEventListener('change', event => { if (event.target.id === 'mealAiType') { mealAi.type = event.target.value; if (mealAi.items) mealAi.items = mealAi.items.map(item => ({ ...item, meal: mealAi.type })); renderMealDays(); } });
+  document.addEventListener('click', event => {
+    if (event.target.closest('[data-meal-ai-run]')) runMealAi();
+    else if (event.target.closest('[data-meal-ai-save]')) saveMealAi();
+    else if (event.target.closest('[data-meal-ai-clear]')) { mealAi.items = null; renderMealDays(); $('#mealAiText')?.focus(); }
+  });
   install();
   window.FitLogLunch = { parseMenuFile, localGuide, estimateFood };
 })();

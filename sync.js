@@ -34,9 +34,12 @@
     return config;
   };
   const validSync = (config = readSync()) => Boolean(config.url && config.key);
+  // 로그인은 항상 FitLog 프로젝트로 한다. 기기에 다른 프로젝트 연결이 남아 있으면 그 키는 쓰지 않는다.
   const projectConfig = () => {
     const config = readSync();
-    return { url: config.url || PROJECT_URL, key: PUBLIC_ANON_KEY || config.key || '' };
+    let sameProject = !config.url;
+    try { sameProject ||= new URL(config.url).host === new URL(PROJECT_URL).host; } catch {}
+    return { url: PROJECT_URL, key: PUBLIC_ANON_KEY || (sameProject ? config.key : '') || '' };
   };
 
   // ---------- 이메일 6자리 코드 로그인 ----------
@@ -73,7 +76,8 @@
       const error = new Error(message || `로그인 요청 실패 (${response.status})`);
       error.status = response.status;
       if (response.status === 429 || /rate limit|security purposes/i.test(message)) error.message = '요청이 너무 잦아요. 잠시 뒤에 다시 시도해 주세요.';
-      else if (/invalid login credentials/i.test(message)) error.message = '이메일 또는 비밀번호가 맞지 않아요.';
+      else if (/invalid api key|no api key/i.test(message)) error.message = '이 기기에 저장된 Supabase 키가 FitLog 프로젝트 것이 아니에요. 고급: Supabase 직접 연결에서 키를 다시 넣어 주세요.';
+      else if (/invalid login credentials/i.test(message)) error.message = '이메일 또는 비밀번호가 맞지 않거나, 아직 가입되지 않은 이메일이에요.';
       else if (/email not confirmed/i.test(message)) error.message = '가입 확인 메일의 링크를 먼저 눌러 주세요. 메일이 안 보이면 스팸함도 확인해 주세요.';
       else if (/already registered|already exists/i.test(message)) error.message = '이미 가입된 이메일이에요. 로그인을 눌러 주세요.';
       else if (/password/i.test(message) && /least|short|weak/i.test(message)) error.message = '비밀번호는 6자 이상으로 정해 주세요.';
@@ -531,7 +535,7 @@
         if (authMode === 'reset') {
           setStatus('메일을 보내는 중…');
           await requestReset(mail);
-          setStatus('재설정 메일을 보냈어요. 메일 속 링크를 이 기기에서 눌러 주세요.', 'ok');
+          setStatus('가입된 이메일이면 재설정 메일이 가요. 몇 분 안에 안 오면 스팸함도 확인해 주세요.', 'ok');
           return;
         }
         if (authMode === 'signup') {

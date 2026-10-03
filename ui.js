@@ -39,7 +39,10 @@
     if (!meals) return;
     const header = meals.querySelector('header');
     // 입력이 먼저, 지난 기록·급식표·추천은 그 아래.
-    const order = ['#aiMealComposer', '#aiMealPreview', '#mealDays', '#mealRecommendation', '#lunchManager'].map(id => $(id)).filter(Boolean);
+    // 공개용은 AI 입력칸 대신 직접 입력 폼(식사 기록 제목 · 목록 · 입력 카드)이 입력 자리에 온다.
+    const manualHead = $('#aiMealComposer') ? null : headingOf(meals, '식사 기록');
+    const manual = manualHead ? [manualHead, $('#mealList'), $('#mealList')?.nextElementSibling] : [];
+    const order = [...manual, ...['#aiMealComposer', '#aiMealPreview', '#mealDays', '#mealRecommendation', '#lunchManager'].map(id => $(id))].filter(Boolean);
     let anchor = header;
     order.forEach(node => { anchor.after(node); anchor = node; });
     hideSection(meals, '남은 끼니 추천');
