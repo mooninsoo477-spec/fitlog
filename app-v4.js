@@ -2677,14 +2677,16 @@
     const values = days.map(date => Math.round(calories(state.logs?.[date])));
     const past = values.filter((value, index) => value > 0 && days[index] !== today);
     const average = past.length ? Math.round(past.reduce((sum, value) => sum + value, 0) / past.length) : null;
-    const max = Math.max(target * 1.3, ...values);
+    // 하루 폭식 한 번에 다른 날 막대가 납작해지지 않게 위쪽을 목표의 1.6배로 자른다(넘는 날은 꼭대기까지 주황).
+    const max = Math.max(target * 1.3, Math.min(Math.max(...values), target * 1.6));
     const diff = average == null ? null : Math.round((average - target) / target * 100);
-    box.innerHTML = `<div class="kw-head"><span>최근 7일 섭취</span><b>${average == null ? '기록이 쌓이면 보여드려요' : `평균 ${average.toLocaleString()}kcal · 목표 ${diff > 0 ? '+' : ''}${diff}%`}</b></div>
-      <div class="kw-bars" style="--target:${(target / max * 100).toFixed(1)}%">${days.map((date, index) => {
-        const value = values[index];
-        const tone = !value ? '' : value > target * 1.1 ? 'over' : value < target * 0.8 && date !== today ? 'under' : 'ok';
-        return `<div class="kw ${date === today ? 'today' : ''}"><small>${value ? (value >= 1000 ? `${(value / 1000).toFixed(1)}k` : value) : '–'}</small><div class="kw-track"><i class="${tone}" style="height:${value ? Math.max(4, value / max * 100) : 0}%"></i></div><span>${date === today ? '오늘' : weekdayName(date)}</span></div>`;
-      }).join('')}</div>`;
+    // 가는 막대 + 목표선 한 줄. 숫자는 평균만 보여주고, 날짜별 값은 읽기 도구용 설명에 둔다.
+    const tone = (value, date) => !value ? 'none' : value > target * 1.1 ? 'over' : value < target * 0.8 && date !== today ? 'under' : 'ok';
+    box.innerHTML = `<div class="kw-head"><span>최근 7일</span>${average == null ? '<b>기록이 쌓이면 보여드려요</b>' : `<b>평균 ${average.toLocaleString()}kcal</b><em class="${Math.abs(diff) <= 10 ? 'ok' : diff > 0 ? 'over' : 'under'}">목표 ${diff > 0 ? '+' : ''}${diff}%</em>`}</div>
+      <div class="kw-plot" style="--target:${(target / max * 100).toFixed(1)}%" role="img" aria-label="최근 7일 섭취 ${days.map((date, index) => `${shortDate(date)} ${values[index]}kcal`).join(', ')}">
+        <i class="kw-goal"></i>${days.map((date, index) => `<span class="kw-bar ${tone(values[index], date)}${date === today ? ' today' : ''}"><i style="height:${values[index] ? Math.min(100, Math.max(6, values[index] / max * 100)) : 0}%"></i></span>`).join('')}
+      </div>
+      <div class="kw-days">${days.map(date => `<span${date === today ? ' class="today"' : ''}>${date === today ? '오늘' : weekdayName(date)}</span>`).join('')}</div>`;
   }
 
   // ---- 운동 기록: 날짜 선택 + 그날 기록한 운동을 폼 아래에 쌓아 보여주기 ----

@@ -178,22 +178,26 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .checkin-saved:empty { display: none; }
 .checkin.done { padding: 10px 14px !important; }
 
-/* ---------- 오늘의 영양: 최근 7일 섭취 ---------- */
+/* ---------- 오늘의 영양: 최근 7일 섭취 (가는 막대 · 목표선 한 줄) ---------- */
 .kcal-week { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
-.kw-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 8px; }
-.kw-head span { color: var(--sub); font-size: 12px; font-weight: 600; }
-.kw-head b { font-size: 12px; }
-.kw-bars { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
-.kw { display: grid; justify-items: center; gap: 3px; }
-.kw small { color: var(--sub); font-size: 10px; }
-.kw-track { position: relative; width: 100%; max-width: 26px; height: 52px; border-radius: 6px; background: var(--muted-bar); overflow: hidden; }
-.kw-track::after { content: ""; position: absolute; left: 0; right: 0; bottom: var(--target); border-top: 1.5px dashed #6b736f88; }
-.kw-track i { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 6px 6px 0 0; background: var(--accent-bar); }
-.kw-track i.over { background: #d85a30; }
-.kw-track i.under { background: #9fd4bf; }
-.kw.today .kw-track i { opacity: .55; }
-.kw span { font-size: 11px; color: var(--sub); }
-.kw.today span { color: var(--ink); font-weight: 700; }
+.kw-head { display: flex; align-items: baseline; gap: 6px; margin-bottom: 10px; font-size: 12px; }
+.kw-head span { color: var(--sub); font-weight: 600; margin-right: auto; }
+.kw-head b { font-weight: 700; }
+.kw-head em { font-style: normal; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-ink); }
+.kw-head em.over { background: #fbe9e2; color: #993c1d; }
+.kw-head em.under { background: #f2f4f3; color: var(--sub); }
+.kw-plot { position: relative; display: grid; grid-template-columns: repeat(7, 1fr); height: 40px; }
+.kw-goal { position: absolute; left: 0; right: 0; bottom: var(--target); border-top: 1px dashed #9aa29e; pointer-events: none; }
+.kw-bar { position: relative; display: flex; justify-content: center; align-items: flex-end; height: 100%; }
+.kw-bar i { display: block; width: 6px; border-radius: 3px; background: var(--accent-bar); }
+.kw-bar.under i { background: #a8d8c4; }
+.kw-bar.over i { background: #d85a30; }
+.kw-bar.none i { height: 0 !important; }
+.kw-bar.none::after { content: ""; width: 4px; height: 4px; border-radius: 50%; background: #d3d8d5; }
+.kw-bar.today i { opacity: .45; }
+.kw-days { display: grid; grid-template-columns: repeat(7, 1fr); margin-top: 6px; text-align: center; }
+.kw-days span { font-size: 10px; color: var(--sub); }
+.kw-days span.today { color: var(--ink); font-weight: 700; }
 
 /* ---------- 홈 운동 카드 ---------- */
 .hero-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
