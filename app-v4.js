@@ -2538,6 +2538,127 @@
     if (mealList) new MutationObserver(enhanceMealList).observe(mealList, { childList: true, subtree: true });
   }
 
+
+  // ---- 지난 식사 기록을 지금 기준(대표값·내가 고친 값)으로 다시 계산 ----
+  // 급식으로 기록한 음식과 직접 입력한 음식은 건드리지 않는다.
+  function recalcChanges(state) {
+    const memory = state.profile?.foodRefs || {};
+    const changes = [];
+    Object.keys(state.logs || {}).filter(validDate).sort().reverse().forEach(date => {
+      (state.logs[date].meals || []).forEach(meal => {
+        if (!meal?.id || ['manual', 'lunch'].includes(meal.src)) return;
+        const servings = Math.max(.25, +meal.servings || 1);
+        const perServing = +meal.kcalPerServing || (+meal.kcal || 0) / servings;
+        if (!(perServing > 0)) return;
+        const own = memory[foodKey(meal.name)];
+        const ref = findFoodRef(meal.name);
+        let target = null;
+        let reason = '';
+        if (own && Math.abs(own.kcal - perServing) > Math.max(10, perServing * 0.05)) {
+          target = own.kcal; reason = '내가 고친 값';
+        } else if (ref && ref[7].test(String(meal.referenceAmount ?? String(meal.amount || '').replace(/^\s*[\d.]+인분\s*·\s*/, '')).replace(/추천|기준|보통|약/g, '').trim()) && perServing < ref[2] * 0.75) {
+          target = ref[2]; reason = `보통 1인분 ${ref[2]}kcal`;
+        }
+        if (!target) return;
+        const ratio = target / perServing;
+        const after = {
+          kcal: Math.round(target * servings),
+          protein: Math.round((+meal.protein || 0) * ratio * 10) / 10,
+          carbs: Math.round((+meal.carbs || 0) * ratio * 10) / 10,
+          fat: Math.round((+meal.fat || 0) * ratio * 10) / 10
+        };
+        if (own) Object.assign(after, { protein: Math.round(own.protein * servings * 10) / 10, carbs: Math.round(own.carbs * servings * 10) / 10, fat: Math.round(own.fat * servings * 10) / 10 });
+        changes.push({ date, id: meal.id, name: meal.name, servings, before: Math.round(+meal.kcal || 0), after, reason });
+      });
+    });
+    return changes;
+  }
+
+  let recalcList = null;
+
+  function renderRecalc() {
+    const box = $('#recalcCard');
+    if (!box) return;
+    const state = readState();
+    const backup = state.profile?.recalcBackup;
+    if (!recalcList) {
+      box.innerHTML = `<div class="rc-head"><strong>식사 기록 다시 계산</strong><small>예전에 AI가 낮게 잡은 칼로리를 지금 기준(한국 식당 1인분 대표값 · 내가 고친 값)으로 맞춰요. 급식과 직접 입력한 기록은 그대로 둬요.</small></div>
+        <div class="rc-actions"><button type="button" class="primary mint small" data-recalc="preview">바뀔 내용 보기</button>${backup ? `<button type="button" class="link" data-recalc="undo">${shortDate(dateKey(new Date(backup.at)))}에 바꾼 ${backup.items.length}개 되돌리기</button>` : ''}</div>`;
+      return;
+    }
+    if (!recalcList.length) {
+      box.innerHTML = `<div class="rc-head"><strong>식사 기록 다시 계산</strong><small>지금 기준으로 고칠 기록이 없어요.</small></div><div class="rc-actions"><button type="button" class="link" data-recalc="close">닫기</button></div>`;
+      return;
+    }
+    const picked = recalcList.filter(item => item.on);
+    const diff = picked.reduce((sum, item) => sum + item.after.kcal - item.before, 0);
+    box.innerHTML = `<div class="rc-head"><strong>${recalcList.length}개 기록을 고칠 수 있어요</strong><small>체크한 ${picked.length}개를 바꾸면 합계 ${diff > 0 ? '+' : ''}${diff.toLocaleString()}kcal. 틀린 건 체크를 빼 주세요.</small></div>
+      <ul class="rc-list">${recalcList.map((item, index) => `<li><label><input type="checkbox" data-recalc-pick="${index}" ${item.on ? 'checked' : ''}><span><b>${esc(item.name)}</b><small>${shortDate(item.date)} · ${item.servings}인분 · ${esc(item.reason)}</small></span><em>${item.before.toLocaleString()} → <b>${item.after.kcal.toLocaleString()}</b></em></label></li>`).join('')}</ul>
+      <div class="rc-actions"><button type="button" class="primary mint small" data-recalc="apply" ${picked.length ? '' : 'disabled'}>${picked.length}개 바꾸기</button><button type="button" class="link" data-recalc="close">취소</button></div>`;
+  }
+
+  function applyRecalc() {
+    const state = readState();
+    const now = new Date().toISOString();
+    const items = [];
+    recalcList.filter(item => item.on).forEach(change => {
+      const meal = (state.logs?.[change.date]?.meals || []).find(entry => entry.id === change.id);
+      if (!meal) return;
+      items.push({ date: change.date, id: change.id, before: { kcal: meal.kcal, protein: meal.protein, carbs: meal.carbs, fat: meal.fat, kcalPerServing: meal.kcalPerServing, proteinPerServing: meal.proteinPerServing, carbsPerServing: meal.carbsPerServing, fatPerServing: meal.fatPerServing } });
+      Object.assign(meal, change.after, { updatedAt: now });
+      const servings = Math.max(.25, +meal.servings || 1);
+      ['kcal', 'protein', 'carbs', 'fat'].forEach(key => { if (`${key}PerServing` in meal || key === 'kcal') meal[`${key}PerServing`] = Math.round(change.after[key] / servings * 10) / 10; });
+    });
+    state.profile ||= {};
+    state.profile.recalcBackup = { at: now, items };
+    writeState(state);
+    recalcList = null;
+    window.dispatchEvent(new CustomEvent('fitlog:state-updated'));
+    renderRecalc();
+    showToast(`${items.length}개 식사 기록을 다시 계산했어요.`);
+  }
+
+  function undoRecalc() {
+    const state = readState();
+    const backup = state.profile?.recalcBackup;
+    if (!backup) return;
+    const now = new Date().toISOString();
+    backup.items.forEach(item => {
+      const meal = (state.logs?.[item.date]?.meals || []).find(entry => entry.id === item.id);
+      if (!meal) return;
+      Object.entries(item.before).forEach(([key, value]) => { if (value === undefined) delete meal[key]; else meal[key] = value; });
+      meal.updatedAt = now;
+    });
+    delete state.profile.recalcBackup;
+    writeState(state);
+    window.dispatchEvent(new CustomEvent('fitlog:state-updated'));
+    renderRecalc();
+    showToast('다시 계산하기 전으로 되돌렸어요.');
+  }
+
+  function installRecalc() {
+    const anchor = $('#inbodyPanel') || $('#recommendationProfile');
+    if (!anchor || $('#recalcCard')) return;
+    const box = document.createElement('section');
+    box.id = 'recalcCard';
+    box.className = 'card recalc-card';
+    anchor.after(box);
+    box.addEventListener('click', event => {
+      const action = event.target.closest('[data-recalc]')?.dataset.recalc;
+      if (action === 'preview') { recalcList = recalcChanges(readState()).map(item => ({ ...item, on: true })); renderRecalc(); }
+      if (action === 'apply') applyRecalc();
+      if (action === 'close') { recalcList = null; renderRecalc(); }
+      if (action === 'undo' && confirm('다시 계산한 기록을 원래 값으로 되돌릴까요?')) undoRecalc();
+    });
+    box.addEventListener('change', event => {
+      const pick = event.target.closest('[data-recalc-pick]');
+      if (!pick) return;
+      recalcList[+pick.dataset.recalcPick].on = pick.checked;
+      renderRecalc();
+    });
+    renderRecalc();
+  }
+
   // ---- 홈: 오늘의 영양 카드 안의 최근 7일 섭취 막대 ----
   function renderKcalWeek() {
     const card = $('[data-view="home"] .card.nutrition');
@@ -2819,6 +2940,7 @@
   installBodyGoals();
   installWeeklyCoach();
   installWorkoutExtras();
+  installRecalc();
   renderRealReportCharts();
   renderGroupedMeals();
   removeDuplicateArchive();

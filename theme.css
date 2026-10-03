@@ -285,3 +285,18 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .place-chips input:focus-visible + span { outline: 2px solid #1d9e7566; }
 .analysis-adjust { margin: 6px 0 0; padding: 6px 9px; border-radius: 8px; background: #fbf1dc; color: #854f0b; font-size: 12px; line-height: 1.45; }
 .analysis-remove { display: block; margin: 6px 0 0 auto; padding: 2px 4px; font-size: 12px; }
+
+/* ---------- 설정: 식사 기록 다시 계산 ---------- */
+.recalc-card { padding: 14px 16px !important; margin: 10px 0; }
+.rc-head strong { display: block; font-size: 14px; }
+.rc-head small { display: block; margin-top: 3px; color: var(--sub); font-size: 12px; line-height: 1.5; }
+.rc-actions { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+.rc-actions .primary { min-height: 38px; }
+.rc-list { list-style: none; margin: 10px 0 0; padding: 0; max-height: 360px; overflow-y: auto; border-top: 1px solid var(--line); }
+.rc-list li { border-bottom: 1px solid var(--line); }
+.rc-list label { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 8px 0; cursor: pointer; }
+.rc-list input { width: 18px; height: 18px; accent-color: var(--accent); }
+.rc-list b { font-size: 13px; }
+.rc-list small { display: block; color: var(--sub); font-size: 11px; }
+.rc-list em { font-style: normal; font-size: 12px; color: var(--sub); white-space: nowrap; }
+.rc-list em b { color: var(--accent); }
