@@ -686,7 +686,7 @@
       <label><span>단백질 g</span><input class="input" name="protein" inputmode="decimal" value="${value('protein')}"></label>
       <label><span>탄수 g</span><input class="input" name="carbs" inputmode="decimal" value="${value('carbs')}"></label>
       <label><span>지방 g</span><input class="input" name="fat" inputmode="decimal" value="${value('fat')}"></label>
-      <div class="meal-edit-actions"><button type="submit" class="primary mint small">${meal ? '수정 저장' : '추가'}</button><button type="button" class="link" data-meal-cancel>취소</button></div>
+      <div class="meal-edit-actions"><button type="submit" class="primary mint small">${meal ? '수정 저장' : '추가'}</button>${ai?.analyzeMeal && ai.enabled() ? '<button type="button" class="primary ghost small" data-meal-form-ai>AI로 계산</button>' : ''}<button type="button" class="link" data-meal-cancel>취소</button></div>
     </form>`;
   }
 
@@ -1083,6 +1083,28 @@
 
   document.addEventListener('input', event => { if (event.target.id === 'mealAiText') mealAi.text = event.target.value; });
   document.addEventListener('change', event => { if (event.target.id === 'mealAiType') { mealAi.type = event.target.value; if (mealAi.items) mealAi.items = mealAi.items.map(item => ({ ...item, meal: mealAi.type })); renderMealDays(); } });
+  // 기록 수정 칸: 음식 이름(양 포함)으로 AI가 칼로리·탄단지를 채워 준다. 저장은 직접 누른다.
+  document.addEventListener('click', async event => {
+    const button = event.target.closest('[data-meal-form-ai]');
+    if (!button) return;
+    const form = button.closest('[data-meal-form]');
+    const name = form?.elements.name.value.trim();
+    if (!name) { showToast('음식 이름과 양을 먼저 적어주세요. 예: 치즈돈까스 1인분'); return; }
+    button.disabled = true;
+    button.textContent = '계산 중…';
+    try {
+      const items = await ai.analyzeMeal(name, form.elements.meal.value);
+      if (!items.length) throw new Error('결과를 받지 못했어요.');
+      const sum = key => items.reduce((total, item) => total + (+item[key] || 0), 0);
+      form.elements.kcal.value = Math.round(sum('kcal'));
+      ['protein', 'carbs', 'fat'].forEach(key => { form.elements[key].value = Math.round(sum(key) * 10) / 10; });
+      showToast(`AI 계산: ${Math.round(sum('kcal')).toLocaleString()}kcal. 확인 후 저장을 눌러 주세요.`);
+    } catch (error) {
+      showToast(error.message || 'AI 계산에 실패했어요.');
+    }
+    button.disabled = false;
+    button.textContent = 'AI로 계산';
+  });
   document.addEventListener('click', event => {
     if (event.target.closest('[data-meal-ai-run]')) runMealAi();
     else if (event.target.closest('[data-meal-ai-save]')) saveMealAi();

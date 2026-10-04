@@ -2348,10 +2348,35 @@
           </div>
           <p class="analysis-total">현재 양 기준 <b>${value.kcal} kcal</b> · 단백질 ${value.protein}g · 탄수 ${value.carbs}g · 지방 ${value.fat}g</p>
           ${item.adjusted ? `<p class="analysis-adjust">${esc(item.adjusted)}</p>` : ''}
+          <div class="item-ai"><input class="input" data-meal-field="aiNote" value="${esc(item.aiNote || '')}" placeholder="AI에게 덧붙일 말 (예: 소스 많이, 반만 먹음)"><button type="button" class="primary ghost small" data-item-ai ${item.aiBusy ? 'disabled' : ''}>${item.aiBusy ? '계산 중…' : 'AI로 다시'}</button></div>
           ${pendingMealItems.length > 1 && !editingMealId ? '<button type="button" class="link danger analysis-remove" data-remove-item>이 음식 빼기</button>' : ''}
         </article>`;
       }).join('')}</div>
       <button type="button" class="primary mint full" id="saveAnalyzedMeals">${editingMealId ? '수정 내용 저장' : `${pendingMealItems.length}개 음식 저장`}</button>`;
+  }
+
+  // 분석 결과의 음식 하나만 이름·양·덧붙인 말로 다시 계산한다. 여러 음식으로 나뉘어 돌아오면 그 자리에 모두 넣는다.
+  async function reanalyzeItem(index) {
+    const item = pendingMealItems[index];
+    if (!item || item.aiBusy) return;
+    const settings = parse(localStorage.getItem(AI_KEY), {}) || {};
+    if (!aiReady(settings)) { showToast('AI를 쓰려면 설정에서 로그인해 주세요.'); return; }
+    const meal = $('[name="aiMealType"]:checked')?.value || '점심';
+    const place = $('[name="aiMealPlace"]:checked')?.value || '자동';
+    const text = `${item.name}${item.referenceAmount ? ` (1인분 기준: ${item.referenceAmount})` : ''} ${item.servings}인분${item.aiNote ? `. 덧붙인 설명: ${item.aiNote}` : ''}`;
+    item.aiBusy = true;
+    renderMealPreview();
+    try {
+      const fresh = calibrateItems(normalizedMealItems(await analyzeWithAi(settings, nutritionPrompt(meal, text, place), 'analyze', false)));
+      if (!fresh.length) throw new Error('결과를 받지 못했어요.');
+      const replacement = (editingMealId ? fresh.slice(0, 1) : fresh).map(entry => ({ ...entry, adjusted: entry.adjusted || 'AI로 다시 계산했어요' }));
+      pendingMealItems.splice(index, 1, ...replacement);
+      showToast(replacement.length > 1 ? `${replacement.length}개 음식으로 나눠 다시 계산했어요.` : `${replacement[0].name} 다시 계산했어요.`);
+    } catch (error) {
+      item.aiBusy = false;
+      showToast(error.message || 'AI 계산에 실패했어요.');
+    }
+    renderMealPreview();
   }
 
   function mealRecord(item, meal, id) {
@@ -2467,6 +2492,10 @@
     $('#aiMealPreview').addEventListener('click', event => {
       const card = event.target.closest('[data-analysis-index]');
       const portion = event.target.closest('[data-portion]');
+      if (card && event.target.closest('[data-item-ai]')) {
+        reanalyzeItem(+card.dataset.analysisIndex);
+        return;
+      }
       if (card && event.target.closest('[data-remove-item]')) {
         pendingMealItems.splice(+card.dataset.analysisIndex, 1);
         renderMealPreview();
@@ -2503,7 +2532,8 @@
       const field = event.target.dataset.mealField;
       if (!card || !field) return;
       const item = pendingMealItems[+card.dataset.analysisIndex];
-      item[field] = ['name', 'referenceAmount'].includes(field) ? event.target.value : Math.max(0, +event.target.value || 0);
+      item[field] = ['name', 'referenceAmount', 'aiNote'].includes(field) ? event.target.value : Math.max(0, +event.target.value || 0);
+      if (field === 'aiNote') return;
       const total = card.querySelector('.analysis-total');
       const value = actualNutrition(item);
       total.innerHTML = `현재 양 기준 <b>${value.kcal} kcal</b> · 단백질 ${value.protein}g · 탄수 ${value.carbs}g · 지방 ${value.fat}g`;

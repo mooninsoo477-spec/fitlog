@@ -304,3 +304,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .rc-list small { display: block; color: var(--sub); font-size: 11px; }
 .rc-list em { font-style: normal; font-size: 12px; color: var(--sub); white-space: nowrap; }
 .rc-list em b { color: var(--accent); }
+
+/* ---------- 분석 결과·기록 수정: 음식마다 AI로 다시 ---------- */
+.item-ai { display: flex; gap: 6px; margin-top: 8px; }
+.item-ai .input { flex: 1; min-width: 0; height: 36px; padding: 0 10px; font-size: 13px; }
+.item-ai .primary, .meal-edit-actions .primary.ghost { min-height: 36px; padding: 0 12px; font-size: 12px; white-space: nowrap; }
