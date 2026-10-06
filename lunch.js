@@ -585,6 +585,9 @@
 
   // 급식 카드는 하루 칼로리(오늘의 영양) 카드 바로 아래에 둔다.
   function placeCard(card) {
+    // 새 홈 화면이 있으면 '먹었어요' 칸 맨 위(급식 자리)에 둔다.
+    const slot = $('#homeLunchSlot');
+    if (slot) { if (card.parentElement !== slot) slot.append(card); window.FitLogHome?.render(); return; }
     const anchor = $('[data-view="home"] .card.nutrition') || $('#checkin') || $('.welcome');
     if (anchor && anchor.nextElementSibling !== card) anchor.insertAdjacentElement('afterend', card);
   }

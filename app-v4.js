@@ -155,7 +155,7 @@
   const BODY_PARTS = [
     ['코어', /플랭크|크런치|복근|레그\s*레이즈|싯업|윗몸|러시안|행잉|ab\s*롤|코어/i],
     ['하체', /스쿼트|레그|런지|힙|카프|글루트|핵|스텝업|루마니안|굿모닝|어덕션|앱덕션|하체/],
-    ['가슴', /벤치|체스트|푸쉬업|푸시업|팔굽|딥스|플라이|펙덱|크로스오버|가슴/],
+    ['가슴', /벤치|체스트|인클라인|디클라인|푸쉬업|푸시업|팔굽|딥스|플라이|펙덱|크로스오버|가슴/],
     ['등', /로우|풀다운|풀업|턱걸이|랫|데드|친업|풀오버|하이퍼|백\s*익스|등/],
     ['어깨', /숄더|오버헤드|밀리터리|레터럴|사이드|리어|페이스\s*풀|업라이트|프론트|아놀드|어깨/],
     ['팔', /컬|이두|삼두|트라이셉|푸쉬다운|푸시다운|해머|스컬|킥백|팔/]
@@ -2943,7 +2943,7 @@
   }
 
   // 급식표 모듈(lunch.js)처럼 따로 불러오는 기능이 앱의 저장·알림을 쓸 수 있게 열어둔다.
-  window.FitLogCore = { readState, writeState, showToast, dateKey, esc, goTo };
+  window.FitLogCore = { readState, writeState, showToast, dateKey, esc, goTo, workoutExercises, setSummary };
   window.FitLogAI = {
     enabled: () => aiReady(parse(localStorage.getItem(AI_KEY), {}) || {}),
     context: state => profileContextText(state),
