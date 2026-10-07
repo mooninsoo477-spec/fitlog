@@ -236,6 +236,24 @@
     return merged;
   }
 
+  // 프로필 항목(목표, 운동 규칙, 즐겨찾기 등)마다 마지막으로 고친 시각을 비교해 더 최근 값을 남긴다.
+  // 시각이 없는 예전 항목은 전체 저장 시각이 더 최근인 쪽을 따른다.
+  function mergeProfiles(local, cloud, cloudNewer) {
+    const ls = local.profileStamps || {};
+    const cs = cloud.profileStamps || {};
+    const result = {};
+    new Set([...Object.keys(local.profile || {}), ...Object.keys(cloud.profile || {})]).forEach(key => {
+      const inLocal = key in (local.profile || {});
+      const inCloud = key in (cloud.profile || {});
+      let useLocal;
+      if (ls[key] || cs[key]) useLocal = (ls[key] || '') >= (cs[key] || '');
+      else useLocal = inLocal && (!inCloud || !cloudNewer);
+      const source = useLocal && inLocal ? local.profile : inCloud ? cloud.profile : local.profile;
+      result[key] = source[key];
+    });
+    return result;
+  }
+
   function mergeStates(localRaw, cloudRaw) {
     const local = normalizeBackup(localRaw);
     const cloud = normalizeBackup(cloudRaw);
@@ -260,7 +278,8 @@
     const merged = {
       ...(cloudNewer ? local : cloud),
       ...(cloudNewer ? cloud : local),
-      profile: cloudNewer ? cloud.profile : local.profile,
+      profile: mergeProfiles(local, cloud, cloudNewer),
+      profileStamps: { ...(cloud.profileStamps || {}), ...Object.fromEntries(Object.entries(local.profileStamps || {}).filter(([key, at]) => !(cloud.profileStamps?.[key] > at))) },
       logs,
       inbody: [...inbodyMap.values()],
       deletedIds: deleted
@@ -690,7 +709,23 @@
     };
   }
 
+  function stampProfile(value) {
+    const next = safeJson(value, null);
+    if (!next?.profile) return value;
+    const before = readState() || {};
+    const now = new Date().toISOString();
+    const stamps = { ...(before.profileStamps || {}), ...(next.profileStamps || {}) };
+    let changed = false;
+    new Set([...Object.keys(next.profile), ...Object.keys(before.profile || {})]).forEach(key => {
+      if (stableJson(next.profile[key]) !== stableJson(before.profile?.[key])) { stamps[key] = now; changed = true; }
+    });
+    if (!changed && stableJson(stamps) === stableJson(next.profileStamps || {})) return value;
+    next.profileStamps = stamps;
+    return JSON.stringify(next);
+  }
+
   Storage.prototype.setItem = function(key, value) {
+    if (this === localStorage && key === STATE_KEY) value = stampProfile(value);
     nativeSetItem.call(this, key, value);
     if (this !== localStorage) return;
     if (key === STATE_KEY) scheduleSync();

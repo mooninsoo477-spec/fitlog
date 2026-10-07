@@ -67,10 +67,25 @@
       if (day && !day.disabled) { viewDate = day.dataset.hmDate; render(); return; }
       const go = event.target.closest('[data-hm-go]');
       if (go) { goTo(go.dataset.hmGo); return; }
+      const skip = event.target.closest('[data-hm-skip]');
+      if (skip) { toggleSkip(skip.dataset.hmSkip); return; }
       const meal = event.target.closest('[data-hm-meal]');
       if (meal) { openMeal(meal.dataset.hmMeal); return; }
       if (event.target.closest('[data-hm-coach]')) { $('#recommend')?.click(); }
     });
+    render();
+  }
+
+  // 건너뛴 끼니(단식)를 날짜별로 기록한다. 다시 누르면 취소.
+  function toggleSkip(type) {
+    const state = readState();
+    state.logs ||= {};
+    const log = state.logs[viewDate] ||= { meals: [], workouts: [] };
+    log.skipped = { ...(log.skipped || {}) };
+    if (log.skipped[type]) delete log.skipped[type]; else log.skipped[type] = new Date().toISOString();
+    core.writeState(state);
+    window.dispatchEvent(new CustomEvent('fitlog:state-updated'));
+    core.showToast(log.skipped[type] ? `${type}은 건너뛰었다고 기록했어요.` : `${type} 건너뛰기를 취소했어요.`);
     render();
   }
 
@@ -141,15 +156,18 @@
 
   function renderMeals(state) {
     const meals = state.logs?.[viewDate]?.meals || [];
+    const skipped = state.logs?.[viewDate]?.skipped || {};
     $('#hmMealGrid').innerHTML = MEALS.map(type => {
       const list = meals.filter(meal => (meal.meal || '간식') === type);
       const names = list.map(meal => meal.name).filter(Boolean);
-      return `<button type="button" class="hm-meal ${list.length ? 'done' : ''}" data-hm-meal="${type}">
-        <span class="hm-meal-icon">${ICONS[type]}</span>${list.length ? CHECK : '<span class="hm-plus" aria-hidden="true">＋</span>'}
+      const skip = !list.length && skipped[type];
+      // 카드 전체는 기록 열기, 오른쪽 아래 작은 버튼은 건너뛰기/취소(버튼 안에 버튼을 넣지 않도록 나란히 둔다).
+      return `<div class="hm-meal-wrap"><button type="button" class="hm-meal ${list.length || skip ? 'done' : ''} ${skip ? 'skip' : ''}" data-hm-meal="${type}">
+        <span class="hm-meal-icon">${ICONS[type]}</span>${list.length || skip ? CHECK : '<span class="hm-plus" aria-hidden="true">＋</span>'}
         <span class="hm-meal-name">${type}</span>
-        <strong>${list.length ? `${fmt(sum(list, 'kcal'))}<small>kcal</small>` : '<small>기록하기</small>'}</strong>
+        <strong>${list.length ? `${fmt(sum(list, 'kcal'))}<small>kcal</small>` : skip ? '<small class="hm-fast">단식했어요</small>' : '<small>기록하기</small>'}</strong>
         ${names.length ? `<span class="hm-meal-foods">${esc(names.slice(0, 3).join(', '))}${names.length > 3 ? ` 외 ${names.length - 3}` : ''}</span>` : ''}
-      </button>`;
+      </button>${list.length ? '' : `<button type="button" class="hm-skip" data-hm-skip="${type}">${skip ? '취소' : '건너뛰기'}</button>`}</div>`;
     }).join('');
     // 평일 오늘에는 급식 카드를 끼니 카드 위에 먼저 보여준다.
     const day = new Date(`${viewDate}T12:00:00`).getDay();
@@ -171,9 +189,38 @@
     }).join('') : `<p class="hm-empty">${md(viewDate)} 운동 기록이 없어요.</p>`;
   }
 
+  // 기록 화면(식사·운동) 머리에 오늘 요약을 보여주고, 끼니 선택 칸에 아이콘을 붙인다.
+  function renderRecordHeaders(state) {
+    const today = dateKey(new Date());
+    const target = +state.profile?.targets?.kcal || 2200;
+    const eaten = sum(state.logs?.[today]?.meals || [], 'kcal');
+    const mealsHeader = $('[data-view="meals"] header');
+    if (mealsHeader) {
+      let info = $('#mealsHeaderInfo');
+      if (!info) { info = document.createElement('div'); info.id = 'mealsHeaderInfo'; info.className = 'rec-info'; mealsHeader.append(info); }
+      info.innerHTML = `<b>${fmt(eaten)}</b><span>/ ${fmt(target)} kcal</span><div class="rec-bar"><i style="width:${Math.min(100, eaten / target * 100)}%"></i></div>`;
+    }
+    const workoutHeader = $('[data-view="workout"] header');
+    if (workoutHeader) {
+      let info = $('#workoutHeaderInfo');
+      if (!info) { info = document.createElement('div'); info.id = 'workoutHeaderInfo'; info.className = 'rec-info'; workoutHeader.append(info); }
+      const monday = (() => { const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return dateKey(d); })();
+      let done = 0;
+      for (let k = monday; k <= today; k = addDays(k, 1)) if ((state.logs?.[k]?.workouts || []).length) done++;
+      const goal = +(state.profile?.workoutGoal || 4);
+      info.innerHTML = `<b>${done}</b><span>/ ${goal}회 이번 주</span><div class="rec-bar"><i style="width:${Math.min(100, done / goal * 100)}%"></i></div>`;
+    }
+    document.querySelectorAll('.meal-type-tabs label').forEach(label => {
+      const span = label.querySelector('span');
+      const type = label.querySelector('input')?.value;
+      if (span && ICONS[type] && !span.querySelector('svg')) span.insertAdjacentHTML('afterbegin', ICONS[type]);
+    });
+  }
+
   function render() {
     if (!$('#homeDash')) return;
     const state = readState();
+    renderRecordHeaders(state);
     renderDates();
     renderHero(state);
     renderMeals(state);

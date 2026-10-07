@@ -557,3 +557,151 @@ body.sheet-open { overflow: hidden; }
   .wk-num { grid-template-columns: 32px 1fr 32px; }
   .wk-num input { font-size: 20px; }
 }
+
+/* ================= 홈: 아침 체크인 (따뜻한 카드 · 큰 숫자 · 얼굴) ================= */
+#homeDash > .checkin { padding: 20px 18px !important; border: 0 !important; border-radius: 26px !important; background: #fff4e2 !important; }
+.ci-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.ci-head > div { flex: 1; min-width: 0; }
+.ci-head small { display: block; color: #9a6b2c; font-size: 13px; font-weight: 700; }
+.ci-head strong { display: block; font-size: 21px; font-weight: 800; letter-spacing: -0.4px; color: #3b2a12; }
+.ci-sun { flex: none; width: 46px; height: 46px; border-radius: 50%; background: #ffc83d; box-shadow: 0 0 0 7px #ffc83d40 !important; }
+.ci-edit { border: 0; border-radius: 999px; padding: 8px 14px; background: #ffffffb3; color: #7a5420; font-size: 14px; font-weight: 800; }
+.ci-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ci-big { display: grid; gap: 4px; padding: 12px 14px; border-radius: 18px; background: #fff; }
+.ci-big small { color: #9a6b2c; font-size: 13px; font-weight: 700; }
+.ci-big span { display: flex; align-items: baseline; gap: 4px; }
+.ci-big input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; font-size: 30px; font-weight: 800; color: #3b2a12; font-variant-numeric: tabular-nums; padding: 0; }
+.ci-big input::placeholder { color: #d9c3a0; }
+.ci-big em { font-style: normal; color: #9a6b2c; font-size: 15px; font-weight: 700; }
+.ci-faces { display: grid !important; grid-template-columns: repeat(5, 1fr); gap: 6px !important; margin: 12px 0 0 !important; }
+.ci-faces button { display: grid !important; justify-items: center; gap: 4px; min-height: 0 !important; height: auto !important; padding: 10px 0 8px !important; border: 2px solid transparent !important; border-radius: 16px !important; background: #ffffffb3 !important; }
+.ci-faces button.on { border-color: #3b2a12 !important; background: #fff !important; }
+.ci-faces .ci-face { width: 38px; height: 38px; }
+.ci-faces button small { display: block !important; font-size: 12px !important; font-weight: 700; color: #7a5420 !important; }
+.ci-save { width: 100%; min-height: 54px; margin-top: 12px; border: 0; border-radius: 16px; background: #3b2a12; color: #fff; font-size: 17px; font-weight: 800; }
+.ci-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.ci-stats > div { display: grid; justify-items: center; gap: 2px; padding: 14px 6px; border-radius: 18px; background: #fff; text-align: center; }
+.ci-stats small { color: #9a6b2c; font-size: 12px; font-weight: 700; }
+.ci-stats b { font-size: 28px; font-weight: 800; color: #3b2a12; letter-spacing: -0.5px; font-variant-numeric: tabular-nums; }
+.ci-stats b em { margin-left: 2px; font-style: normal; font-size: 13px; color: #9a6b2c; }
+.ci-stats span { color: #7a5420; font-size: 12px; font-weight: 600; }
+.ci-stats span.down { color: #1d7a5c; }
+.ci-stats span.up { color: #b4552d; }
+.ci-stats .ci-face { width: 40px; height: 40px; margin: 2px 0; }
+#homeDash > .checkin.done { display: block !important; }
+
+/* ================= 홈: 끼니 건너뛰기 ================= */
+.hm-meal-wrap { position: relative; display: grid; }
+.hm-meal.skip { background: #12443a; }
+.hm-fast { color: #ffd98a !important; font-weight: 800 !important; }
+.hm-skip { position: absolute; right: 10px; bottom: 10px; padding: 6px 10px; border: 0; border-radius: 999px; background: #ffffff1f; color: #ffffffcc; font-size: 12px; font-weight: 700; }
+.hm-meal-wrap:has(.hm-skip) .hm-meal { padding-bottom: 44px; }
+
+/* ================= 홈: 최근 7일 탄단지 막대 ================= */
+.hm-week .kcal-week { margin-top: 18px; padding-top: 16px; }
+.kw-score { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: -2px 0 12px; font-size: 13px; color: #ffffffcc; }
+.kw-score b { font-size: 17px; color: #fff; margin-right: 1px; }
+.kw-chart { position: relative; display: grid; grid-template-columns: repeat(7, 1fr); align-items: end; gap: 6px; height: 150px; padding-top: 18px; }
+.kw-chart .kw-goal { position: absolute; left: 0; right: 0; bottom: var(--target); border-top: 1.5px dashed #ffffff8c; pointer-events: none; }
+.kw-chart .kw-goal span { position: absolute; right: 0; top: -17px; font-size: 10px; font-weight: 700; color: #ffffffb3; }
+.kw-col { position: relative; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; }
+.kw-val { position: relative; z-index: 1; margin-bottom: 4px; font-size: 11px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; }
+.kw-col.over .kw-val { color: #ffb39a; }
+.kw-col.none .kw-val { color: #ffffff80; font-weight: 600; }
+.kw-stack { display: flex; flex-direction: column; justify-content: flex-end; width: 22px; max-width: 70%; border-radius: 7px; overflow: hidden; }
+.kw-stack i { display: block; width: 100%; }
+.kw-stack i.c { background: #ffffff; }
+.kw-stack i.p { background: #ffe97a; }
+.kw-stack i.f { background: #8fb4ff; }
+.kw-stack i.x { background: #ffffff99; }
+.kw-col.over .kw-stack { box-shadow: 0 0 0 2px #ff9a7a !important; }
+.kw-col.today .kw-stack { opacity: .55; }
+.hm-week .kw-days { margin-top: 8px; display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; }
+.hm-week .kw-days span { font-size: 12px; font-weight: 700; }
+.kw-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 14px; margin-top: 12px; font-size: 12px; color: #ffffffcc; }
+.kw-legend i { display: inline-block; width: 10px; height: 10px; margin-right: 5px; border-radius: 3px; vertical-align: -1px; }
+.kw-legend i.c { background: #fff; }
+.kw-legend i.p { background: #ffe97a; }
+.kw-legend i.f { background: #8fb4ff; }
+.kw-legend i.over { background: transparent; box-shadow: inset 0 0 0 2px #ff9a7a !important; }
+
+/* ================= 기록 화면: 색 있는 배경 · 누르는 맛 ================= */
+body:has([data-view="meals"].active), body:has([data-view="meals"].active) .app { background: #e6f2ec; }
+body:has([data-view="workout"].active), body:has([data-view="workout"].active) .app { background: #e8edf4; }
+[data-view="meals"] .content > header.top, [data-view="workout"] .content > header.top { display: block; margin-bottom: 14px; padding: 22px 20px 20px; border-radius: 26px; color: #fff; }
+[data-view="meals"] .content > header.top { background: #1e5c4a; }
+[data-view="workout"] .content > header.top { background: #263445; }
+[data-view="meals"] header.top .eyebrow, [data-view="workout"] header.top .eyebrow { color: #ffffffb3; font-size: 14px; }
+[data-view="meals"] header.top h1, [data-view="workout"] header.top h1 { color: #fff; font-size: 30px; }
+.rec-info { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.rec-info b { font-size: 34px; font-weight: 800; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+.rec-info span { color: #ffffffb3; font-size: 16px; font-weight: 700; }
+.rec-bar { flex-basis: 100%; height: 8px; margin-top: 6px; border-radius: 99px; background: #ffffff26; overflow: hidden; }
+.rec-bar i { display: block; height: 100%; border-radius: 99px; background: #fff; }
+[data-view="meals"] .card, [data-view="workout"] .card { border: 0 !important; border-radius: 24px !important; }
+
+/* 식사: 끼니 고르기를 큰 타일로 */
+.meal-type-tabs { gap: 8px !important; margin-bottom: 14px !important; }
+.meal-type-tabs span { display: grid !important; justify-items: center; gap: 4px; min-height: 84px !important; padding: 10px 0 !important; border: 2px solid #e6efe9 !important; border-radius: 18px !important; background: #f4f8f6 !important; font-size: 15px !important; font-weight: 800 !important; color: var(--ink) !important; }
+.meal-type-tabs span svg { width: 34px; height: 34px; }
+.meal-type-tabs input:checked + span { border-color: #1e5c4a !important; background: #1e5c4a !important; color: #fff !important; }
+.place-chips span { padding: 8px 14px !important; font-size: 14px !important; }
+#aiMealText { min-height: 120px; font-size: 17px !important; border-radius: 18px !important; }
+.photo-picker { min-height: 64px !important; border-radius: 18px !important; background: #f4f8f6 !important; border: 2px dashed #cfe0d7 !important; }
+#analyzeMeal { min-height: 60px !important; border-radius: 18px !important; font-size: 18px !important; font-weight: 800 !important; }
+
+/* 운동: 부위 색 · 흰 타일 */
+[data-view="workout"] #workoutForm { padding: 18px 16px !important; }
+.wk-tabs button { background: #eef2f7 !important; }
+.wk-tabs button.on { background: #263445 !important; color: #fff !important; }
+.wk-tile { border: 0 !important; background: #f3f6fa !important; padding-top: 18px !important; overflow: hidden; }
+.wk-tile::before { content: ""; position: absolute; left: 0; top: 0; right: 0; height: 5px; background: var(--part, #9aa29e); }
+.wk-tile[data-part="가슴"] { --part: #ff8f7a; }
+.wk-tile[data-part="등"] { --part: #5b8def; }
+.wk-tile[data-part="어깨"] { --part: #a77bf0; }
+.wk-tile[data-part="팔"] { --part: #f2b13c; }
+.wk-tile[data-part="하체"] { --part: #2fbf8f; }
+.wk-tile[data-part="기타"] { --part: #26b5c9; }
+.wk-tile.in { background: #e3f5ee !important; box-shadow: inset 0 0 0 2px #2fbf8f !important; }
+.wk-cart { background: #263445 !important; color: #fff; }
+.wk-cart-empty { color: #ffffffb3 !important; }
+.wk-cart-empty b { color: #fff !important; }
+.wk-cart-head h3 { color: #fff; }
+.wk-cart-head .link { color: #ffffffb3 !important; }
+.wk-cart-item { background: #ffffff14 !important; }
+.wk-cart-main b { color: #fff; }
+.wk-cart-main small { color: #ffffffb3 !important; }
+.wk-cart-del { color: #ffffff99 !important; }
+.wk-sheet-head { background: #263445 !important; }
+.wk-sheet .wk-put { background: #2fbf8f; }
+
+/* 운동 입력: 종목별 강도 RPE */
+.wk-rpe { margin-top: 10px; padding: 16px; border-radius: 18px; background: #f5f6f5; }
+.wk-rpe-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+.wk-rpe-head span { font-size: 17px; font-weight: 800; }
+.wk-rpe-head small { color: var(--sub); font-size: 13px; text-align: right; }
+.wk-rpe-chips { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.wk-rpe-chips button { display: grid; gap: 2px; padding: 10px 2px; border: 0; border-radius: 14px; background: #fff; color: var(--ink); }
+.wk-rpe-chips b { font-size: 20px; font-weight: 800; }
+.wk-rpe-chips small { font-size: 10px; color: var(--sub); }
+.wk-rpe-chips button.on { background: #263445; color: #fff; }
+.wk-rpe-chips button.on small { color: #ffffffb3; }
+.wk-sets + .wk-set-actions + .wk-row, .wk-sets + .wk-set-actions + .wk-volume + .wk-row { margin-top: 14px; }
+
+/* 운동 계획: 축구하는 날 고르기 */
+.soccer-days { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 8px 0 2px; }
+.soccer-days small { margin-right: 4px; color: var(--sub); font-size: 12px; font-weight: 700; }
+.soccer-days button { width: 38px; height: 38px; border: 0; border-radius: 50%; background: #f2f4f3; font-size: 14px; font-weight: 800; color: var(--ink); }
+.soccer-days button.on { background: #2fbf8f; color: #fff; }
+
+/* 기록 메뉴: 색 있는 큰 타일 3개 */
+.quick { grid-template-columns: repeat(3, 1fr) !important; }
+.quick button { flex-direction: column !important; justify-content: center; min-height: 108px !important; padding: 12px 8px !important; border: 0 !important; border-radius: 22px !important; color: #fff !important; font-size: 17px !important; }
+.quick button svg { width: 32px !important; height: 32px !important; stroke: #fff !important; }
+.quick button[data-quick="meals"] { background: #1e5c4a !important; }
+.quick button[data-quick="workout"] { background: #263445 !important; }
+.quick button[data-quick="more"] { background: #5a4a8a !important; }
+.ci-big em { white-space: nowrap; }
+#homeDash .checkin.done .ci-stats b { flex: none; font-size: 30px; font-weight: 800; }
+#homeDash .checkin.done .ci-stats b em { font-size: 14px; }
+#homeDash .checkin.done .ci-head strong { font-size: 21px; }

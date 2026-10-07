@@ -20,6 +20,8 @@
   };
   const PARTS = Object.keys(CATALOG);
   const INTENSITY = [['가볍게', 5], ['적당히', 7], ['격하게', 9]];
+  const RPE = [[6, '여유 있음', '4회 이상 더 가능'], [7, '조금 힘듦', '2~3회 더 가능'], [8, '힘듦', '1~2회 더 가능'], [9, '매우 힘듦', '1회 더 가능'], [10, '한계', '더는 못 함']];
+  const autoMinutes = sets => Math.max(5, Math.round(sets.length * 2.5));
   const typeOf = name => Object.values(CATALOG).flat().find(([item]) => key(item) === key(name))?.[1] || null;
   const partOf = name => PARTS.find(part => CATALOG[part].some(([item]) => key(item) === key(name))) || '기타';
   const legPart = name => partOf(name) === '하체';
@@ -104,7 +106,7 @@
       const last = lastSession(name);
       const type = typeOf(name) || 'w';
       const lastText = !last ? '' : type === 'c' || last.exercise.cardio ? `${last.exercise.minutes || ''}분` : core.setSummary?.(last.exercise) || '';
-      return `<button type="button" class="wk-tile ${inCart.has(key(name)) ? 'in' : ''}" data-wk-open="${esc(name)}"><b>${esc(name)}</b><small>${last ? `지난번 ${esc(lastText)}` : partOf(name) === '기타' && tab !== '기타' ? '' : '처음 기록'}</small>${inCart.has(key(name)) ? '<i>담음</i>' : ''}</button>`;
+      return `<button type="button" class="wk-tile ${inCart.has(key(name)) ? 'in' : ''}" data-part="${partOf(name)}" data-wk-open="${esc(name)}"><b>${esc(name)}</b><small>${last ? `지난번 ${esc(lastText)}` : partOf(name) === '기타' && tab !== '기타' ? '' : '처음 기록'}</small>${inCart.has(key(name)) ? '<i>담음</i>' : ''}</button>`;
     }).join('') || '<p class="wk-empty">아직 없어요. 종목 화면의 ☆를 누르면 여기에 모여요.</p>';
   }
 
@@ -121,7 +123,7 @@
   function cartSummary(item) {
     if (item.type === 'c') return `${item.minutes}분${item.km ? ` · ${item.km}km` : ''} · ${item.intensity}`;
     const volume = item.sets.reduce((sum, set) => sum + (item.type === 'w' ? set.w * set.r : 0), 0);
-    return `${item.sets.length}세트 · ${item.sets.map(set => item.type === 'w' ? `${set.w}×${set.r}` : `${set.r}회`).join(', ')}${volume ? ` · ${volume.toLocaleString()}kg` : ''}`;
+    return `${item.sets.length}세트 · ${item.sets.map(set => item.type === 'w' ? `${set.w}×${set.r}` : `${set.r}회`).join(', ')}${volume ? ` · ${volume.toLocaleString()}kg` : ''} · ${item.minutes}분${item.rpe ? ` · RPE ${item.rpe}` : ''}`;
   }
 
   function renderCart() {
@@ -164,7 +166,10 @@
     }
     editor = {
       name, type, part: partOf(name), sets: sets || [],
-      minutes: existing?.minutes || last?.exercise?.minutes || 30, km: existing?.km || 0, intensity: existing?.intensity || '적당히',
+      minutes: existing?.minutes || (type === 'c' ? last?.exercise?.minutes || 30 : autoMinutes(sets || [])), km: existing?.km || 0, intensity: existing?.intensity || '적당히',
+      // 근력 종목 시간은 따로 바꾸기 전까지 세트 수로 자동 계산한다. 강도는 지난번 값을 먼저 보여준다.
+      minutesAuto: existing ? Boolean(existing.minutesAuto) : type !== 'c',
+      rpe: existing?.rpe ?? last?.exercise?.rpe ?? last?.rpe ?? null,
       index: existing?.index ?? null, last
     };
     let sheet = $('#wkSheet');
@@ -208,14 +213,16 @@
               <button type="button" class="wk-set-del" data-wk-set-del="${index}" aria-label="${index + 1}세트 지우기" ${editor.sets.length < 2 ? 'disabled' : ''}>×</button>
             </div>`).join('')}</div>
           <div class="wk-set-actions"><button type="button" data-wk-add-set>＋ 세트 추가</button>${editor.type === 'w' ? `<button type="button" data-wk-bump>전체 ${weightStep()}kg 올리기</button>` : ''}</div>
-          ${totalVolume ? `<p class="wk-volume">총 볼륨 <b>${totalVolume.toLocaleString()}kg</b> · ${editor.sets.length}세트</p>` : ''}`}
+          ${totalVolume ? `<p class="wk-volume">총 볼륨 <b>${totalVolume.toLocaleString()}kg</b> · ${editor.sets.length}세트</p>` : ''}
+          <div class="wk-row"><span>운동 시간 ${editor.minutesAuto ? '<small>세트 수로 자동</small>' : ''}</span><div class="wk-num"><button type="button" data-wk-adj="minutes" data-d="-5">−</button><input inputmode="numeric" data-wk-field="minutes" value="${editor.minutesAuto ? autoMinutes(editor.sets) : editor.minutes}"><em>분</em><button type="button" data-wk-adj="minutes" data-d="5">＋</button></div></div>
+          <div class="wk-rpe"><div class="wk-rpe-head"><span>강도 RPE</span><small>${editor.rpe ? `${RPE.find(([value]) => value === editor.rpe)?.[1]} · ${RPE.find(([value]) => value === editor.rpe)?.[2]}` : '마지막 세트가 얼마나 힘들었나요?'}</small></div><div class="wk-rpe-chips">${RPE.map(([value, label]) => `<button type="button" class="${editor.rpe === value ? 'on' : ''}" data-wk-rpe="${value}"><b>${value}</b><small>${label}</small></button>`).join('')}</div></div>`}
       </div>
       <footer class="wk-sheet-foot"><button type="button" class="wk-put" data-wk-put>${editor.index != null ? '수정 완료' : '목록에 담기'}</button></footer>`;
   }
 
   function onEditorInput(event) {
     const field = event.target.dataset.wkField;
-    if (field) { editor[field] = Math.max(0, +String(event.target.value).replace(',', '.') || 0); return; }
+    if (field) { editor[field] = Math.max(0, +String(event.target.value).replace(',', '.') || 0); if (field === 'minutes') editor.minutesAuto = false; return; }
     const index = event.target.dataset.wkSetInput;
     if (index != null) editor.sets[+index][event.target.dataset.k] = Math.max(0, +String(event.target.value).replace(',', '.') || 0);
   }
@@ -224,7 +231,15 @@
     if (event.target.closest('[data-wk-close]')) { closeEditor(); return; }
     if (event.target.closest('[data-wk-fav]')) { toggleFavorite(editor.name); renderEditor(); renderTabs(); renderGrid(); return; }
     const adj = event.target.closest('[data-wk-adj]');
-    if (adj) { const field = adj.dataset.wkAdj; editor[field] = Math.max(0, Math.round((+editor[field] + +adj.dataset.d) * 10) / 10); renderEditor(); return; }
+    if (adj) {
+      const field = adj.dataset.wkAdj;
+      if (field === 'minutes' && editor.minutesAuto) { editor.minutes = autoMinutes(editor.sets); editor.minutesAuto = false; }
+      editor[field] = Math.max(0, Math.round((+editor[field] + +adj.dataset.d) * 10) / 10);
+      renderEditor();
+      return;
+    }
+    const rpe = event.target.closest('[data-wk-rpe]');
+    if (rpe) { editor.rpe = editor.rpe === +rpe.dataset.wkRpe ? null : +rpe.dataset.wkRpe; renderEditor(); return; }
     const intensity = event.target.closest('[data-wk-intensity]');
     if (intensity) { editor.intensity = intensity.dataset.wkIntensity; renderEditor(); return; }
     const setButton = event.target.closest('[data-wk-set]');
@@ -242,7 +257,9 @@
     if (event.target.closest('[data-wk-put]')) {
       if (editor.type === 'c' && !(editor.minutes > 0)) { showToast('운동 시간을 적어주세요.'); return; }
       if (editor.type !== 'c' && !editor.sets.some(set => set.r > 0)) { showToast('횟수를 1회 이상 적어주세요.'); return; }
-      const item = { name: editor.name, type: editor.type, sets: editor.sets.filter(set => set.r > 0), minutes: editor.minutes, km: editor.km, intensity: editor.intensity };
+      const sets = editor.sets.filter(set => set.r > 0);
+      const minutes = editor.type !== 'c' && editor.minutesAuto ? autoMinutes(sets) : editor.minutes;
+      const item = { name: editor.name, type: editor.type, sets, minutes, minutesAuto: editor.minutesAuto, rpe: editor.type === 'c' ? INTENSITY.find(([label]) => label === editor.intensity)?.[1] : editor.rpe, km: editor.km, intensity: editor.intensity };
       if (editor.index != null) cart[editor.index] = item; else cart.push(item);
       closeEditor();
       renderCart();
@@ -266,16 +283,37 @@
     const typed = note.value.trim();
     note.value = [typed, ...cart.map(cartLine)].filter(Boolean).join('\n');
     note.dispatchEvent(new Event('input', { bubbles: true }));
-    // 강도를 따로 고르지 않았으면 유산소 강도로 RPE를 정한다.
-    const cardio = cart.filter(item => item.type === 'c');
-    if (cardio.length && !document.querySelector('[data-rpe].on')) {
-      const rpe = Math.max(...cardio.map(item => INTENSITY.find(([label]) => label === item.intensity)?.[1] || 7));
+    // 마무리의 운동 시간·강도를 비워 두었으면 종목별 값으로 채운다(시간은 합계, 강도는 평균).
+    const minutesInput = $('#workoutMinutes');
+    if (minutesInput && !minutesInput.value.trim()) minutesInput.value = cart.reduce((sum, item) => sum + (+item.minutes || 0), 0) || '';
+    const rpes = cart.map(item => +item.rpe).filter(Boolean);
+    if (rpes.length && !document.querySelector('[data-rpe].on')) {
+      const rpe = Math.min(10, Math.max(5, Math.round(rpes.reduce((sum, value) => sum + value, 0) / rpes.length)));
       document.querySelector(`[data-rpe="${rpe}"]`)?.click();
     }
-    // 저장이 끝나 입력칸이 비워지면 담은 목록도 비운다.
+    const saved = cart.map(item => ({ ...item }));
+    const date = $('#workoutDate')?.value || core.dateKey(new Date());
+    // 저장이 끝나 입력칸이 비워지면, 방금 저장한 기록에 종목별 시간·강도를 붙이고 담은 목록을 비운다.
     setTimeout(() => {
-      if (!$('#workoutNote').value.trim()) { cart = []; renderCart(); renderGrid(); }
-    }, 120);
+      if ($('#workoutNote').value.trim()) return;
+      const state = readState();
+      const workout = (state.logs?.[date]?.workouts || []).at(-1);
+      if (workout?.exercises?.length) {
+        const used = new Set();
+        saved.forEach(item => {
+          const index = workout.exercises.findIndex((exercise, i) => !used.has(i) && key(exercise.name) === key(item.name));
+          if (index < 0) return;
+          used.add(index);
+          if (item.rpe) workout.exercises[index].rpe = item.rpe;
+          if (item.type !== 'c' && item.minutes) workout.exercises[index].minutes = item.minutes;
+        });
+        writeState(state);
+        window.dispatchEvent(new CustomEvent('fitlog:state-updated'));
+      }
+      cart = [];
+      renderCart();
+      renderGrid();
+    }, 150);
   }
 
   install();

@@ -1135,7 +1135,9 @@
 
   function remainingMealTypes(meals) {
     const hour = new Date().getHours();
-    const recorded = new Set(meals.map(item => item.meal));
+    // 건너뛴(단식한) 끼니도 이미 끝난 끼니로 본다.
+    const skipped = Object.keys(readState().logs?.[dateKey(new Date())]?.skipped || {});
+    const recorded = new Set([...meals.map(item => item.meal), ...skipped]);
     const result = [];
     if (hour < 10 && !recorded.has('아침')) result.push('아침');
     if (hour < 15 && !recorded.has('점심')) result.push(hour >= 10 && !recorded.has('아침') ? '아점' : '점심');
@@ -1790,11 +1792,14 @@
     return day.date === today ? 'today' : 'planned';
   }
 
+  const hasCardio = text => Boolean(String(text || '').trim()) && !/^(없음|없다|x|-|휴식)$/i.test(String(text).trim());
+  const soccerDates = (state, weekStart) => (state.profile?.soccerDays?.[weekStart] || []).filter(date => weekDates(weekStart).includes(date)).sort();
+
   function normalizePlanDay(day) {
     return {
       date: day.date,
       focus: String(day.focus || (day.rest ? '휴식' : '운동')),
-      rest: Boolean(day.rest) || !(day.exercises || []).length && !/\d/.test(day.cardio || ''),
+      rest: Boolean(day.rest) || !(day.exercises || []).length && !hasCardio(day.cardio),
       exercises: (day.exercises || []).map(exercise => ({
         name: String(exercise.name || '운동'), weight: Math.max(0, Math.round((+exercise.weight || 0) * 10) / 10),
         sets: Math.min(10, Math.max(1, Math.round(+exercise.sets || 3))), reps: String(exercise.reps || '10'), note: String(exercise.note || '')
@@ -1834,8 +1839,9 @@
     const lines = [];
     if (rules.legs === 'alternate-soccer') {
       const { soccer } = soccerWeek(state, weekStart);
+      const days = soccerDates(state, weekStart);
       lines.push(soccer
-        ? '이번 주는 축구하는 주다. 하체 근력운동(스쿼트·레그프레스·런지·레그컬·레그익스텐션 등)은 한 종목도 넣지 않는다. 축구가 하체 자극을 대신하므로 축구 전날은 상체도 가볍게 한다.'
+        ? `이번 주는 축구하는 주다.${days.length ? ` 축구하는 날: ${days.map(date => `${date}(${weekdayName(date)})`).join(', ')}. 그날은 rest=false, focus는 "축구", exercises는 빈 배열, cardio는 "축구 90분"으로 둔다.` : ''} 하체 근력운동(스쿼트·레그프레스·런지·레그컬·레그익스텐션 등)은 한 종목도 넣지 않는다. 축구가 하체 자극을 대신하므로 축구 전날은 상체도 가볍게 한다. 축구도 주간 운동 횟수 1회로 세고, 나머지 운동일은 가슴·등·어깨·팔·코어로 채워 주간 목표 횟수를 맞춘다. 하체를 뺐다고 그날을 휴식으로 만들지 않는다.`
         : '이번 주는 축구가 없는 주다. 하체 근력운동은 정확히 하루만 넣는다. 격주 1회라서 그날 하체 볼륨은 10~12세트로 충분히 주고, 지난 하체 기록을 기준으로 점진적 과부하를 적용한다.');
     } else if (rules.legs === 'weekly') lines.push('하체 근력운동을 매주 1~2회 넣는다.');
     if (rules.custom) lines.push(`사용자가 정한 고정 규칙: ${rules.custom}`);
@@ -1856,7 +1862,7 @@
       day.exercises = day.exercises.filter(exercise => !isLegExercise(exercise));
       if (day.exercises.length === before) return;
       notes.push(`${weekdayName(day.date)}요일 하체 종목을 뺐어요(${reason}).`);
-      if (!day.exercises.length && !/\d/.test(day.cardio || '')) Object.assign(day, { rest: true, focus: '휴식', tip: day.tip || '가볍게 걷고 스트레칭으로 회복해요.' });
+      if (!day.exercises.length && !hasCardio(day.cardio)) Object.assign(day, { rest: true, focus: '휴식', tip: day.tip || '가볍게 걷고 스트레칭으로 회복해요.' });
       else day.focus = day.focus.replace(/하체\s*[·,]?\s*/g, '').trim() || '상체';
     };
     if (soccer || legDoneInWeek(state, weekStart)) days.forEach(day => stripLegs(day, soccer ? '축구 주' : '이번 주 하체 완료'));
@@ -1897,6 +1903,16 @@
         return found ? normalizePlanDay({ ...found, date }) : normalizePlanDay({ date, rest: true, exercises: [] });
       });
       const ruleNotes = enforceRules(days, readState(), weekStart);
+      const playDays = soccerWeek(readState(), weekStart).soccer ? soccerDates(readState(), weekStart) : [];
+      days.forEach(day => {
+        if (!playDays.includes(day.date)) return;
+        Object.assign(day, { rest: false, focus: '축구', exercises: [], cardio: '축구 90분', tip: day.tip || '축구가 하체·유산소 훈련을 대신해요. 끝나고 단백질과 수분을 충분히 챙겨요.' });
+      });
+      const goal = +(readState().profile?.workoutGoal || 4);
+      // 이번 주에 이미 운동한 날 + 남은 계획의 운동일을 합쳐 주간 목표와 비교한다.
+      const doneBefore = weekDates(weekStart).filter(date => date < dates[0] && (readState().logs?.[date]?.workouts || []).length).length;
+      const active = doneBefore + days.filter(day => !day.rest).length;
+      if (active < goal) ruleNotes.push(`운동일이 ${active}일로 주간 목표(${goal}회)보다 적어요. 다시 짜기를 눌러 보세요.`);
       const next = readState();
       next.profile ||= {};
       const previous = next.profile.weeklyPlan;
@@ -1968,9 +1984,10 @@
     const rules = trainingRules(state);
     if (rules.legs !== 'alternate-soccer') return `<p class="plan-rule">${LEG_RULES[rules.legs]}${rules.custom ? ` · ${esc(rules.custom)}` : ''}</p>`;
     const { soccer, source } = soccerWeek(state, weekStart);
-    const stale = plan && plan.weekStart === weekStart && typeof plan.soccer === 'boolean' && plan.soccer !== soccer;
+    const stale = plan && plan.weekStart === weekStart && ((typeof plan.soccer === 'boolean' && plan.soccer !== soccer) || (soccer && soccerDates(state, weekStart).some(date => (plan.days || []).some(day => day.date === date && day.focus !== '축구'))));
     return `<div class="soccer-row"><span>${shortDate(weekStart)}주 축구 <small>${source}</small></span><div><button type="button" class="${soccer ? 'on' : ''}" data-soccer="${weekStart}" data-value="1">있음</button><button type="button" class="${soccer ? '' : 'on'}" data-soccer="${weekStart}" data-value="0">없음</button></div></div>
-      <p class="plan-rule">${soccer ? '축구 주 → 하체 근력운동은 쉬어요' : '축구 없는 주 → 하체 1회'}${stale ? ' · <b>계획과 달라요. 다시 짜기를 눌러주세요</b>' : ''}</p>`;
+      ${soccer ? `<div class="soccer-days"><small>축구하는 날</small>${weekDates(weekStart).map(date => `<button type="button" class="${soccerDates(state, weekStart).includes(date) ? 'on' : ''}" data-soccer-day="${date}" data-week="${weekStart}">${weekdayName(date)}</button>`).join('')}</div>` : ''}
+      <p class="plan-rule">${soccer ? `축구 주 → 하체 근력운동은 쉬고${soccerDates(state, weekStart).length ? ` ${soccerDates(state, weekStart).map(weekdayName).join('·')}요일은 축구로 계획해요` : ', 축구하는 날을 골라 주세요'}` : '축구 없는 주 → 하체 1회'}${stale ? ' · <b>계획과 달라요. 다시 짜기를 눌러주세요</b>' : ''}</p>`;
   }
 
   function renderPlanCard() {
@@ -2013,6 +2030,18 @@
     if (document.body.dataset.planActions) return;
     document.body.dataset.planActions = 'true';
     document.addEventListener('click', event => {
+      const soccerDay = event.target.closest('[data-soccer-day]');
+      if (soccerDay) {
+        const next = readState();
+        next.profile ||= {};
+        const week = soccerDay.dataset.week;
+        const list = new Set(next.profile.soccerDays?.[week] || []);
+        if (list.has(soccerDay.dataset.soccerDay)) list.delete(soccerDay.dataset.soccerDay); else list.add(soccerDay.dataset.soccerDay);
+        next.profile.soccerDays = { ...(next.profile.soccerDays || {}), [week]: [...list].sort() };
+        writeState(next);
+        renderPlanCard();
+        return;
+      }
       const soccerButton = event.target.closest('[data-soccer]');
       if (soccerButton) {
         const next = readState();
@@ -2040,21 +2069,46 @@
   // ---- 아침 체크인 ----
   let checkinEditing = false;
 
+  // 컨디션 얼굴: 색과 입 모양으로 5단계를 보여준다.
+  const FACE_COLORS = { 1: '#ff8f7a', 2: '#ffb27a', 3: '#ffd666', 4: '#9bdc78', 5: '#4fd1a0' };
+  const FACE_MOUTHS = { 1: 'M15 31q9-7 18 0', 2: 'M16 30q8-3 16 0', 3: 'M16 29h16', 4: 'M15 27q9 6 18 0', 5: 'M14 26q10 10 20 0' };
+  const conditionFace = value => `<svg class="ci-face" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" fill="${FACE_COLORS[value] || '#e6e9e7'}"/><circle cx="17" cy="20" r="2.6" fill="#1c2521"/><circle cx="31" cy="20" r="2.6" fill="#1c2521"/><path d="${FACE_MOUTHS[value] || FACE_MOUTHS[3]}" fill="none" stroke="#1c2521" stroke-width="2.6" stroke-linecap="round"/></svg>`;
+
+  function previousWeight(state, today) {
+    return Object.keys(state.logs || {}).filter(date => date < today).sort().reverse().map(date => +state.logs[date]?.weight).find(value => value > 20) || null;
+  }
+
   function renderCheckin() {
     const card = $('#checkin');
     if (!card) return;
     const state = readState();
-    const log = state.logs?.[dateKey(new Date())] || {};
+    const today = dateKey(new Date());
+    const log = state.logs?.[today] || {};
     const complete = +log.weight && +log.sleep && log.condition;
+    const before = previousWeight(state, today);
+    const hour = new Date().getHours();
+    const greet = hour < 11 ? '좋은 아침이에요' : hour < 18 ? '오늘 몸 상태는 어때요?' : '오늘 하루 어땠어요?';
     if (complete && !checkinEditing) {
+      const diff = before ? Math.round((+log.weight - before) * 10) / 10 : null;
       card.className = 'card checkin done';
-      card.innerHTML = `<span class="checkin-title">오늘 체크인</span><b>${log.weight}kg · ${log.sleep}시간 · ${conditionText(log.condition)}</b><button type="button" class="link" data-checkin-edit>수정</button>`;
+      card.innerHTML = `
+        <div class="ci-head"><span class="ci-sun" aria-hidden="true"></span><div><small>오늘 체크인</small><strong>${greet}</strong></div><button type="button" class="ci-edit" data-checkin-edit>수정</button></div>
+        <div class="ci-stats">
+          <div><small>공복 체중</small><b>${log.weight}<em>kg</em></b>${diff != null ? `<span class="${diff > 0 ? 'up' : diff < 0 ? 'down' : ''}">어제보다 ${diff > 0 ? '+' : ''}${diff}kg</span>` : '<span>첫 기록</span>'}</div>
+          <div><small>수면</small><b>${log.sleep}<em>시간</em></b><span>${+log.sleep >= 7 ? '충분해요' : +log.sleep >= 6 ? '조금 부족해요' : '많이 부족해요'}</span></div>
+          <div><small>컨디션</small>${conditionFace(log.condition)}<span>${conditionText(log.condition)}</span></div>
+        </div>`;
       return;
     }
     card.className = 'card checkin';
     card.innerHTML = `
-      <div class="ci-row"><strong>아침 체크인</strong><label class="ci-field"><input id="ciWeight" inputmode="decimal" aria-label="공복 체중" value="${esc(log.weight || '')}" placeholder="${latestBodyWeight(state)}"><b>kg</b></label><label class="ci-field"><input id="ciSleep" inputmode="decimal" aria-label="수면 시간" value="${esc(log.sleep || '')}" placeholder="7"><b>시간</b></label><span class="checkin-saved" id="checkinSaved"></span></div>
-      <div class="ci-row"><div class="condition-chips" role="radiogroup" aria-label="컨디션">${Object.entries(CONDITIONS).map(([value, [emoji, label]]) => `<button type="button" data-condition="${value}" class="${+log.condition === +value ? 'on' : ''}" aria-label="컨디션 ${label}"><span>${emoji}</span><small>${label}</small></button>`).join('')}</div><button type="button" class="primary mint small checkin-save" data-checkin-save>저장</button></div>`;
+      <div class="ci-head"><span class="ci-sun" aria-hidden="true"></span><div><small>아침 체크인 · AI 코칭에 반영돼요</small><strong>${greet}</strong></div><span class="checkin-saved" id="checkinSaved"></span></div>
+      <div class="ci-inputs">
+        <label class="ci-big"><small>공복 체중</small><span><input id="ciWeight" inputmode="decimal" aria-label="공복 체중" value="${esc(log.weight || '')}" placeholder="${latestBodyWeight(state)}"><em>kg</em></span></label>
+        <label class="ci-big"><small>수면</small><span><input id="ciSleep" inputmode="decimal" aria-label="수면 시간" value="${esc(log.sleep || '')}" placeholder="7"><em>시간</em></span></label>
+      </div>
+      <div class="condition-chips ci-faces" role="radiogroup" aria-label="컨디션">${Object.entries(CONDITIONS).map(([value, [, label]]) => `<button type="button" data-condition="${value}" class="${+log.condition === +value ? 'on' : ''}" aria-label="컨디션 ${label}">${conditionFace(value)}<small>${label}</small></button>`).join('')}</div>
+      <button type="button" class="ci-save checkin-save" data-checkin-save>체크인 저장</button>`;
   }
 
   const parseSleep = raw => {
@@ -2689,7 +2743,7 @@
     renderRecalc();
   }
 
-  // ---- 홈: 오늘의 영양 카드 안의 최근 7일 섭취 막대 ----
+  // ---- 홈: 최근 7일 섭취 (탄·단·지를 쌓은 막대 + 목표선) ----
   function renderKcalWeek() {
     const card = $('[data-view="home"] .card.nutrition');
     if (!card) return;
@@ -2702,21 +2756,45 @@
     }
     const state = readState();
     const today = dateKey(new Date());
-    const target = +state.profile?.targets?.kcal || 2200;
+    const targets = state.profile?.targets || {};
+    const target = +targets.kcal || 2200;
+    const proteinGoal = +targets.protein || 150;
     const days = Array.from({ length: 7 }, (_, index) => addDays(today, index - 6));
-    const values = days.map(date => Math.round(calories(state.logs?.[date])));
-    const past = values.filter((value, index) => value > 0 && days[index] !== today);
-    const average = past.length ? Math.round(past.reduce((sum, value) => sum + value, 0) / past.length) : null;
-    // 하루 폭식 한 번에 다른 날 막대가 납작해지지 않게 위쪽을 목표의 1.6배로 자른다(넘는 날은 꼭대기까지 주황).
-    const max = Math.max(target * 1.3, Math.min(Math.max(...values), target * 1.6));
+    const rows = days.map(date => {
+      const meals = state.logs?.[date]?.meals || [];
+      const pick = key => meals.reduce((sum, meal) => sum + (+meal[key] || 0), 0);
+      const kcal = Math.round(calories(state.logs?.[date]));
+      const protein = pick('protein');
+      // 탄단지 kcal 비율로 막대를 나누고, 영양 정보가 없는 음식만 있으면 한 덩어리로 보여준다.
+      const parts = { c: pick('carbs') * 4, p: protein * 4, f: pick('fat') * 9 };
+      const known = parts.c + parts.p + parts.f;
+      return { date, kcal, protein, parts, known, fasted: Object.keys(state.logs?.[date]?.skipped || {}).length };
+    });
+    const past = rows.filter(row => row.kcal > 0 && row.date !== today);
+    const average = past.length ? Math.round(past.reduce((sum, row) => sum + row.kcal, 0) / past.length) : null;
     const diff = average == null ? null : Math.round((average - target) / target * 100);
-    // 가는 막대 + 목표선 한 줄. 숫자는 평균만 보여주고, 날짜별 값은 읽기 도구용 설명에 둔다.
-    const tone = (value, date) => !value ? 'none' : value > target * 1.1 ? 'over' : value < target * 0.8 && date !== today ? 'under' : 'ok';
-    box.innerHTML = `<div class="kw-head"><span>최근 7일</span>${average == null ? '<b>기록이 쌓이면 보여드려요</b>' : `<b>평균 ${average.toLocaleString()}kcal</b><em class="${Math.abs(diff) <= 10 ? 'ok' : diff > 0 ? 'over' : 'under'}">목표 ${diff > 0 ? '+' : ''}${diff}%</em>`}</div>
-      <div class="kw-plot" style="--target:${(target / max * 100).toFixed(1)}%" role="img" aria-label="최근 7일 섭취 ${days.map((date, index) => `${shortDate(date)} ${values[index]}kcal`).join(', ')}">
-        <i class="kw-goal"></i>${days.map((date, index) => `<span class="kw-bar ${tone(values[index], date)}${date === today ? ' today' : ''}"><i style="height:${values[index] ? Math.min(100, Math.max(6, values[index] / max * 100)) : 0}%"></i></span>`).join('')}
+    const proteinHit = past.filter(row => row.protein >= proteinGoal * 0.9).length;
+    const onTarget = past.filter(row => Math.abs(row.kcal - target) <= target * 0.1).length;
+    const max = Math.max(target * 1.25, Math.min(Math.max(...rows.map(row => row.kcal)), target * 1.6));
+    const pct = value => (value / max * 100).toFixed(1);
+    box.innerHTML = `
+      <div class="kw-head"><span>최근 7일</span>${average == null ? '<b>기록이 쌓이면 보여드려요</b>' : `<b>평균 ${average.toLocaleString()}kcal</b><em class="${Math.abs(diff) <= 10 ? 'ok' : diff > 0 ? 'over' : 'under'}">목표 ${diff > 0 ? '+' : ''}${diff}%</em>`}</div>
+      ${past.length ? `<div class="kw-score"><span><b>${onTarget}</b>/${past.length}일 목표 칼로리 ±10%</span><span><b>${proteinHit}</b>/${past.length}일 단백질 달성</span></div>` : ''}
+      <div class="kw-chart" style="--target:${pct(target)}%" role="img" aria-label="최근 7일 섭취 ${rows.map(row => `${shortDate(row.date)} ${row.kcal}kcal`).join(', ')}">
+        <i class="kw-goal"><span>목표 ${target.toLocaleString()}</span></i>
+        ${rows.map(row => {
+          const height = row.kcal ? Math.min(100, Math.max(4, row.kcal / max * 100)) : 0;
+          const scale = row.known ? row.kcal / row.known : 0;
+          const seg = key => row.known ? (row.parts[key] * scale / row.kcal * 100).toFixed(1) : 0;
+          const tone = !row.kcal ? 'none' : row.kcal > target * 1.1 ? 'over' : row.kcal < target * 0.8 && row.date !== today ? 'under' : 'ok';
+          return `<div class="kw-col ${tone}${row.date === today ? ' today' : ''}">
+            <span class="kw-val">${row.kcal ? (row.kcal >= 1000 ? `${(row.kcal / 1000).toFixed(1)}k` : row.kcal) : row.fasted ? '단식' : '–'}</span>
+            <div class="kw-stack" style="height:${height}%">${row.known ? `<i class="f" style="height:${seg('f')}%"></i><i class="p" style="height:${seg('p')}%"></i><i class="c" style="height:${seg('c')}%"></i>` : '<i class="x" style="height:100%"></i>'}</div>
+          </div>`;
+        }).join('')}
       </div>
-      <div class="kw-days">${days.map(date => `<span${date === today ? ' class="today"' : ''}>${date === today ? '오늘' : weekdayName(date)}</span>`).join('')}</div>`;
+      <div class="kw-days">${rows.map(row => `<span${row.date === today ? ' class="today"' : ''}>${row.date === today ? '오늘' : weekdayName(row.date)}</span>`).join('')}</div>
+      <div class="kw-legend"><span><i class="c"></i>탄수</span><span><i class="p"></i>단백질</span><span><i class="f"></i>지방</span><span><i class="over"></i>목표 10%↑</span></div>`;
   }
 
   // ---- 운동 기록: 날짜 선택 + 그날 기록한 운동을 폼 아래에 쌓아 보여주기 ----
