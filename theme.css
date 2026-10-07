@@ -705,3 +705,97 @@ body:has([data-view="workout"].active), body:has([data-view="workout"].active) .
 #homeDash .checkin.done .ci-stats b { flex: none; font-size: 30px; font-weight: 800; }
 #homeDash .checkin.done .ci-stats b em { font-size: 14px; }
 #homeDash .checkin.done .ci-head strong { font-size: 21px; }
+
+/* ================= 리포트: 홈과 같은 패널 · 핵심만 · 눌러서 자세히 ================= */
+body:has([data-view="report"].active), body:has([data-view="report"].active) .app { background: #eceef0; }
+#coachBoard { display: grid; gap: 14px; margin-bottom: 14px; }
+.rp-panel { padding: 22px 18px; border-radius: 26px; }
+.rp-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 14px; }
+.rp-head h2 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px; }
+.rp-head span { font-size: 13px; font-weight: 700; opacity: .7; white-space: nowrap; }
+.rp-hero { background: #26292c; color: #fff; }
+.rp-hero h2 { color: #fff; }
+.rp-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.rp-stat { display: grid; gap: 2px; padding: 14px; border-radius: 18px; background: #ffffff12; min-width: 0; }
+.rp-stat small { font-size: 13px; font-weight: 700; color: #ffffffb3; }
+.rp-stat b { font-size: 32px; font-weight: 800; letter-spacing: -1px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rp-stat b em { margin-left: 3px; font-style: normal; font-size: 14px; font-weight: 700; color: #ffffffb3; letter-spacing: 0; }
+.rp-stat span { font-size: 13px; color: #ffffffb3; }
+.rp-stat.good span { color: #8fe3c4; }
+.rp-stat.warn span { color: #ffc98a; }
+.rp-focus { margin-top: 12px; padding: 14px 16px; border-radius: 18px; background: #2fbf8f; color: #06281d; }
+.rp-focus b { font-size: 15px; font-weight: 800; }
+.rp-focus ol, .rp-focus p { margin: 6px 0 0; padding-left: 18px; font-size: 15px; line-height: 1.55; font-weight: 600; }
+.rp-focus p { padding-left: 0; }
+.rp-checks { background: #fff; }
+.rp-row { border-top: 1px solid var(--line); }
+.rp-row:first-of-type { border-top: 0; }
+.rp-row summary, .rp-lift summary { list-style: none; cursor: pointer; }
+.rp-row summary::-webkit-details-marker, .rp-lift summary::-webkit-details-marker, .rp-fold summary::-webkit-details-marker { display: none; }
+.rp-row summary { display: grid; grid-template-columns: 12px 1fr auto 14px; align-items: center; gap: 10px; padding: 15px 2px; }
+.rp-row summary::after { content: "›"; color: #9aa29e; font-size: 20px; transition: transform .15s; }
+.rp-row[open] summary::after { transform: rotate(90deg); }
+.rp-row summary i { width: 10px; height: 10px; border-radius: 50%; background: #c6ccc9; }
+.rp-row.good summary i { background: #2fbf8f; }
+.rp-row.warn summary i { background: #f2b13c; }
+.rp-row.bad summary i { background: #ff7a5c; }
+.rp-row summary strong { font-size: 17px; font-weight: 800; }
+.rp-row summary em { font-style: normal; font-size: 13px; font-weight: 800; padding: 4px 10px; border-radius: 999px; background: #f2f4f3; color: var(--sub); white-space: nowrap; }
+.rp-row.good summary em { background: #e3f5ee; color: #12644b; }
+.rp-row.warn summary em { background: #fdf1d8; color: #8a5a0b; }
+.rp-row.bad summary em { background: #fde7e0; color: #9c3a1d; }
+.rp-detail { padding: 0 2px 16px 22px; }
+.rp-detail p { margin: 0; font-size: 15px; line-height: 1.6; }
+.rp-detail .rp-value { margin-bottom: 4px; color: var(--sub); font-size: 14px; }
+.rp-lifts { background: #263445; color: #fff; }
+.rp-lifts h2 { color: #fff; }
+.rp-lift { border-top: 1px solid #ffffff1a; }
+.rp-lift:first-of-type { border-top: 0; }
+.rp-lift summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name trend" "next trend"; gap: 2px 10px; align-items: center; padding: 13px 2px; }
+.rp-lift summary strong { grid-area: name; font-size: 17px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-lift summary b { grid-area: next; font-size: 13px; font-weight: 600; color: #ffffffb3; }
+.rp-lift summary b::before { content: "다음 "; color: #8fe3c4; font-weight: 800; }
+.rp-trend { grid-area: trend; padding: 5px 11px; border-radius: 999px; font-size: 13px; font-weight: 800; background: #ffffff1a; white-space: nowrap; }
+.rp-trend.up { background: #2fbf8f; color: #06281d; }
+.rp-trend.down { background: #ff7a5c; color: #3a0f04; }
+.rp-trend.flat { background: #f2b13c; color: #3a2604; }
+.rp-lift .rp-detail { padding-left: 2px; }
+.rp-lift .rp-detail p { color: #ffffffcc; font-size: 14px; }
+.rp-empty { margin: 0; color: #ffffffb3; font-size: 15px; }
+.rp-fold { margin-bottom: 12px; border-radius: 22px; background: #fff; overflow: hidden; }
+.rp-fold > summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 18px 20px; list-style: none; cursor: pointer; }
+.rp-fold > summary strong { display: block; font-size: 18px; font-weight: 800; }
+.rp-fold > summary small { display: block; margin-top: 2px; color: var(--sub); font-size: 13px; }
+.rp-fold > summary i { font-style: normal; font-size: 24px; color: #9aa29e; transition: transform .15s; }
+.rp-fold[open] > summary i { transform: rotate(90deg); }
+.rp-fold-body { padding: 0 12px 12px; }
+.rp-fold-body > .card { margin: 0 0 10px !important; background: #f6f7f6 !important; }
+[data-view="report"] .calendar-card { border: 0 !important; border-radius: 22px !important; }
+[data-view="report"] .section-head h2 { font-size: 20px; }
+
+/* ================= 설정: 묶음별로 정리 ================= */
+body:has([data-view="more"].active), body:has([data-view="more"].active) .app { background: #eef0f3; }
+[data-view="more"] .content > header.top h1 { font-size: 30px; }
+.st-group { margin-bottom: 18px; }
+.st-group > h3 { margin: 0 6px 8px; color: var(--sub); font-size: 14px; font-weight: 800; }
+.st-group > .card, .st-group > details, .st-group > section { margin: 0 0 10px !important; border: 0 !important; border-radius: 22px !important; background: #fff !important; }
+.st-group .settings-fold > summary { min-height: 74px !important; padding: 16px 20px !important; }
+.st-group .settings-fold > summary strong { font-size: 18px !important; font-weight: 800; }
+.st-group .settings-fold > summary small { font-size: 13px !important; }
+.st-group .settings-fold > summary > b { font-size: 22px; }
+.st-fold-body { padding: 0 14px 14px; }
+.st-fold-body > .card, .st-fold-body > section { margin: 0 0 10px !important; border: 0 !important; border-radius: 18px !important; background: #f6f7f6 !important; }
+#stAccount .sync-card { padding: 20px !important; }
+#stAccount .account-on strong { font-size: 17px; }
+#stAccount .primary { min-height: 52px; border-radius: 16px; font-size: 16px; }
+#stAccount .input { height: 52px; font-size: 16px; }
+.st-fold-body .menu button, .st-fold-body .menu label { min-height: 56px; font-size: 16px; }
+
+/* 축구 했나요? */
+.soccer-check { display: grid; gap: 8px; margin: 12px 0; }
+.soccer-check > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; border-radius: 16px; background: #fff4e2; color: #3b2a12; }
+.soccer-check b { font-size: 15px; }
+.soccer-check span { display: flex; gap: 6px; }
+.soccer-check button { padding: 9px 14px; border: 0; border-radius: 999px; background: #fff; color: #3b2a12; font-size: 14px; font-weight: 800; }
+.soccer-check button.yes { background: #2fbf8f; color: #fff; }
+.rp-row summary::after { display: inline-block; width: 14px; text-align: center; }

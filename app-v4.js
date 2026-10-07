@@ -386,7 +386,7 @@
     return {
       start: dates[0], end: endKey,
       workoutDays: logs.filter(log => (log.workouts || []).length).length,
-      goal: +(state.profile?.workoutGoal || 4),
+      goal: +(state.profile?.workoutGoal || 6),
       planned: plannedDays.length,
       plannedDone: plannedDays.filter(day => (state.logs?.[day.date]?.workouts || []).length).length,
       volume, prevVolume, volumeChange: prevVolume > 0 ? Math.round((volume - prevVolume) / prevVolume * 100) : null,
@@ -446,7 +446,7 @@
       return;
     }
     const today = dateKey(new Date());
-    const weeklyGoal = +(state.profile?.workoutGoal || 4);
+    const weeklyGoal = +(state.profile?.workoutGoal || 6);
     const monday = mondayKey();
     let doneDays = 0;
     for (let key = monday; key <= today; key = addDays(key, 1)) if ((state.logs?.[key]?.workouts || []).length) doneDays++;
@@ -457,24 +457,25 @@
     const nextDay = (currentPlan(state)?.days || []).find(item => item.date > today && !item.rest);
     const head = `<div class="hero-top"><span class="tag">${todayWorkouts.length ? '오늘 운동 완료' : day && !day.rest ? `오늘 · ${esc(shortFocus(day))}` : day?.rest ? '오늘은 회복일' : '오늘 운동'}</span><b class="hero-count">이번 주 ${doneDays}/${weeklyGoal}회</b></div>${workoutWeekStrip(state, today)}`;
     hero.className = 'hero';
+    const soccerAsk = soccerCheckMarkup(state);
     if (todayWorkouts.length) {
       const rows = todayWorkouts.flatMap(workout => workoutExercises(workout)).map(exercise => `<li><span>${esc(exercise.name)}</span><b>${esc(setSummary(exercise))}</b></li>`).join('');
-      hero.innerHTML = `${head}
+      hero.innerHTML = `${head}${soccerAsk}
         <h2>${[volume ? `볼륨 ${Math.round(volume).toLocaleString()}kg` : '', burned ? `약 ${burned.toLocaleString()}kcal 소모` : ''].filter(Boolean).join(' · ') || '오늘도 해냈어요'}</h2>
         ${rows ? `<ul class="hero-list">${rows}</ul>` : ''}
         ${nextDay ? `<p>다음 운동 ${weekdayName(nextDay.date)}요일 · ${esc(nextDay.focus)}</p>` : ''}
         <div class="hero-actions"><button class="ghost" data-go="workout">운동 더 기록하기</button></div>`;
     } else if (day && !day.rest) {
-      hero.innerHTML = `${head}
+      hero.innerHTML = `${head}${soccerAsk}
         <h2>${esc(day.focus)}</h2>
         <ul class="hero-list">${day.exercises.map(exercise => `<li><span>${esc(exercise.name)}</span><b>${exercise.weight ? `${exercise.weight}kg · ` : ''}${esc(exercise.reps)}회 × ${exercise.sets}</b></li>`).join('')}</ul>
         ${day.cardio && day.cardio !== '없음' ? `<p>유산소 · ${esc(day.cardio)}</p>` : ''}
         <div class="hero-actions"><button class="primary" data-plan-action="log" data-date="${today}">이 계획으로 기록하기</button><button class="ghost" data-go="workout">전체 계획</button></div>`;
     } else if (day?.rest) {
-      hero.innerHTML = `${head}<h2>쉬는 것도 계획의 일부예요</h2><p>${esc(day.tip || '가벼운 걷기와 스트레칭으로 회복해요.')}</p>
+      hero.innerHTML = `${head}${soccerAsk}<h2>쉬는 것도 계획의 일부예요</h2><p>${esc(day.tip || '가벼운 걷기와 스트레칭으로 회복해요.')}</p>
         <div class="hero-actions"><button class="ghost" data-go="workout">그래도 운동 기록하기</button></div>`;
     } else {
-      hero.innerHTML = `${head}<h2>이번 주 ${doneDays}회 완료</h2>
+      hero.innerHTML = `${head}${soccerAsk}<h2>이번 주 ${doneDays}회 완료</h2>
         <p>AI 주간 계획을 받으면 오늘 할 종목과 무게를 알려드려요.</p>
         <div class="hero-actions">${planBusy ? '<button class="primary" disabled>계획을 짜는 중…</button>' : '<button class="primary" data-plan-action="week">이번 주 계획 받기</button>'}<button class="ghost" data-go="workout">운동 기록</button></div>`;
     }
@@ -1196,7 +1197,7 @@
       protein: clamp(values.protein, 40, 350, current.protein),
       carbs: clamp(values.carbs, 60, 650, current.carbs),
       fat: clamp(values.fat, 30, 180, current.fat),
-      workouts: clamp(values.workouts, 1, 7, state.profile?.workoutGoal || 4),
+      workouts: clamp(values.workouts, 1, 7, state.profile?.workoutGoal || 6),
       intensity: ['낮음', '중간', '높음'].includes(values.intensity) ? values.intensity : (state.profile?.trainingIntensity || '중간')
     };
   }
@@ -1246,7 +1247,7 @@
 
   function targetSummary(state) {
     const targets = state.profile?.targets || { kcal: 2200, protein: 153, carbs: 260, fat: 61 };
-    return `<div class="ai-target-summary"><span><b>${(+targets.kcal || 0).toLocaleString()}</b> kcal</span><span><b>${+targets.protein || 0}g</b> 단백질</span><span><b>${+targets.carbs || 0}g</b> 탄수</span><span><b>${+targets.fat || 0}g</b> 지방</span><span><b>주 ${state.profile?.workoutGoal || 4}회</b> ${esc(state.profile?.trainingIntensity || '중간')} 강도</span></div>`;
+    return `<div class="ai-target-summary"><span><b>${(+targets.kcal || 0).toLocaleString()}</b> kcal</span><span><b>${+targets.protein || 0}g</b> 단백질</span><span><b>${+targets.carbs || 0}g</b> 탄수</span><span><b>${+targets.fat || 0}g</b> 지방</span><span><b>주 ${state.profile?.workoutGoal || 6}회</b> ${esc(state.profile?.trainingIntensity || '중간')} 강도</span></div>`;
   }
 
   function installBodyGoals() {
@@ -1380,7 +1381,7 @@
       busy = true;
       render();
       const current = state.profile?.targets || { kcal: 2200, protein: 153, carbs: 260, fat: 61 };
-      const goal = +(state.profile?.workoutGoal || 4);
+      const goal = +(state.profile?.workoutGoal || 6);
       const plan = currentPlan(state);
       const inbody = (state.inbody || []).filter(item => !item.excluded).slice(-3).map(item => `${item.date} 체중${item.weight} 골격근${item.smm} 체지방률${item.pbf ?? item.bodyFat}`).join(' | ');
       const prompt = [
@@ -1400,7 +1401,7 @@
         if (!result?.training || !result?.targets) throw new Error('AI 서버 함수가 이전 버전이에요. Supabase에 새 함수를 배포해 주세요.');
         const next = readState();
         next.profile ||= {};
-        const workouts = next.profile.workoutGoal || 4;
+        const workouts = next.profile.workoutGoal || 6;
         saveAiTargets(next, {
           kcal: clamp(result.targets.kcal, current.kcal - 100, current.kcal + 100, current.kcal),
           protein: clamp(result.targets.protein, 40, 350, current.protein),
@@ -1437,7 +1438,7 @@
           `특별 일정·상황: ${text}`,
           `오늘: ${dateKey(new Date())}(${weekdayName(dateKey(new Date()))})`,
           `사용자: ${profileContextText(state)}`,
-          `현재 목표: ${JSON.stringify(state.profile?.targets || {})}, 주 ${state.profile?.workoutGoal || 4}회`,
+          `현재 목표: ${JSON.stringify(state.profile?.targets || {})}, 주 ${state.profile?.workoutGoal || 6}회`,
           `최근 7일 지표:\n${metricsText(weeklyMetrics(state))}`,
           `최근 기록:\n${recentLogText(state, 7)}`,
           plan ? `남은 운동 계획: ${plan.days.filter(day => day.date >= dateKey(new Date())).map(day => `${weekdayName(day.date)} ${day.rest ? '휴식' : day.focus}`).join(', ')}` : '',
@@ -1793,7 +1794,53 @@
   }
 
   const hasCardio = text => Boolean(String(text || '').trim()) && !/^(없음|없다|x|-|휴식)$/i.test(String(text).trim());
-  const soccerDates = (state, weekStart) => (state.profile?.soccerDays?.[weekStart] || []).filter(date => weekDates(weekStart).includes(date)).sort();
+  const soccerDates = (state, weekStart) => {
+    const picked = state.profile?.soccerDays?.[weekStart];
+    if (picked) return picked.filter(date => weekDates(weekStart).includes(date)).sort();
+    const usual = state.profile?.soccerUsualDays || [];
+    return weekDates(weekStart).filter(date => usual.includes(new Date(`${date}T12:00:00`).getDay()));
+  };
+
+  // 지난 축구 날 중 했는지 아직 답하지 않은 날(축구 기록이 없고 결과도 없는 날)
+  function pendingSoccer(state) {
+    const weekStart = mondayKey();
+    const today = dateKey(new Date());
+    if (trainingRules(state).legs !== 'alternate-soccer' || !soccerWeek(state, weekStart).soccer) return [];
+    return soccerDates(state, weekStart).filter(date => date <= today
+      && !state.profile?.soccerResults?.[date]
+      && !(state.logs?.[date]?.workouts || []).some(workout => /축구|풋살/.test(`${workout.group || ''} ${workout.note || ''}`)));
+  }
+
+  function soccerCheckMarkup(state) {
+    const dates = pendingSoccer(state);
+    return dates.length ? `<div class="soccer-check">${dates.map(date => `<div><b>${shortDate(date)}(${weekdayName(date)}) 축구 했나요?</b><span><button type="button" class="yes" data-soccer-result="${date}" data-played="1">했어요</button><button type="button" data-soccer-result="${date}" data-played="0">못 했어요</button></span></div>`).join('')}</div>` : '';
+  }
+
+  function answerSoccer(date, played) {
+    const state = readState();
+    state.profile ||= {};
+    state.profile.soccerResults = { ...(state.profile.soccerResults || {}), [date]: played ? 'played' : 'missed' };
+    if (played) {
+      const exercises = parseWorkoutText('축구 90분', '축구');
+      const estimate = estimateWorkout(exercises, { minutes: 90, rpe: 8, groups: ['축구'], bodyWeight: latestBodyWeight(state) });
+      state.logs ||= {};
+      state.logs[date] ||= { meals: [], workouts: [] };
+      (state.logs[date].workouts ||= []).push({
+        id: crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`, group: '축구', name: '축구', note: '축구 90분', exercises,
+        minutes: 90, rpe: 8, burnKcal: estimate.kcal, cardioKcal: estimate.cardioKcal, source: 'soccer-check'
+      });
+    } else {
+      // 이번 주 축구를 한 번도 못 했으면 축구 없는 주로 바꿔 남은 날에 하체를 넣을 수 있게 한다.
+      const weekStart = mondayKey();
+      const anyPlayed = soccerDates(state, weekStart).some(day => state.profile.soccerResults?.[day] === 'played') || soccerLoggedInWeek(state, weekStart);
+      if (!anyPlayed && soccerDates(state, weekStart).every(day => state.profile.soccerResults?.[day] === 'missed' || day > dateKey(new Date()))) {
+        if (soccerDates(state, weekStart).every(day => state.profile.soccerResults?.[day] === 'missed')) state.profile.soccerWeeks = { ...(state.profile.soccerWeeks || {}), [weekStart]: false };
+      }
+    }
+    writeState(state);
+    window.dispatchEvent(new CustomEvent('fitlog:state-updated'));
+    showToast(played ? `${weekdayName(date)}요일 축구를 운동 기록에 넣었어요.` : '축구를 못 한 날로 표시했어요. [다시 짜기]로 남은 날을 조정해 보세요.');
+  }
 
   function normalizePlanDay(day) {
     return {
@@ -1887,14 +1934,21 @@
       const prompt = [
         `다음 날짜의 운동 계획을 짠다: ${dates.map(date => `${date}(${weekdayName(date)})`).join(', ')}. days는 이 날짜들만 날짜마다 1개씩 순서대로 반환한다.`,
         `사용자: ${profileContextText(state)}`,
-        `주간 운동 목표 ${state.profile?.workoutGoal || 4}회, 강도 ${state.profile?.trainingIntensity || '중간'}, 운동 가능 일정 ${info.schedule || '정보 없음'}, 부상·주의 ${info.injuries || '없음'}, 선호 ${info.trainingPreference || '정보 없음'}.`,
+        `주간 운동 목표 ${state.profile?.workoutGoal || 6}회, 강도 ${state.profile?.trainingIntensity || '중간'}, 운동 가능 일정 ${info.schedule || '정보 없음'}, 부상·주의 ${info.injuries || '없음'}, 선호 ${info.trainingPreference || '정보 없음'}.`,
         `최근 14일 기록(체크인·식단·운동·메모):\n${recentLogText(state, 14)}`,
         rulesPrompt(state, weekStart),
+        (() => {
+          const goal = +(state.profile?.workoutGoal || 6);
+          const doneBefore = weekDates(weekStart).filter(date => date < dates[0] && (state.logs?.[date]?.workouts || []).length).length;
+          const soccerLeft = soccerWeek(state, weekStart).soccer ? soccerDates(state, weekStart).filter(date => dates.includes(date)).length : 0;
+          const needed = Math.min(dates.length, Math.max(0, goal - doneBefore));
+          return `주간 운동 목표는 ${goal}회(축구 포함)다. 이번 주 이미 ${doneBefore}회 했다. 남은 ${dates.length}일 중 정확히 ${needed}일을 운동일(rest=false)로 하고${soccerLeft ? `(그중 축구 ${soccerLeft}일)` : ''}, 휴식은 ${dates.length - needed}일만 둔다. 같은 부위가 이틀 연속 겹치지 않게 가슴·등·어깨·팔·코어·유산소를 나눈다.`;
+        })(),
         `종목별 최근 수행(최근 4회):\n${exerciseHistoryText(state, 4)}`,
         `최근 7일 지표:\n${metricsText(weeklyMetrics(state))}`,
         coach ? `지난 주간 리포트: ${coach.headline || ''} / 조정할 점: ${(coach.adjustments || []).join(' ')} / 다음 행동: ${(coach.nextActions || []).join(' ')}` : '',
         pastDays.length ? `이번 주 이미 지난 날: ${pastDays.map(day => `${weekdayName(day.date)} ${day.rest ? '휴식' : day.focus} → ${(state.logs?.[day.date]?.workouts || []).length ? '수행함' : '못 함'}`).join(', ')}. 못 한 운동의 핵심 부위를 남은 날에 우선 배치하되 같은 부위를 연달아 두지 말고 하루 운동량을 과하게 늘리지 않는다.` : '',
-        '규칙: 1) 점진적 과부하 — 직전 수행에서 목표 횟수를 채우고 RPE 8 이하였다면 상체 +2.5kg, 하체 +5kg 또는 세트당 1~2회 증가. RPE 9 이상, 수면 6시간 미만, 컨디션 나쁨, 통증 메모가 있으면 유지하거나 5~10% 낮춘다. 3~4주 연속 증량했고 피로 신호가 있으면 디로드한다. 2) 기록이 없는 종목은 보수적인 시작 무게. 3) 부위별 주간 세트 10~20, 같은 부위는 48시간 휴식. 4) 운동 가능 요일에 맞추고 나머지는 rest=true, exercises는 빈 배열, focus는 휴식, tip에 회복 활동. 5) 각 종목 note에 과부하 근거를 짧게(예: 지난주 40kg×14×4 RPE8 → +2.5kg). weight는 kg 숫자(맨몸 0), reps는 8 또는 8-10 형식. 6) cardio는 유산소가 있으면 러닝 20분처럼, 없으면 없음. 7) principle에 이번 주 과부하 전략을 한두 문장으로. 8) title은 12자 이내.'
+        '규칙: 1) 점진적 과부하 — 직전 수행에서 목표 횟수를 채우고 RPE 8 이하였다면 상체 +2.5kg, 하체 +5kg 또는 세트당 1~2회 증가. RPE 9 이상, 수면 6시간 미만, 컨디션 나쁨, 통증 메모가 있으면 유지하거나 5~10% 낮춘다. 3~4주 연속 증량했고 피로 신호가 있으면 디로드한다. 2) 기록이 없는 종목은 보수적인 시작 무게. 3) 부위별 주간 세트 10~20, 같은 부위는 48시간 휴식. 4) 휴식일은 rest=true, exercises는 빈 배열, focus는 휴식, tip에 회복 활동. 휴식일 수는 위에서 정한 수를 넘기지 않는다. 5) 각 종목 note에 과부하 근거를 짧게(예: 지난주 40kg×14×4 RPE8 → +2.5kg). weight는 kg 숫자(맨몸 0), reps는 8 또는 8-10 형식. 6) cardio는 유산소가 있으면 러닝 20분처럼, 없으면 없음. 7) principle에 이번 주 과부하 전략을 한두 문장으로. 8) title은 12자 이내.'
       ].filter(Boolean).join('\n\n');
       const result = await analyzeWithAi(coachSettings(settings), prompt, 'plan', false);
       if (!Array.isArray(result?.days) || !result.days.length) throw new Error('AI 서버 함수가 이전 버전이에요. Supabase에 새 함수를 배포해 주세요.');
@@ -1908,7 +1962,51 @@
         if (!playDays.includes(day.date)) return;
         Object.assign(day, { rest: false, focus: '축구', exercises: [], cardio: '축구 90분', tip: day.tip || '축구가 하체·유산소 훈련을 대신해요. 끝나고 단백질과 수분을 충분히 챙겨요.' });
       });
-      const goal = +(readState().profile?.workoutGoal || 4);
+      const goal = +(readState().profile?.workoutGoal || 6);
+      {
+        const doneBeforeFill = weekDates(weekStart).filter(date => date < dates[0] && (readState().logs?.[date]?.workouts || []).length).length;
+        const neededFill = Math.min(days.length, Math.max(0, goal - doneBeforeFill));
+        let shortBy = neededFill - days.filter(day => !day.rest).length;
+        if (shortBy > 0) {
+          // 채울 재료: 부위가 겹치지 않게 등·가슴·어깨/팔 분할을 돌리고, 무게는 최근 기록을 쓴다.
+          const state = readState();
+          const history = exerciseHistory(state, dateKey(new Date()));
+          const lastWeight = name => history.get(exerciseKey(name))?.at(-1)?.weight || 0;
+          const make = (name, sets, reps) => ({ name, weight: lastWeight(name), sets, reps: String(reps), note: lastWeight(name) ? '최근 기록 무게' : '가벼운 무게로 시작' });
+          const SPLITS = [
+            { part: '등', focus: '등·이두', exercises: [make('랫풀다운', 4, 10), make('바벨로우', 4, 10), make('시티드 케이블 로우', 3, 12), make('바벨 컬', 3, 12)] },
+            { part: '가슴', focus: '가슴·삼두', exercises: [make('벤치프레스', 4, 8), make('인클라인 덤벨 프레스', 3, 10), make('케이블 푸시다운', 3, 12)] },
+            { part: '어깨', focus: '어깨·코어', exercises: [make('오버헤드 프레스', 4, 8), make('사이드 레터럴 레이즈', 4, 15), make('페이스 풀', 3, 15), make('플랭크', 3, '60초')] }
+          ];
+          // 그날 주된 부위(가장 많은 세트)를 구해 앞뒤 날과 겹치지 않는 분할을 고른다.
+          const mainPart = day => {
+            if (!day || day.rest) return null;
+            if (day.focus === '축구') return '하체';
+            const count = {};
+            day.exercises.forEach(exercise => { const part = exercisePart(exercise.name); count[part] = (count[part] || 0) + (+exercise.sets || 3); });
+            return Object.entries(count).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+          };
+          const playSet = new Set(soccerDates(state, weekStart));
+          const ordered = [...days].sort((a, b) => a.date.localeCompare(b.date));
+          const candidates = [
+            ...ordered.filter(day => day.rest && !playSet.has(day.date) && !playSet.has(addDays(day.date, 1))),
+            ...ordered.filter(day => day.rest && !playSet.has(day.date) && playSet.has(addDays(day.date, 1)))
+          ];
+          let used = 0;
+          let turn = 0;
+          candidates.forEach(day => {
+            if (shortBy <= 0) return;
+            const index = ordered.indexOf(day);
+            const near = [mainPart(ordered[index - 1]), mainPart(ordered[index + 1])];
+            const pick = [0, 1, 2].map(offset => SPLITS[(turn + offset) % SPLITS.length]).find(split => !near.includes(split.part)) || SPLITS[turn % SPLITS.length];
+            turn = SPLITS.indexOf(pick) + 1;
+            Object.assign(day, { rest: false, focus: `${pick.focus} (보강)`, exercises: pick.exercises.map(exercise => ({ ...exercise })), cardio: '없음', tip: '휴식이 많아 운동일로 채웠어요. 컨디션이 나쁘면 쉬어도 돼요.' });
+            shortBy--;
+            used++;
+          });
+          if (used) ruleNotes.push(`AI가 휴식으로 둔 ${used}일을 운동일로 채웠어요(주 ${goal}회 목표).`);
+        }
+      }
       // 이번 주에 이미 운동한 날 + 남은 계획의 운동일을 합쳐 주간 목표와 비교한다.
       const doneBefore = weekDates(weekStart).filter(date => date < dates[0] && (readState().logs?.[date]?.workouts || []).length).length;
       const active = doneBefore + days.filter(day => !day.rest).length;
@@ -2002,7 +2100,7 @@
     const today = dateKey(new Date());
     const thisWeek = mondayKey();
     if (!plan || !(plan.days || []).some(day => day.date >= thisWeek)) {
-      card.innerHTML = `<div class="plan-empty"><span class="plan-eyebrow">AI 주간 계획</span><strong>이번 주 운동 계획이 없어요</strong><small>지난 운동량·컨디션·메모와 나만의 운동 규칙을 바탕으로 점진적 과부하 계획을 짜드려요. 매주 일요일 밤 11시에는 다음 주 계획이 자동으로 만들어져요.</small>${soccerRow(state, thisWeek, null)}<button class="primary" data-plan-action="week">이번 주 계획 받기</button></div>`;
+      card.innerHTML = `<div class="plan-empty"><span class="plan-eyebrow">AI 주간 계획</span><strong>이번 주 운동 계획이 없어요</strong><small>지난 운동량·컨디션·메모와 나만의 운동 규칙을 바탕으로 점진적 과부하 계획을 짜드려요. 매주 일요일 밤 11시에는 다음 주 계획이 자동으로 만들어져요.</small>${soccerRow(state, thisWeek, null)}${soccerCheckMarkup(state)}<button class="primary" data-plan-action="week">이번 주 계획 받기</button></div>`;
       return;
     }
     if (!plan.days.some(day => day.date === selectedPlanDate)) selectedPlanDate = (plan.days.find(day => day.date >= today) || plan.days[0]).date;
@@ -2012,7 +2110,7 @@
     const week = Array.from({ length: 7 }, (_, index) => addDays(plan.weekStart, index));
     card.innerHTML = `
       <div class="plan-head"><div><span class="plan-eyebrow">AI 주간 계획 · ${shortDate(plan.weekStart)}~${shortDate(addDays(plan.weekStart, 6))}</span><strong>${esc(plan.title)}</strong></div>${isCurrent ? '<button class="link" data-plan-action="week">다시 짜기</button>' : '<span class="badge">다음 주</span>'}</div>
-      ${soccerRow(state, plan.weekStart, plan)}
+      ${soccerRow(state, plan.weekStart, plan)}${soccerCheckMarkup(state)}
       ${plan.principle ? `<p class="plan-principle">${esc(plan.principle)}</p>` : ''}
       ${(plan.ruleNotes || []).length ? `<p class="plan-rule-note">${plan.ruleNotes.map(esc).join(' ')}</p>` : ''}
       ${missed.length ? `<div class="plan-alert"><span>${missed.map(item => weekdayName(item.date)).join('·')}요일 운동을 놓쳤어요.</span><button type="button" data-plan-action="week">남은 요일 다시 짜기</button></div>` : ''}
@@ -2038,6 +2136,7 @@
         const list = new Set(next.profile.soccerDays?.[week] || []);
         if (list.has(soccerDay.dataset.soccerDay)) list.delete(soccerDay.dataset.soccerDay); else list.add(soccerDay.dataset.soccerDay);
         next.profile.soccerDays = { ...(next.profile.soccerDays || {}), [week]: [...list].sort() };
+        next.profile.soccerUsualDays = [...list].map(date => new Date(`${date}T12:00:00`).getDay());
         writeState(next);
         renderPlanCard();
         return;
@@ -2278,7 +2377,7 @@
       button.textContent = 'AI 코치가 기준을 계산하는 중…';
       notice.textContent = '목표·생활패턴·인바디를 함께 분석하고 있어요.';
       try {
-        const prompt = `대한민국 최고 수준의 스포츠영양·피트니스 코치처럼 안전하고 현실적으로 설계한다. 사용자 정보: ${profileContextText(state)}. 현재 목표값: ${JSON.stringify(state.profile?.targets || {})}, 주간 운동 ${state.profile?.workoutGoal || 4}회. 현재 상태와 자유롭게 적은 목표에 맞는 하루 kcal, 단백질g, 탄수g, 지방g, 주간 운동횟수, 운동강도를 결정한다. 급격한 감량과 의학적 진단은 피한다. 최근 기록: ${recentLogText(state, 7).slice(0, 900)}`;
+        const prompt = `대한민국 최고 수준의 스포츠영양·피트니스 코치처럼 안전하고 현실적으로 설계한다. 사용자 정보: ${profileContextText(state)}. 현재 목표값: ${JSON.stringify(state.profile?.targets || {})}, 주간 운동 ${state.profile?.workoutGoal || 6}회. 현재 상태와 자유롭게 적은 목표에 맞는 하루 kcal, 단백질g, 탄수g, 지방g, 주간 운동횟수, 운동강도를 결정한다. 급격한 감량과 의학적 진단은 피한다. 최근 기록: ${recentLogText(state, 7).slice(0, 900)}`;
         const coaching = await analyzeCoachingSafely(settings, prompt, 'goal');
         const result = coaching.result;
         const latest = readState();
@@ -2287,7 +2386,7 @@
           protein: clamp(coaching.plan.protein, 40, 350, latest.profile?.targets?.protein || 153),
           carbs: clamp(coaching.plan.carbs, 60, 650, latest.profile?.targets?.carbs || 260),
           fat: clamp(coaching.plan.fat, 30, 180, latest.profile?.targets?.fat || 61),
-          workouts: clamp(coaching.plan.workouts, 1, 7, latest.profile?.workoutGoal || 4),
+          workouts: clamp(coaching.plan.workouts, 1, 7, latest.profile?.workoutGoal || 6),
           intensity: ['낮음', '중간', '높음'].includes(coaching.plan.intensity) ? coaching.plan.intensity : (latest.profile?.trainingIntensity || '중간')
         } : null;
         if (!plan) throw new Error('AI 목표 숫자를 읽지 못했어요. 다시 시도해 주세요.');
@@ -2960,21 +3059,42 @@
       board.id = 'coachBoard';
       report.querySelector('header')?.after(board);
     }
+    // 펼쳐 둔 항목은 다시 그려도 열린 채로 둔다.
+    const open = new Set([...board.querySelectorAll('details[open]')].map(item => item.dataset.key));
     const state = readState();
+    const today = dateKey(new Date());
     const { rows, trends } = coachRows(state);
+    const metrics = weeklyMetrics(state, today);
+    const monday = mondayKey();
+    let done = 0;
+    for (let key = monday; key <= today; key = addDays(key, 1)) if ((state.logs?.[key]?.workouts || []).length) done++;
+    const goal = +(state.profile?.workoutGoal || 6);
+    const weights = Array.from({ length: 14 }, (_, index) => addDays(today, index - 13)).map(date => +state.logs?.[date]?.weight).filter(value => value > 20);
+    const weightDiff = weights.length >= 2 ? Math.round((weights.at(-1) - weights[0]) * 10) / 10 : null;
     const order = { bad: 0, warn: 1 };
     const focus = rows.filter(row => row.tone in order).sort((a, b) => order[a.tone] - order[b.tone] || a.priority - b.priority).slice(0, 2);
+    const TONE = { good: '좋아요', warn: '주의', bad: '개선 필요', none: '기록 부족' };
+    const stat = (label, value, unit, sub, tone = '') => `<div class="rp-stat ${tone}"><small>${label}</small><b>${value}<em>${unit}</em></b><span>${sub}</span></div>`;
+    const kcalPct = metrics.kcal ? Math.round(metrics.kcal / metrics.kcalTarget * 100) : null;
     board.innerHTML = `
-      <section class="card coach-board">
-        <div class="cb-head"><span>이번 주 코칭</span><small>최근 7일 기록 기준</small></div>
-        <div class="cb-focus">${focus.length ? `<b>이번 주 우선순위</b><ol>${focus.map(row => `<li>${esc(row.action)}</li>`).join('')}</ol>` : '<b>잘하고 있어요</b><p>지금 리듬을 유지하면 돼요.</p>'}</div>
-        ${rows.map(row => `<div class="cb-row ${row.tone}"><i aria-hidden="true"></i><div><div class="cb-line"><strong>${row.title}</strong><span>${esc(row.value)}</span></div><p>${esc(row.action)}</p></div></div>`).join('')}
+      <section class="rp-panel rp-hero">
+        <div class="rp-head"><h2>이번 주 코칭</h2><span>${shortDate(monday)}~${shortDate(addDays(monday, 6))}</span></div>
+        <div class="rp-stats">
+          ${stat('운동', done, `/${goal}회`, done >= goal ? '목표 달성' : `${goal - done}회 남음`, done >= goal ? 'good' : '')}
+          ${stat('평균 섭취', metrics.kcal ? Math.round(metrics.kcal).toLocaleString() : '–', 'kcal', kcalPct ? `목표의 ${kcalPct}%` : '기록 없음', kcalPct && Math.abs(kcalPct - 100) <= 10 ? 'good' : kcalPct ? 'warn' : '')}
+          ${stat('단백질', metrics.protein ? Math.round(metrics.protein) : '–', 'g', `목표 ${metrics.proteinTarget}g`, metrics.protein >= metrics.proteinTarget * 0.9 ? 'good' : metrics.protein ? 'warn' : '')}
+          ${stat('체중 2주', weightDiff == null ? '–' : `${weightDiff > 0 ? '+' : ''}${weightDiff}`, 'kg', weights.length ? `현재 ${weights.at(-1)}kg` : '체크인에 적어 주세요')}
+        </div>
+        <div class="rp-focus">${focus.length ? `<b>이번 주 이것부터</b><ol>${focus.map(row => `<li>${esc(row.action)}</li>`).join('')}</ol>` : '<b>잘하고 있어요</b><p>지금 리듬을 그대로 유지하면 돼요.</p>'}</div>
       </section>
-      <section class="card coach-lifts">
-        <div class="cb-head"><span>운동별 진척</span><small>최근 6주 · 추정 1RM 기준</small></div>
-        ${trends.length ? `<div class="lift-table">${trends.map(item => `<div class="lift"><div><strong>${esc(item.name)}</strong><small>최근 ${shortDate(item.last.date)} · ${kgText(item.last.best.weight)} × ${item.last.best.reps}회 · ${item.sessions}회 기록</small></div><div class="lift-trend ${item.stalled ? 'flat' : item.change > 0 ? 'up' : item.change < 0 ? 'down' : 'flat'}">${item.stalled ? '정체' : item.change == null ? '첫 기록' : `${item.change > 0 ? '▲' : item.change < 0 ? '▼' : '–'} ${Math.abs(item.change)}%`}</div><div class="lift-next"><small>다음 목표</small><b>${esc(item.next)}</b></div></div>`).join('')}</div>` : '<p class="cb-empty">무게를 적은 근력 운동을 기록하면 종목별 진척과 다음 목표 무게를 알려드려요.</p>'}
+      <section class="rp-panel rp-checks">
+        <div class="rp-head"><h2>항목별 점검</h2><span>눌러서 자세히</span></div>
+        ${rows.map(row => `<details class="rp-row ${row.tone}" data-key="${row.key}" ${open.has(row.key) ? 'open' : ''}><summary><i aria-hidden="true"></i><strong>${row.title}</strong><em>${TONE[row.tone] || ''}</em></summary><div class="rp-detail"><p class="rp-value">${esc(row.value)}</p><p>${esc(row.action)}</p></div></details>`).join('')}
       </section>
-      <div class="section-head"><h2>상세 기록</h2></div>`;
+      <section class="rp-panel rp-lifts">
+        <div class="rp-head"><h2>운동별 진척</h2><span>최근 6주</span></div>
+        ${trends.length ? trends.map(item => `<details class="rp-lift" data-key="lift-${esc(item.name)}" ${open.has(`lift-${item.name}`) ? 'open' : ''}><summary><strong>${esc(item.name)}</strong><span class="rp-trend ${item.stalled ? 'flat' : item.change > 0 ? 'up' : item.change < 0 ? 'down' : 'flat'}">${item.stalled ? '정체' : item.change == null ? '첫 기록' : `${item.change > 0 ? '▲' : item.change < 0 ? '▼' : '–'} ${Math.abs(item.change)}%`}</span><b>${esc(item.next)}</b></summary><div class="rp-detail"><p>최근 ${shortDate(item.last.date)} · ${kgText(item.last.best.weight)} × ${item.last.best.reps}회 · ${item.sessions}회 기록</p><p>${item.stalled ? '3번 연속 제자리예요. 무게는 그대로 두고 횟수를 1회 늘려 보세요.' : `다음엔 ${esc(item.next)}에 도전해 보세요.`}</p></div></details>`).join('') : '<p class="rp-empty">무게를 적은 근력 운동을 2번 이상 기록하면 종목별 진척과 다음 목표가 떠요.</p>'}
+      </section>`;
   }
 
   function injectStyles() {
@@ -3051,6 +3171,20 @@
   installWeeklyCoach();
   installWorkoutExtras();
   installRecalc();
+  // 운동 기본 목표를 주 6회(축구 포함)로 한 번 맞춘다.
+  (() => {
+    const state = readState();
+    if (state.profile?.workoutGoalV6) return;
+    state.profile ||= {};
+    state.profile.workoutGoal = 6;
+    state.profile.workoutGoalV6 = true;
+    writeState(state);
+  })();
+  // 홈·계획 카드의 "축구 했나요?" 버튼
+  document.addEventListener('click', event => {
+    const button = event.target.closest('[data-soccer-result]');
+    if (button) answerSoccer(button.dataset.soccerResult, button.dataset.played === '1');
+  });
   renderRealReportCharts();
   renderGroupedMeals();
   removeDuplicateArchive();

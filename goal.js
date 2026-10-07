@@ -14,7 +14,7 @@
     ['stand', '주로 서서 걷고 움직여요', '매장·현장 · 하루 8천 보 이상', 1.4],
     ['labor', '몸을 많이 쓰는 일', '물건 나르기 · 체육 · 하루 1만 2천 보 이상', 1.55]
   ];
-  const SESSIONS = [['0', '안 해요', 0], ['1-2', '주 1~2회', 1.5], ['3-4', '주 3~4회', 3.5], ['5-6', '주 5~6회', 5.5], ['7', '매일', 7]];
+  const SESSIONS = [['0', '안 해요', 0], ['1-2', '주 1~2회', 1.5], ['3-4', '주 3~4회', 3.5], ['5-6', '주 5~6회', 6], ['7', '매일', 7]];
   const SESSION_LOAD = [
     ['light', '30분 정도 가볍게', '걷기 · 가벼운 웨이트', 4, 0.5],
     ['normal', '1시간 정도 보통으로', '웨이트 위주 · 숨이 찰 때도 있음', 5, 1],
@@ -97,7 +97,7 @@
         ready: () => answers.pbfMode
       },
       { title: '평소 하루는 어떤가요?', hint: '운동 시간을 뺀 일상 활동이에요.', body: () => choice('activity', ACTIVITY), ready: () => answers.activity },
-      { title: '운동은 일주일에 몇 번 하나요?', body: () => choice('sessions', SESSIONS), ready: () => answers.sessions },
+      { title: '운동은 일주일에 몇 번 하나요?', hint: '축구·러닝 같은 운동도 포함해서 세요.', body: () => choice('sessions', SESSIONS), ready: () => answers.sessions },
       { title: '한 번 운동할 때는요?', body: () => choice('load', SESSION_LOAD), ready: () => answers.load, skip: () => answers.sessions === '0' },
       { title: '목표가 무엇인가요?', body: () => choice('goal', GOALS), ready: () => answers.goal },
       { title: answers.goal === 'gain' ? '얼마나 빨리 늘릴까요?' : '얼마나 빨리 뺄까요?', body: () => choice('pace', PACE[answers.goal] || []), ready: () => answers.pace, skip: () => answers.goal === 'keep' },
