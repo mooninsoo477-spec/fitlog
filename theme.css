@@ -971,3 +971,34 @@ body.sheet-open .rest-timer { bottom: calc(100px + env(safe-area-inset-bottom));
 .pick-chips button.on { background: var(--c-work); color: #fff; }
 #coachBoard .badges, .hm-badge-card .badges { display: block !important; width: 100%; }
 #coachBoard .badges .badge-grid, .hm-badge-card .badge-grid { display: grid !important; }
+
+/* ================= 좁은 화면(360px 안팎) 맞춤 ================= */
+#homeDash { grid-template-columns: minmax(0, 1fr); }
+#homeDash > * { min-width: 0; }
+.hm-dates { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 6px; }
+.hm-date.side { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.hm-total { display: flex; justify-content: center; align-items: baseline; flex-wrap: wrap; gap: 0 6px; }
+.hm-total .hm-target { margin-left: 0; }
+.ci-big span { flex-wrap: nowrap; }
+.ci-big input { flex: 1; min-width: 0; }
+.hm-coach b { white-space: nowrap; }
+.hm-coach span { text-align: left; }
+@media (max-width: 380px) {
+  .content { padding-left: 12px !important; padding-right: 12px !important; }
+  .hm-panel, .rp-panel { padding: 20px 14px; }
+  .hm-date { font-size: 14px; }
+  .hm-date.main { font-size: 21px; }
+  .hm-total strong { font-size: 40px; }
+  .hm-total .hm-target { font-size: 17px; }
+  .hm-ratio { gap: 12px; font-size: 18px; }
+  .hm-ratio i { width: 26px; height: 26px; font-size: 12px; }
+  .hm-gauge-center b { font-size: 34px; }
+  .hm-coach { padding: 15px 16px; font-size: 14px; gap: 8px; }
+  .hm-meal { min-height: 140px; padding: 14px; }
+  .hm-meal strong { font-size: 22px; }
+  .ci-big input { font-size: 26px; }
+  .ci-faces .ci-face { width: 32px; height: 32px; }
+  .ci-stats b { font-size: 24px !important; }
+  .hm-panel-head h2 { font-size: 23px !important; }
+  .kw-stack { width: 18px; }
+}
