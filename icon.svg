@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="512" height="512">
+  <rect width="120" height="120" fill="#BFEBD9"/>
+  <!-- 안드로이드 원형 자르기에도 잘리지 않게 가운데로 조금 줄인다 -->
+  <g transform="translate(60 61) scale(0.96) translate(-60 -60)">
+    <ellipse cx="60" cy="101" rx="22" ry="4" fill="#9fd9c2"/>
+    <circle cx="44" cy="36" r="14" fill="#2FBF8F"/>
+    <circle cx="60" cy="28" r="15" fill="#2FBF8F"/>
+    <circle cx="76" cy="36" r="14" fill="#2FBF8F"/>
+    <circle cx="52" cy="46" r="13" fill="#25A87C"/>
+    <circle cx="68" cy="46" r="13" fill="#25A87C"/>
+    <circle cx="54" cy="25" r="3" fill="#5fd3a8"/>
+    <circle cx="40" cy="33" r="2.4" fill="#5fd3a8"/>
+    <path d="M50 54h20l4 44H46z" fill="#9BDC78"/>
+    <path d="M48 66q-14 0-18-10q-2-6 4-8" fill="none" stroke="#9BDC78" stroke-width="8" stroke-linecap="round"/>
+    <path d="M72 66q14 0 18-10q2-6-4-8" fill="none" stroke="#9BDC78" stroke-width="8" stroke-linecap="round"/>
+    <circle cx="30" cy="50" r="6.5" fill="#9BDC78"/>
+    <circle cx="90" cy="50" r="6.5" fill="#9BDC78"/>
+    <path d="M27 47q3-2 6 0M87 47q3-2 6 0" fill="none" stroke="#7cc45c" stroke-width="1.6" stroke-linecap="round"/>
+    <circle cx="55" cy="72" r="2.8" fill="#163A30"/>
+    <circle cx="65" cy="72" r="2.8" fill="#163A30"/>
+    <circle cx="55.8" cy="71.2" r="0.9" fill="#ffffff"/>
+    <circle cx="65.8" cy="71.2" r="0.9" fill="#ffffff"/>
+    <path d="M56 78q4 4 8 0" fill="none" stroke="#163A30" stroke-width="2.4" stroke-linecap="round"/>
+    <ellipse cx="50" cy="78" rx="3" ry="1.8" fill="#FF9AA8"/>
+    <ellipse cx="70" cy="78" rx="3" ry="1.8" fill="#FF9AA8"/>
+  </g>
+</svg>

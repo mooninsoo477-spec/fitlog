@@ -1,5 +1,5 @@
-const CACHE = 'fitlog-shell-20261009-3';
-const SHELL = ['./', './index.html', './manifest.webmanifest', './icon.png'];
+const CACHE = 'fitlog-shell-20261010-1';
+const SHELL = ['./', './index.html', './manifest.webmanifest', './icon.png?v=2', './icon-192.png?v=2'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));
