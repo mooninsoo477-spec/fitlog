@@ -33,13 +33,15 @@
       <nav class="hm-dates" aria-label="날짜 선택"></nav>
       <section class="hm-panel hm-hero" id="hmHero"></section>
       <section class="hm-panel hm-meals">
-        <div class="hm-panel-head"><h2>먹었어요</h2><button type="button" class="hm-link" data-hm-go="meals">식사 기록 ›</button></div>
+        <div class="hm-panel-head"><div><small class="hm-eyebrow">TODAY'S PLATE</small><h2>오늘의 식탁</h2><p class="hm-sub" id="hmMealSub"></p></div><button type="button" class="hm-link" data-hm-go="meals">기록 ›</button></div>
         <div id="homeLunchSlot" class="hm-lunch"></div>
         <div class="hm-meal-grid" id="hmMealGrid"></div>
+        <div id="hmQuick"></div>
+        <div id="hmWater"></div>
         <div class="hm-week" id="hmWeekSlot"></div>
       </section>
       <section class="hm-panel hm-workout">
-        <div class="hm-panel-head"><h2>운동했어요</h2><button type="button" class="hm-link" data-hm-go="workout">운동 기록 ›</button></div>
+        <div class="hm-panel-head"><div><small class="hm-eyebrow">TODAY'S SWEAT</small><h2>오늘의 땀</h2><p class="hm-sub" id="hmWorkoutSub"></p></div><button type="button" class="hm-link" data-hm-go="workout">기록 ›</button></div>
         <div id="hmWorkoutSlot"></div>
         <div id="hmWorkoutPast"></div>
       </section>`;
@@ -71,7 +73,11 @@
       if (skip) { toggleSkip(skip.dataset.hmSkip); return; }
       const meal = event.target.closest('[data-hm-meal]');
       if (meal) { openMeal(meal.dataset.hmMeal); return; }
-      if (event.target.closest('[data-hm-coach]')) { $('#recommend')?.click(); }
+      if (event.target.closest('[data-hm-coach]')) { $('#recommend')?.click(); return; }
+      const qf = event.target.closest('[data-qf]');
+      if (qf) { addQuickFood(qf.dataset.qf, mealByHour(), viewDate); return; }
+      const water = event.target.closest('[data-hm-water]');
+      if (water) setWater(+water.dataset.hmWater);
     });
     render();
   }
@@ -206,15 +212,207 @@
       if (!info) { info = document.createElement('div'); info.id = 'workoutHeaderInfo'; info.className = 'rec-info'; workoutHeader.append(info); }
       const monday = (() => { const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return dateKey(d); })();
       let done = 0;
-      for (let k = monday; k <= today; k = addDays(k, 1)) if ((state.logs?.[k]?.workouts || []).length) done++;
-      const goal = +(state.profile?.workoutGoal || 4);
-      info.innerHTML = `<b>${done}</b><span>/ ${goal}회 이번 주</span><div class="rec-bar"><i style="width:${Math.min(100, done / goal * 100)}%"></i></div>`;
+      let soccer = 0;
+      const isSoccer = w => /축구|풋살/.test(`${w.group || ''} ${w.note || ''}`) && !(w.exercises || []).some(e => !e.cardio && e.sets);
+      for (let k = monday; k <= today; k = addDays(k, 1)) { const list = state.logs?.[k]?.workouts || []; if (list.some(w => !isSoccer(w))) done++; if (list.some(isSoccer)) soccer++; }
+      const goal = +(state.profile?.workoutGoal || 5);
+      info.innerHTML = `<b>${done}</b><span>/ ${goal}회 근력${soccer ? ` · 축구 ${soccer}` : ''}</span><div class="rec-bar"><i style="width:${Math.min(100, done / goal * 100)}%"></i></div>`;
     }
     document.querySelectorAll('.meal-type-tabs label').forEach(label => {
       const span = label.querySelector('span');
       const type = label.querySelector('input')?.value;
       if (span && ICONS[type] && !span.querySelector('svg')) span.insertAdjacentHTML('afterbegin', ICONS[type]);
     });
+  }
+
+  // ---- 자주 먹는 음식: 한 번 눌러 바로 기록 ----
+  const mealByHour = () => { const h = new Date().getHours(); return h < 10 ? '아침' : h < 15 ? '점심' : h < 21 ? '저녁' : '간식'; };
+
+  function frequentFoods(state) {
+    const counts = new Map();
+    Object.keys(state.logs || {}).sort().slice(-45).forEach(date => (state.logs[date].meals || []).forEach(meal => {
+      if (!meal?.name || meal.src === 'lunch' || !(+meal.kcal > 0)) return;
+      const k = meal.name.replace(/\s+/g, '');
+      const prev = counts.get(k);
+      counts.set(k, { meal, count: (prev?.count || 0) + 1, last: date });
+    }));
+    return [...counts.values()].filter(item => item.count >= 2).sort((a, b) => b.count - a.count || b.last.localeCompare(a.last)).slice(0, 10).map(item => item.meal);
+  }
+
+  function quickFoodsMarkup(state, label) {
+    const foods = frequentFoods(state);
+    if (!foods.length) return '';
+    return `<div class="qf"><div class="qf-head"><b>자주 먹는 음식</b><small>${label}</small></div><div class="qf-chips">${foods.map(food => `<button type="button" data-qf="${esc(food.name)}"><span>${esc(food.name)}</span><small>${fmt(+food.kcal || 0)}kcal</small></button>`).join('')}</div></div>`;
+  }
+
+  function addQuickFood(name, type, date) {
+    const state = readState();
+    const food = frequentFoods(state).find(item => item.name === name);
+    if (!food) return;
+    state.logs ||= {};
+    const log = state.logs[date] ||= { meals: [], workouts: [] };
+    const copy = { ...food, id: crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`, meal: type, updatedAt: new Date().toISOString(), quick: true };
+    (log.meals ||= []).push(copy);
+    if (log.skipped?.[type]) { log.skipped = { ...log.skipped }; delete log.skipped[type]; }
+    core.writeState(state);
+    window.dispatchEvent(new CustomEvent('fitlog:state-updated'));
+    core.showToast(`${type}에 ${name} ${fmt(+food.kcal || 0)}kcal를 기록했어요.`);
+    render();
+  }
+
+  // 식사 기록 화면 맨 위에도 같은 칩을 보여준다(위에서 고른 끼니로 기록).
+  function renderMealsQuick(state) {
+    const composer = $('#aiMealComposer');
+    if (!composer) return;
+    let box = $('#mealsQuick');
+    if (!box) { box = document.createElement('div'); box.id = 'mealsQuick'; composer.prepend(box); }
+    box.innerHTML = quickFoodsMarkup(state, '누르면 위에서 고른 끼니로 바로 기록돼요');
+  }
+
+  // ---- 물 마시기: 한 컵 250ml, 하루 8컵 ----
+  const CUP = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12l-1.6 15.2A2 2 0 0 1 14.4 21H9.6a2 2 0 0 1-2-1.8z" fill="currentColor"/></svg>';
+  function waterMarkup(state) {
+    const cups = +(state.logs?.[viewDate]?.water || 0);
+    return `<div class="hm-water"><div class="hm-water-head"><b>물</b><span>${(cups * 0.25).toFixed(2).replace(/0$/, '')}L / 2L</span></div><div class="hm-cups">${Array.from({ length: 8 }, (_, index) => `<button type="button" class="${index < cups ? 'on' : ''}" data-hm-water="${index + 1}" aria-label="물 ${index + 1}컵">${CUP}</button>`).join('')}</div></div>`;
+  }
+  function setWater(cups) {
+    const state = readState();
+    state.logs ||= {};
+    const log = state.logs[viewDate] ||= { meals: [], workouts: [] };
+    log.water = +(log.water || 0) === cups ? cups - 1 : cups;
+    core.writeState(state);
+    window.dispatchEvent(new CustomEvent('fitlog:state-updated'));
+    if (log.water === 8) core.showToast('오늘 물 2L 달성!');
+    render();
+  }
+
+  // ---- 주간 배지 ----
+  const BADGE_ICON = {
+    lift: '<path d="M5 9v6M19 9v6M2 11v2M22 11v2M5 12h14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" fill="none"/>',
+    protein: '<ellipse cx="12" cy="13" rx="6" ry="7.5" fill="currentColor"/>',
+    kcal: '<path d="M12 3c1 4 5 6 5 11a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5 0 2 1 3 2 3 0-3-1-6 1-9.5z" fill="currentColor"/>',
+    water: '<path d="M12 3s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11z" fill="currentColor"/>',
+    checkin: '<circle cx="12" cy="12" r="5" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    soccer: '<circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7l4 3-1.5 4.5h-5L8 10z" fill="currentColor"/>'
+  };
+  function weekBadges(state, weekStart) {
+    const today = dateKey(new Date());
+    const days = Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)).filter(date => date <= today);
+    const targets = state.profile?.targets || {};
+    const kcalTarget = +targets.kcal || 2200;
+    const proteinTarget = +targets.protein || 150;
+    const goal = +(state.profile?.workoutGoal || 5);
+    const isSoccer = w => /축구|풋살/.test(`${w.group || ''} ${w.note || ''}`) && !(w.exercises || []).some(e => !e.cardio && e.sets);
+    let lift = 0, protein = 0, kcalOk = 0, water = 0, checkin = 0, soccer = 0;
+    days.forEach(date => {
+      const log = state.logs?.[date] || {};
+      const meals = log.meals || [];
+      if ((log.workouts || []).some(w => !isSoccer(w))) lift++;
+      if ((log.workouts || []).some(isSoccer)) soccer++;
+      if (meals.length && sum(meals, 'protein') >= proteinTarget * 0.9) protein++;
+      if (meals.length && Math.abs(sum(meals, 'kcal') - kcalTarget) <= kcalTarget * 0.1) kcalOk++;
+      if (+log.water >= 8) water++;
+      if (+log.weight && +log.sleep && log.condition) checkin++;
+    });
+    return [
+      { id: 'lift', name: '근력 목표', detail: `${lift}/${goal}회`, earned: lift >= goal, color: '#5b8def' },
+      { id: 'protein', name: '단백질 5일', detail: `${protein}/5일`, earned: protein >= 5, color: '#f2b13c' },
+      { id: 'kcal', name: '칼로리 지킴', detail: `${kcalOk}/5일`, earned: kcalOk >= 5, color: '#ff7a5c' },
+      { id: 'water', name: '물 2L', detail: `${water}/5일`, earned: water >= 5, color: '#26b5c9' },
+      { id: 'checkin', name: '체크인 개근', detail: `${checkin}/6일`, earned: checkin >= 6, color: '#ffc83d' },
+      { id: 'soccer', name: '축구', detail: soccer ? `${soccer}회` : '0회', earned: soccer >= 1, color: '#2fbf8f' }
+    ];
+  }
+  function badgesMarkup(state, weekStart, title = '이번 주 배지') {
+    const list = weekBadges(state, weekStart);
+    const earned = list.filter(item => item.earned).length;
+    return `<div class="badges"><div class="badges-head"><b>${title}</b><span>${earned}/${list.length}개 획득</span></div><div class="badge-grid">${list.map(item => `<div class="badge-item ${item.earned ? 'on' : ''}" style="--c:${item.color}"><i><svg viewBox="0 0 24 24" aria-hidden="true">${BADGE_ICON[item.id]}</svg></i><b>${item.name}</b><small>${item.detail}</small></div>`).join('')}</div></div>`;
+  }
+  // 일요일엔 이번 주, 월요일엔 지난주 결과를 홈 맨 위에 축하 카드로 보여준다(닫으면 그 주는 안 뜸).
+  function renderBadgeCard(state) {
+    const day = new Date().getDay();
+    const thisMonday = (() => { const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return dateKey(d); })();
+    const week = day === 1 ? addDays(thisMonday, -7) : thisMonday;
+    let card = $('#hmBadgeCard');
+    const hidden = (() => { try { return localStorage.getItem('fitlog:badgeSeen') === week; } catch { return false; } })();
+    const show = (day === 0 || day === 1) && viewDate === dateKey(new Date()) && !hidden && weekBadges(state, week).some(item => item.earned);
+    if (!show) { card?.remove(); return; }
+    if (!card) {
+      card = document.createElement('section');
+      card.id = 'hmBadgeCard';
+      card.className = 'hm-panel hm-badge-card';
+      $('#hmHero')?.before(card);
+      card.addEventListener('click', event => {
+        if (!event.target.closest('[data-badge-close]')) return;
+        try { localStorage.setItem('fitlog:badgeSeen', card.dataset.week); } catch {}
+        card.remove();
+      });
+    }
+    card.dataset.week = week;
+    card.innerHTML = `<button type="button" class="hm-badge-close" data-badge-close aria-label="닫기">×</button>${badgesMarkup(state, week, day === 1 ? '지난주 결과' : '이번 주 결과')}`;
+  }
+
+  // ---- 숫자가 바뀔 때 부드럽게 올라가는 효과 ----
+  const lastNumbers = new Map();
+  const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  function countUp(selector) {
+    document.querySelectorAll(selector).forEach((el, index) => {
+      const node = [...el.childNodes].find(child => child.nodeType === 3 && /\d/.test(child.textContent));
+      if (!node) return;
+      const raw = node.textContent;
+      const target = +raw.replace(/[^\d.-]/g, '');
+      if (!Number.isFinite(target)) return;
+      const keyName = `${selector}#${index}`;
+      const from = lastNumbers.get(keyName);
+      lastNumbers.set(keyName, target);
+      if (reduceMotion || from == null || from === target) return;
+      const decimals = (raw.split('.')[1] || '').replace(/\D/g, '').length;
+      const start = performance.now();
+      const step = now => {
+        const p = Math.min(1, (now - start) / 600);
+        const value = from + (target - from) * (1 - Math.pow(1 - p, 3));
+        node.textContent = raw.replace(/-?[\d,]+(\.\d+)?/, decimals ? value.toFixed(decimals) : Math.round(value).toLocaleString());
+        if (p < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    });
+  }
+  let lastArc = null;
+  function animateGauge() {
+    const arc = document.querySelector('.hm-gauge path[stroke^="url"]');
+    if (!arc) { lastArc = 0; return; }
+    const [fill, total] = arc.getAttribute('stroke-dasharray').split(' ').map(Number);
+    if (!reduceMotion && lastArc != null && Math.abs(lastArc - fill) > 1) {
+      const from = lastArc;
+      const start = performance.now();
+      const step = now => {
+        const p = Math.min(1, (now - start) / 700);
+        arc.setAttribute('stroke-dasharray', `${(from + (fill - from) * (1 - Math.pow(1 - p, 3))).toFixed(1)} ${total}`);
+        if (p < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    }
+    lastArc = fill;
+  }
+
+  // 패널 제목 아래 한 줄 요약
+  function renderSubs(state) {
+    const log = state.logs?.[viewDate] || {};
+    const meals = log.meals || [];
+    const eatenTypes = MEALS.filter(type => meals.some(meal => (meal.meal || '간식') === type)).length;
+    const fasted = Object.keys(log.skipped || {}).length;
+    const mealSub = $('#hmMealSub');
+    if (mealSub) mealSub.textContent = meals.length ? `${eatenTypes}끼 · ${fmt(sum(meals, 'kcal'))}kcal${fasted ? ` · 단식 ${fasted}` : ''}` : fasted ? `단식 ${fasted}끼` : '아직 기록 전이에요';
+    const start = (() => { const d = new Date(`${viewDate}T12:00:00`); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return dateKey(d); })();
+    let lift = 0, soccer = 0;
+    for (let k = start; k <= viewDate; k = addDays(k, 1)) {
+      const list = state.logs?.[k]?.workouts || [];
+      const isSoccer = w => /축구|풋살/.test(`${w.group || ''} ${w.note || ''}`) && !(w.exercises || []).some(e => !e.cardio && e.sets);
+      if (list.some(w => !isSoccer(w))) lift++;
+      if (list.some(isSoccer)) soccer++;
+    }
+    const workoutSub = $('#hmWorkoutSub');
+    if (workoutSub) workoutSub.textContent = `이번 주 근력 ${lift}/${+(state.profile?.workoutGoal || 5)}회${soccer ? ` · 축구 ${soccer}회` : ''}`;
   }
 
   function render() {
@@ -225,6 +423,13 @@
     renderHero(state);
     renderMeals(state);
     renderWorkout(state);
+    renderSubs(state);
+    $('#hmQuick').innerHTML = viewDate === dateKey(new Date()) ? quickFoodsMarkup(state, `누르면 ${mealByHour()}으로 바로 기록`) : '';
+    $('#hmWater').innerHTML = waterMarkup(state);
+    renderMealsQuick(state);
+    renderBadgeCard(state);
+    countUp('.hm-total strong, .hm-gauge-center b, .rec-info b, .hm-meal strong');
+    animateGauge();
   }
 
   install();
@@ -236,5 +441,13 @@
   // 식사 저장 등 기존 홈 숫자가 바뀌면(인라인 렌더) 따라서 다시 그린다.
   const kcal = $('#kcal');
   if (kcal) new MutationObserver(() => render()).observe(kcal, { childList: true, characterData: true, subtree: true });
-  window.FitLogHome = { render };
+  // 식사 기록 화면의 자주 먹는 음식 칩: 위에서 고른 끼니로 오늘에 기록
+  document.addEventListener('click', event => {
+    const qf = event.target.closest('#mealsQuick [data-qf]');
+    if (!qf) return;
+    addQuickFood(qf.dataset.qf, $('[name="aiMealType"]:checked')?.value || mealByHour(), dateKey(new Date()));
+  });
+  window.FitLogHome = { render, badgesMarkup, countUp };
+  // 리포트가 먼저 그려졌다면 배지를 넣어 한 번 더 그린다.
+  core.renderCoachBoard?.();
 })();

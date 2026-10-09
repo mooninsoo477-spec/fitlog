@@ -174,7 +174,7 @@
     state.profile ||= {};
     state.profile.targets = { kcal, protein: m.protein, carbs: m.carbs, fat: m.fat };
     const sessions = SESSIONS.find(item => item[0] === a.sessions)?.[2] || 0;
-    if (sessions) state.profile.workoutGoal = Math.max(1, Math.min(7, Math.round(sessions)));
+    // 주간 근력 운동 목표(축구 제외)는 설정의 운동 규칙에서 따로 정한다. 여기 운동 횟수는 소모 칼로리 계산에만 쓴다.
     state.profile.trainingIntensity = { light: '낮음', normal: '중간', hard: '높음' }[a.load] || state.profile.trainingIntensity || '중간';
     if (a.goal === 'cut' && result.pbf) state.profile.targetFat = a.targetPbf;
     state.profile.goalSetup = { ...a, adjust, savedAt: new Date().toISOString() };
@@ -262,7 +262,17 @@
       card.id = 'goalCard';
       card.className = 'goal-card';
       more.querySelector('header')?.after(card);
-      card.addEventListener('click', event => { if (event.target.closest('[data-goal-open]')) open(); });
+      card.addEventListener('click', event => {
+        if (event.target.closest('[data-goal-open]')) { open(); return; }
+        const week = event.target.closest('[data-goal-week]');
+        if (!week) return;
+        const state = readState();
+        state.profile ||= {};
+        state.profile.workoutGoal = Math.min(7, Math.max(1, +(state.profile.workoutGoal || 5) + +week.dataset.goalWeek));
+        writeState(state);
+        window.dispatchEvent(new CustomEvent('fitlog:state-updated'));
+        renderCard();
+      });
     }
     const state = readState();
     const targets = state.profile?.targets || {};
@@ -270,6 +280,7 @@
     card.innerHTML = `<div class="goal-card-top"><span>하루 목표</span><strong>${fmt(+targets.kcal || 2200)}<small>kcal</small></strong></div>
       <div class="goal-card-macros"><span>탄 <b>${+targets.carbs || 0}g</b></span><span>단 <b>${+targets.protein || 0}g</b></span><span>지 <b>${+targets.fat || 0}g</b></span></div>
       <p>${setup ? esc(state.profile?.recommendationContext?.goalStatement || '') : '몇 가지 질문에 답하면 내 몸에 맞는 목표를 계산해요.'}</p>
+      <div class="goal-card-week"><span>근력 운동 <small>축구 제외</small></span><div><button type="button" data-goal-week="-1" aria-label="주간 운동 줄이기">−</button><b>주 ${+(state.profile?.workoutGoal || 5)}회</b><button type="button" data-goal-week="1" aria-label="주간 운동 늘리기">＋</button></div></div>
       <button type="button" class="gq-next" data-goal-open>${setup ? '질문으로 다시 계산' : '내 목표 계산하기'}</button>`;
   }
 

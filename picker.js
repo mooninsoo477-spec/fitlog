@@ -11,13 +11,15 @@
 
   // [이름, 종류] 종류: w=무게×횟수, b=횟수만(맨몸), c=시간(유산소·기타)
   const CATALOG = {
-    가슴: [['벤치프레스', 'w'], ['인클라인 벤치프레스', 'w'], ['덤벨 벤치프레스', 'w'], ['인클라인 덤벨 프레스', 'w'], ['체스트 프레스 머신', 'w'], ['펙덱 플라이', 'w'], ['케이블 크로스오버', 'w'], ['딥스', 'b'], ['푸시업', 'b']],
-    등: [['랫풀다운', 'w'], ['풀업', 'b'], ['바벨로우', 'w'], ['덤벨로우', 'w'], ['시티드 케이블 로우', 'w'], ['티바로우', 'w'], ['데드리프트', 'w'], ['암 풀다운', 'w'], ['백 익스텐션', 'b']],
-    어깨: [['오버헤드 프레스', 'w'], ['덤벨 숄더프레스', 'w'], ['머신 숄더프레스', 'w'], ['사이드 레터럴 레이즈', 'w'], ['프론트 레이즈', 'w'], ['리어 델트 머신', 'w'], ['페이스 풀', 'w']],
-    팔: [['바벨 컬', 'w'], ['덤벨 컬', 'w'], ['해머 컬', 'w'], ['프리처 컬', 'w'], ['케이블 푸시다운', 'w'], ['트라이셉스 익스텐션', 'w'], ['라잉 트라이셉스 익스텐션', 'w']],
-    하체: [['스쿼트', 'w'], ['레그 프레스', 'w'], ['루마니안 데드리프트', 'w'], ['런지', 'w'], ['불가리안 스플릿 스쿼트', 'w'], ['레그 익스텐션', 'w'], ['레그 컬', 'w'], ['핵 스쿼트', 'w'], ['힙 쓰러스트', 'w'], ['카프 레이즈', 'w']],
-    기타: [['러닝', 'c'], ['걷기', 'c'], ['축구', 'c'], ['풋살', 'c'], ['수영', 'c'], ['사이클', 'c'], ['등산', 'c'], ['줄넘기', 'c'], ['계단 오르기', 'c'], ['로잉 머신', 'c'], ['인터벌(HIIT)', 'c'], ['플랭크', 'c'], ['크런치', 'b'], ['행잉 레그 레이즈', 'b']]
+    가슴: [['벤치프레스', 'w'], ['인클라인 벤치프레스', 'w'], ['디클라인 벤치프레스', 'w'], ['덤벨 벤치프레스', 'w'], ['인클라인 덤벨 프레스', 'w'], ['스미스 벤치프레스', 'w'], ['클로즈그립 벤치프레스', 'w'], ['체스트 프레스 머신', 'w'], ['인클라인 체스트 프레스 머신', 'w'], ['덤벨 플라이', 'w'], ['인클라인 덤벨 플라이', 'w'], ['펙덱 플라이', 'w'], ['케이블 크로스오버', 'w'], ['딥스', 'b'], ['푸시업', 'b']],
+    등: [['랫풀다운', 'w'], ['클로즈그립 랫풀다운', 'w'], ['언더그립 랫풀다운', 'w'], ['풀업', 'b'], ['친업', 'b'], ['어시스트 풀업 머신', 'w'], ['바벨로우', 'w'], ['펜들레이 로우', 'w'], ['덤벨로우', 'w'], ['원암 덤벨로우', 'w'], ['시티드 케이블 로우', 'w'], ['티바로우', 'w'], ['머신 로우', 'w'], ['하이 로우 머신', 'w'], ['암 풀다운', 'w'], ['데드리프트', 'w'], ['랙풀', 'w'], ['바벨 슈러그', 'w'], ['백 익스텐션', 'b']],
+    어깨: [['오버헤드 프레스', 'w'], ['덤벨 숄더프레스', 'w'], ['머신 숄더프레스', 'w'], ['스미스 숄더프레스', 'w'], ['아놀드 프레스', 'w'], ['사이드 레터럴 레이즈', 'w'], ['케이블 레터럴 레이즈', 'w'], ['머신 레터럴 레이즈', 'w'], ['프론트 레이즈', 'w'], ['벤트오버 리어 레이즈', 'w'], ['리어 델트 머신', 'w'], ['페이스 풀', 'w']],
+    팔: [['바벨 컬', 'w'], ['이지바 컬', 'w'], ['덤벨 컬', 'w'], ['해머 컬', 'w'], ['프리처 컬', 'w'], ['케이블 컬', 'w'], ['컨센트레이션 컬', 'w'], ['리버스 컬', 'w'], ['케이블 푸시다운', 'w'], ['로프 푸시다운', 'w'], ['트라이셉스 익스텐션', 'w'], ['라잉 트라이셉스 익스텐션', 'w'], ['스컬 크러셔', 'w'], ['덤벨 킥백', 'w']],
+    하체: [['스쿼트', 'w'], ['프론트 스쿼트', 'w'], ['스미스 스쿼트', 'w'], ['고블릿 스쿼트', 'w'], ['핵 스쿼트', 'w'], ['레그 프레스', 'w'], ['루마니안 데드리프트', 'w'], ['런지', 'w'], ['워킹 런지', 'w'], ['불가리안 스플릿 스쿼트', 'w'], ['스텝업', 'w'], ['레그 익스텐션', 'w'], ['레그 컬', 'w'], ['시티드 레그 컬', 'w'], ['힙 쓰러스트', 'w'], ['글루트 킥백 머신', 'w'], ['힙 어브덕션 머신', 'w'], ['어덕션 머신', 'w'], ['카프 레이즈', 'w'], ['시티드 카프 레이즈', 'w']],
+    복근: [['플랭크', 'c'], ['사이드 플랭크', 'c'], ['크런치', 'b'], ['케이블 크런치', 'w'], ['레그 레이즈', 'b'], ['행잉 레그 레이즈', 'b'], ['러시안 트위스트', 'b'], ['AB 롤아웃', 'b'], ['싯업', 'b']],
+    기타: [['러닝', 'c'], ['트레드밀 걷기', 'c'], ['인클라인 걷기', 'c'], ['걷기', 'c'], ['축구', 'c'], ['풋살', 'c'], ['수영', 'c'], ['사이클', 'c'], ['실내 사이클', 'c'], ['스텝밀(천국의 계단)', 'c'], ['일립티컬', 'c'], ['로잉 머신', 'c'], ['인터벌(HIIT)', 'c'], ['줄넘기', 'c'], ['등산', 'c'], ['배드민턴', 'c'], ['테니스', 'c'], ['농구', 'c'], ['클라이밍', 'c'], ['복싱', 'c'], ['요가', 'c'], ['필라테스', 'c']]
   };
+
   const PARTS = Object.keys(CATALOG);
   const INTENSITY = [['가볍게', 5], ['적당히', 7], ['격하게', 9]];
   const RPE = [[6, '여유 있음', '4회 이상 더 가능'], [7, '조금 힘듦', '2~3회 더 가능'], [8, '힘듦', '1~2회 더 가능'], [9, '매우 힘듦', '1회 더 가능'], [10, '한계', '더는 못 함']];
@@ -96,7 +98,7 @@
   function renderTabs() {
     const tabs = [...(favorites().length ? ['즐겨찾기'] : []), ...(frequent().length ? ['자주 한 운동'] : []), ...PARTS];
     if (!tabs.includes(tab)) tab = tabs[0];
-    $('#wkPicker .wk-tabs').innerHTML = tabs.map(name => `<button type="button" role="tab" aria-selected="${name === tab}" class="${name === tab ? 'on' : ''}" data-wk-tab="${name}">${name === '기타' ? '유산소·기타' : name}</button>`).join('');
+    $('#wkPicker .wk-tabs').innerHTML = tabs.map(name => `<button type="button" role="tab" aria-selected="${name === tab}" class="${name === tab ? 'on' : ''}" data-wk-tab="${name}">${name === '기타' ? '유산소·기타' : name === '복근' ? '복근·코어' : name}</button>`).join('');
   }
 
   function renderGrid() {
@@ -162,7 +164,7 @@
     let sets = existing?.sets;
     if (!sets && type !== 'c') {
       const previous = last?.exercise?.setList?.length ? last.exercise.setList.map(set => ({ w: set.weight, r: set.reps })) : null;
-      sets = previous || (type === 'w' ? [{ w: 20, r: 10 }, { w: 20, r: 10 }, { w: 20, r: 10 }] : [{ w: 0, r: 10 }, { w: 0, r: 10 }, { w: 0, r: 10 }]);
+      sets = previous || (type === 'w' ? Array.from({ length: 3 }, () => ({ w: COMPOUND.test(name) ? 20 : 5, r: 10 })) : [{ w: 0, r: 10 }, { w: 0, r: 10 }, { w: 0, r: 10 }]);
     }
     editor = {
       name, type, part: partOf(name), sets: sets || [],
@@ -190,6 +192,81 @@
 
   const weightStep = () => (legPart(editor.name) ? 5 : 2.5);
 
+  // ---- 쉬는 시간: 큰 복합 운동·저반복은 길게, 고립·맨몸은 짧게. 직접 바꾸면 종목별로 기억한다 ----
+  const COMPOUND = /스쿼트|데드|벤치|프레스|로우|풀업|친업|딥스|런지|쓰러스트|랙풀/;
+  function autoRest(name, sets = []) {
+    const reps = sets.length ? Math.min(...sets.map(set => +set.r || 10)) : 10;
+    if (partOf(name) === '복근') return 45;
+    if (COMPOUND.test(name)) return reps <= 6 ? 180 : 120;
+    return reps >= 15 ? 60 : 75;
+  }
+  const restFor = (name, sets) => +readState().profile?.restTimes?.[key(name)] || autoRest(name, sets);
+  const clock = seconds => `${Math.floor(seconds / 60)}:${String(Math.max(0, seconds) % 60).padStart(2, '0')}`;
+  function saveRest(name, seconds) {
+    const state = readState();
+    state.profile ||= {};
+    state.profile.restTimes = { ...(state.profile.restTimes || {}), [key(name)]: seconds };
+    writeState(state);
+  }
+
+  let timer = null;
+  let audio = null;
+  function beep() {
+    try {
+      audio ||= new (window.AudioContext || window.webkitAudioContext)();
+      [0, 0.25, 0.5].forEach(offset => {
+        const osc = audio.createOscillator();
+        const gain = audio.createGain();
+        osc.frequency.value = 880;
+        gain.gain.setValueAtTime(0.25, audio.currentTime + offset);
+        gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + offset + 0.18);
+        osc.connect(gain).connect(audio.destination);
+        osc.start(audio.currentTime + offset);
+        osc.stop(audio.currentTime + offset + 0.2);
+      });
+    } catch { /* 소리를 못 내는 환경이면 진동·알림만 */ }
+  }
+  function startRest(name, seconds) {
+    try { audio ||= new (window.AudioContext || window.webkitAudioContext)(); audio.resume?.(); } catch {}
+    timer = { name, total: seconds, end: Date.now() + seconds * 1000 };
+    tick();
+  }
+  function tick() {
+    clearTimeout(tick.handle);
+    if (!timer) { renderTimer(); return; }
+    const left = Math.ceil((timer.end - Date.now()) / 1000);
+    if (left <= 0) {
+      navigator.vibrate?.([250, 120, 250, 120, 400]);
+      beep();
+      showToast('휴식 끝! 다음 세트를 시작해요.');
+      timer = null;
+      renderTimer();
+      return;
+    }
+    renderTimer(left);
+    tick.handle = setTimeout(tick, 250);
+  }
+  function renderTimer(left = 0) {
+    let bar = $('#restTimer');
+    if (!timer) { bar?.remove(); return; }
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'restTimer';
+      bar.className = 'rest-timer';
+      bar.setAttribute('role', 'timer');
+      document.body.append(bar);
+      bar.addEventListener('click', event => {
+        const adj = event.target.closest('[data-rest-adj]');
+        if (adj && timer) { timer.end += +adj.dataset.restAdj * 1000; timer.total = Math.max(5, timer.total + +adj.dataset.restAdj); tick(); return; }
+        if (event.target.closest('[data-rest-skip]')) { timer = null; renderTimer(); }
+      });
+    }
+    bar.innerHTML = `<div class="rest-progress"><i style="width:${Math.min(100, (1 - left / timer.total) * 100)}%"></i></div>
+      <div class="rest-row"><div><small>휴식 · ${esc(timer.name)}</small><b>${clock(left)}</b></div>
+      <span><button type="button" data-rest-adj="-15">−15초</button><button type="button" data-rest-adj="15">＋15초</button><button type="button" class="skip" data-rest-skip>건너뛰기</button></span></div>`;
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && timer) tick(); });
+
   function renderEditor() {
     const sheet = $('#wkSheet');
     const fav = favorites().some(item => key(item) === key(editor.name));
@@ -199,7 +276,7 @@
     sheet.setAttribute('aria-label', `${editor.name} 기록`);
     sheet.innerHTML = `
       <header class="wk-sheet-head"><button type="button" class="wk-icon" data-wk-close aria-label="닫기">←</button><button type="button" class="wk-icon star ${fav ? 'on' : ''}" data-wk-fav aria-label="즐겨찾기">${fav ? '★' : '☆'}</button>
-        <span>${editor.part === '기타' ? '유산소·기타' : editor.part}</span><h2>${esc(editor.name)}</h2><p>${esc(lastText)}</p></header>
+        <span>${editor.part === '기타' ? '유산소·기타' : editor.part === '복근' ? '복근·코어' : editor.part}</span><h2>${esc(editor.name)}</h2><p>${esc(lastText)}</p></header>
       <div class="wk-sheet-body">
         ${editor.type === 'c' ? `
           <div class="wk-row"><span>운동 시간</span><div class="wk-num"><button type="button" data-wk-adj="minutes" data-d="-5">−</button><input inputmode="numeric" data-wk-field="minutes" value="${editor.minutes}"><em>분</em><button type="button" data-wk-adj="minutes" data-d="5">＋</button></div></div>
@@ -207,11 +284,12 @@
           <div class="wk-row"><span>운동 강도</span><div class="wk-chips">${INTENSITY.map(([label]) => `<button type="button" class="${editor.intensity === label ? 'on' : ''}" data-wk-intensity="${label}">${label}</button>`).join('')}</div></div>`
         : `
           <div class="wk-sets">${editor.sets.map((set, index) => `
-            <div class="wk-set"><b>${index + 1}</b>
+            <div class="wk-set ${set.done ? 'done' : ''}"><button type="button" class="wk-set-no" data-wk-done="${index}" aria-label="${index + 1}세트 완료">${set.done ? '✓' : index + 1}</button>
               ${editor.type === 'w' ? `<div class="wk-num"><button type="button" data-wk-set="${index}" data-k="w" data-d="${-weightStep()}">−</button><input inputmode="decimal" data-wk-set-input="${index}" data-k="w" value="${set.w}"><em>kg</em><button type="button" data-wk-set="${index}" data-k="w" data-d="${weightStep()}">＋</button></div>` : ''}
               <div class="wk-num"><button type="button" data-wk-set="${index}" data-k="r" data-d="-1">−</button><input inputmode="numeric" data-wk-set-input="${index}" data-k="r" value="${set.r}"><em>회</em><button type="button" data-wk-set="${index}" data-k="r" data-d="1">＋</button></div>
               <button type="button" class="wk-set-del" data-wk-set-del="${index}" aria-label="${index + 1}세트 지우기" ${editor.sets.length < 2 ? 'disabled' : ''}>×</button>
             </div>`).join('')}</div>
+          <div class="wk-row wk-rest"><span>쉬는 시간 <small>${readState().profile?.restTimes?.[key(editor.name)] ? '내가 정한 시간' : '자동'} · 세트 번호를 누르면 시작</small></span><div class="wk-num"><button type="button" data-wk-rest="-15">−</button><b class="wk-rest-val">${clock(restFor(editor.name, editor.sets))}</b><button type="button" data-wk-rest="15">＋</button></div></div>
           <div class="wk-set-actions"><button type="button" data-wk-add-set>＋ 세트 추가</button>${editor.type === 'w' ? `<button type="button" data-wk-bump>전체 ${weightStep()}kg 올리기</button>` : ''}</div>
           ${totalVolume ? `<p class="wk-volume">총 볼륨 <b>${totalVolume.toLocaleString()}kg</b> · ${editor.sets.length}세트</p>` : ''}
           <div class="wk-row"><span>운동 시간 ${editor.minutesAuto ? '<small>세트 수로 자동</small>' : ''}</span><div class="wk-num"><button type="button" data-wk-adj="minutes" data-d="-5">−</button><input inputmode="numeric" data-wk-field="minutes" value="${editor.minutesAuto ? autoMinutes(editor.sets) : editor.minutes}"><em>분</em><button type="button" data-wk-adj="minutes" data-d="5">＋</button></div></div>
@@ -229,6 +307,20 @@
 
   function onEditorClick(event) {
     if (event.target.closest('[data-wk-close]')) { closeEditor(); return; }
+    const doneButton = event.target.closest('[data-wk-done]');
+    if (doneButton) {
+      const set = editor.sets[+doneButton.dataset.wkDone];
+      set.done = !set.done;
+      renderEditor();
+      if (set.done) startRest(editor.name, restFor(editor.name, editor.sets));
+      return;
+    }
+    const restButton = event.target.closest('[data-wk-rest]');
+    if (restButton) {
+      saveRest(editor.name, Math.min(600, Math.max(15, restFor(editor.name, editor.sets) + +restButton.dataset.wkRest)));
+      renderEditor();
+      return;
+    }
     if (event.target.closest('[data-wk-fav]')) { toggleFavorite(editor.name); renderEditor(); renderTabs(); renderGrid(); return; }
     const adj = event.target.closest('[data-wk-adj]');
     if (adj) {

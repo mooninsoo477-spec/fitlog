@@ -799,3 +799,175 @@ body:has([data-view="more"].active), body:has([data-view="more"].active) .app { 
 .soccer-check button { padding: 9px 14px; border: 0; border-radius: 999px; background: #fff; color: #3b2a12; font-size: 14px; font-weight: 800; }
 .soccer-check button.yes { background: #2fbf8f; color: #fff; }
 .rp-row summary::after { display: inline-block; width: 14px; text-align: center; }
+
+/* ================= 홈 패널 제목 ================= */
+.hm-eyebrow { display: block; font-size: 11px; font-weight: 800; letter-spacing: 1.6px; color: #ffffff8c; }
+.hm-panel-head h2 { margin-top: 2px !important; font-size: 26px !important; }
+.hm-sub { margin: 4px 0 0; font-size: 14px; font-weight: 600; color: #ffffffcc; }
+.hm-panel-head { align-items: flex-start !important; }
+.hm-link { margin-top: 2px; padding: 8px 14px !important; border-radius: 999px !important; background: #ffffff1a !important; }
+
+/* 설정 목표 카드: 주간 근력 횟수 */
+.goal-card-week { display: flex; justify-content: space-between; align-items: center; margin: 0 0 14px; padding: 12px 14px; border-radius: 16px; background: #ffffff12; }
+.goal-card-week > span { font-size: 15px; font-weight: 800; }
+.goal-card-week small { margin-left: 4px; color: #ffffff99; font-size: 12px; font-weight: 600; }
+.goal-card-week > div { display: flex; align-items: center; gap: 10px; }
+.goal-card-week b { min-width: 58px; text-align: center; font-size: 18px; font-weight: 800; }
+.goal-card-week button { width: 38px; height: 38px; border: 0; border-radius: 12px; background: #ffffff1f; color: #fff; font-size: 20px; font-weight: 700; }
+
+/* ================= 운동 화면: 홈과 같은 어두운 패널 ================= */
+body:has([data-view="workout"].active), body:has([data-view="workout"].active) .app { background: var(--bg); }
+[data-view="workout"] .content > header.top { background: #263445; }
+/* 이번 주 계획: 숯색 패널 */
+[data-view="workout"] #planCard { padding: 22px 18px !important; border: 0 !important; border-radius: 26px !important; background: #26292c !important; color: #fff; }
+#planCard .plan-eyebrow { color: #8fe3c4 !important; }
+#planCard strong, #planCard h2, #planCard h3, #planCard .plan-detail-head strong { color: #fff; }
+#planCard small, #planCard p, #planCard .plan-rule, #planCard .plan-note, #planCard .plan-principle { color: #ffffffb3 !important; }
+#planCard .link { color: #8fe3c4 !important; }
+#planCard .soccer-row { background: #ffffff12 !important; color: #fff; border-radius: 16px !important; }
+#planCard .soccer-row span { color: #fff !important; }
+#planCard .soccer-row button { background: #ffffff1a !important; color: #fff !important; border: 0 !important; }
+#planCard .soccer-row button.on { background: #2fbf8f !important; color: #fff !important; }
+#planCard .soccer-days small { color: #ffffffb3; }
+#planCard .soccer-days button { background: #ffffff1a; color: #fff; }
+#planCard .soccer-days button.on { background: #2fbf8f; }
+#planCard .plan-day { background: #ffffff10 !important; border-color: transparent !important; }
+#planCard .plan-day.on, #planCard .plan-day.selected, #planCard .plan-day[aria-pressed="true"] { border-color: #ffffff80 !important; background: #ffffff1f !important; }
+#planCard .plan-day span, #planCard .plan-day small { color: #ffffff99 !important; }
+#planCard .plan-day b { background: #ffffff1f !important; color: #fff !important; }
+#planCard .plan-day.done b { background: #2fbf8f !important; }
+#planCard .plan-day.missed b { background: #ff7a5c !important; color: #fff !important; }
+#planCard .plan-detail { background: #ffffff10 !important; border: 0 !important; border-radius: 18px !important; color: #fff; }
+#planCard .plan-exercises li { border-color: #ffffff1a !important; }
+#planCard .plan-exercises b { color: #ffffffcc !important; }
+#planCard .plan-alert, #planCard .plan-rule-note { background: #ff7a5c26 !important; color: #ffc2b0 !important; border: 0 !important; }
+#planCard .primary { background: #2fbf8f !important; color: #fff !important; min-height: 52px; border-radius: 16px; font-size: 16px; }
+#planCard .ghost { background: #ffffff1a !important; color: #fff !important; border: 0 !important; }
+/* 종목 고르기: 남색 패널 */
+[data-view="workout"] #workoutForm { padding: 20px 16px !important; border: 0 !important; border-radius: 26px !important; background: #263445 !important; color: #fff; }
+#workoutForm .workout-date span, #workoutForm .field > span, #workoutForm .field-row > span, #workoutForm label > span, #workoutForm .wk-finish-head small { color: #ffffffb3 !important; }
+#workoutForm .workout-date .select { background: #ffffff1a !important; color: #fff !important; border: 0 !important; }
+#workoutForm .workout-date .select option { color: var(--ink); }
+.wk-tabs button { background: #ffffff14 !important; color: #ffffffb3 !important; }
+.wk-tabs button.on { background: #fff !important; color: #263445 !important; }
+.wk-tile { background: #1d2937 !important; color: #fff !important; }
+.wk-tile b { color: #fff; }
+.wk-tile small { color: #ffffff99 !important; }
+.wk-tile.in { background: #1f4a3f !important; box-shadow: inset 0 0 0 2px #2fbf8f !important; }
+.wk-empty { color: #ffffffb3 !important; }
+.wk-custom .input { background: #ffffff14 !important; border: 0 !important; color: #fff !important; }
+.wk-custom .input::placeholder { color: #ffffff80; }
+.wk-custom-add { background: #ffffff1f !important; color: #fff !important; }
+.wk-cart { background: #1e5c4a !important; }
+.wk-cart-item { background: #ffffff1a !important; }
+.wk-manual { border-top-color: #ffffff1f !important; }
+.wk-manual summary { color: #ffffffb3 !important; }
+.wk-manual .textarea, .wk-manual .routine-chips button, .wk-manual .exercise-chips button { background: #ffffff14 !important; color: #fff !important; border: 0 !important; }
+.wk-finish-head h3 { color: #fff; }
+#workoutForm .input, #workoutForm .textarea { background: #ffffff14 !important; border: 0 !important; color: #fff !important; }
+#workoutForm .input::placeholder, #workoutForm .textarea::placeholder { color: #ffffff73; }
+#workoutForm .kcal-input-wrap b { color: #ffffffb3; }
+#workoutForm .rpe-chips button { background: #ffffff14 !important; color: #fff !important; border: 0 !important; }
+#workoutForm .rpe-chips button.on { background: #2fbf8f !important; }
+#workoutForm .parsed { background: #ffffff10 !important; color: #ffffffcc !important; }
+#workoutForm .parsed li { color: #fff !important; }
+#workoutForm .notice { color: #8fe3c4 !important; }
+#workoutForm #saveWorkout { background: #2fbf8f !important; color: #fff !important; }
+#workoutForm .edit-banner { background: #ffd98a !important; color: #3b2a12 !important; }
+[data-view="workout"] #dayWorkouts { border: 0 !important; border-radius: 22px !important; background: #fff !important; }
+.wk-tile[data-part="복근"] { --part: #ff6fae; }
+
+/* ================= 색 의미 통일: 식사=초록 · 운동=남색 · 몸/체크인=노랑 ================= */
+:root { --c-food: #1e5c4a; --c-food-2: #174b3c; --c-work: #263445; --c-work-2: #1d2937; --c-body: #fff4e2; --c-body-ink: #3b2a12; --c-body-accent: #f2b13c; }
+.quick button[data-quick="more"] { background: var(--c-body-accent) !important; color: var(--c-body-ink) !important; }
+.quick button[data-quick="more"] svg { stroke: var(--c-body-ink) !important; }
+#foldBody { box-shadow: inset 6px 0 0 var(--c-body-accent) !important; }
+#foldCoach { box-shadow: inset 6px 0 0 #26292c !important; }
+#foldCharts { box-shadow: inset 6px 0 0 var(--c-work) !important; }
+#stBody #inbodyPanel { box-shadow: inset 6px 0 0 var(--c-body-accent) !important; }
+#stBody #recommendationProfile { box-shadow: inset 6px 0 0 var(--c-work) !important; }
+
+/* ================= 쉬는 시간 타이머 ================= */
+.rest-timer { position: fixed; left: 50%; bottom: calc(86px + env(safe-area-inset-bottom)); z-index: 95; width: min(calc(100% - 24px), 520px); transform: translateX(-50%); padding: 12px 16px 14px; border-radius: 22px; background: #26292c; color: #fff; box-shadow: 0 12px 30px #0000004d !important; }
+body.sheet-open .rest-timer { bottom: calc(100px + env(safe-area-inset-bottom)); }
+.rest-progress { height: 6px; border-radius: 99px; background: #ffffff26; overflow: hidden; margin-bottom: 10px; }
+.rest-progress i { display: block; height: 100%; border-radius: 99px; background: #2fbf8f; transition: width .25s linear; }
+.rest-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.rest-row small { display: block; color: #ffffffb3; font-size: 12px; font-weight: 700; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rest-row b { font-size: 34px; font-weight: 800; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+.rest-row span { display: flex; gap: 6px; }
+.rest-row button { padding: 10px 10px; border: 0; border-radius: 12px; background: #ffffff1f; color: #fff; font-size: 13px; font-weight: 800; }
+.rest-row button.skip { background: #2fbf8f; }
+.wk-set-no { width: 30px; height: 30px; border: 0; border-radius: 50%; background: #fff; color: var(--sub); font-size: 14px; font-weight: 800; }
+.wk-set.done { background: #e3f5ee !important; }
+.wk-set.done .wk-set-no { background: #2fbf8f; color: #fff; }
+.wk-rest b.wk-rest-val { text-align: center; font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.wk-rest .wk-num { grid-template-columns: 38px 1fr 38px; }
+
+/* ================= 자주 먹는 음식 ================= */
+.qf { margin-top: 14px; }
+.qf-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.qf-head b { font-size: 15px; font-weight: 800; }
+.qf-head small { font-size: 12px; opacity: .75; }
+.qf-chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+.qf-chips::-webkit-scrollbar { display: none; }
+.qf-chips button { flex: none; display: grid; gap: 1px; padding: 10px 14px; border: 0; border-radius: 16px; text-align: left; transition: transform .12s; }
+.qf-chips button:active { transform: scale(.96); }
+.qf-chips span { font-size: 15px; font-weight: 800; white-space: nowrap; }
+.qf-chips small { font-size: 12px; opacity: .75; }
+.hm-meals .qf { color: #fff; }
+.hm-meals .qf-chips button { background: var(--c-food-2); color: #fff; }
+
+/* ================= 물 ================= */
+.hm-water { margin-top: 14px; padding: 14px; border-radius: 18px; background: var(--c-food-2); }
+.hm-water-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+.hm-water-head b { font-size: 15px; font-weight: 800; }
+.hm-water-head span { font-size: 14px; font-weight: 700; color: #ffffffcc; font-variant-numeric: tabular-nums; }
+.hm-cups { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; }
+.hm-cups button { height: 40px; padding: 0; border: 0; border-radius: 10px; background: #ffffff12; color: #ffffff40; }
+.hm-cups button svg { width: 22px; height: 22px; }
+.hm-cups button.on { background: #ffffff1f; color: #7fd8ff; }
+
+/* ================= 주간 배지 ================= */
+.badges { margin-top: 14px; }
+.badges-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+.badges-head b { font-size: 16px; font-weight: 800; }
+.badges-head span { font-size: 13px; font-weight: 700; opacity: .75; }
+.badge-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.badge-item { display: grid; justify-items: center; gap: 3px; padding: 12px 4px; border-radius: 16px; background: #ffffff10; text-align: center; opacity: .55; }
+.badge-item i { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: #ffffff1a; color: #ffffff80; }
+.badge-item i svg { width: 24px; height: 24px; }
+.badge-item b { font-size: 13px; font-weight: 800; }
+.badge-item small { font-size: 11px; opacity: .8; }
+.badge-item.on { opacity: 1; background: #ffffff1a; }
+.badge-item.on i { background: var(--c); color: #fff; box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 30%, transparent) !important; }
+.hm-badge-card { position: relative; background: linear-gradient(135deg, #2b2f6a, #3b2a5a) !important; color: #fff; }
+.hm-badge-card .badges { margin-top: 0; }
+.hm-badge-close { position: absolute; right: 14px; top: 12px; width: 34px; height: 34px; border: 0; border-radius: 50%; background: #ffffff1a; color: #fff; font-size: 18px; }
+.hm-badge-card .badges-head { padding-right: 40px; }
+
+/* ================= 식사 입력: 운동처럼 크고 진한 패널 ================= */
+[data-view="meals"] #aiMealComposer { padding: 20px 16px !important; border: 0 !important; border-radius: 26px !important; background: var(--c-food) !important; color: #fff; }
+#mealsQuick .qf { margin: 0 0 16px; }
+#mealsQuick .qf-chips button { background: var(--c-food-2); color: #fff; }
+#aiMealComposer .meal-type-tabs span { background: var(--c-food-2) !important; border-color: transparent !important; color: #fff !important; min-height: 92px !important; font-size: 16px !important; }
+#aiMealComposer .meal-type-tabs input:checked + span { background: #fff !important; color: var(--c-food) !important; }
+#aiMealComposer .place-chips span { background: #ffffff14 !important; border: 0 !important; color: #ffffffcc !important; }
+#aiMealComposer .place-chips input:checked + span { background: #fff !important; color: var(--c-food) !important; }
+#aiMealComposer .field > span { color: #ffffffcc !important; font-size: 14px; font-weight: 700; }
+#aiMealComposer #aiMealText { background: #fff !important; border: 0 !important; }
+#aiMealComposer .photo-picker { background: #ffffff12 !important; border: 2px dashed #ffffff4d !important; color: #fff; }
+#aiMealComposer .photo-picker strong { color: #fff; font-size: 15px; }
+#aiMealComposer .photo-picker small { color: #ffffffb3 !important; }
+#aiMealComposer #analyzeMeal { background: #2fbf8f !important; color: #fff !important; }
+#aiMealComposer .ai-notice { color: #ffffffcc !important; }
+[data-view="meals"] #aiMealPreview, [data-view="meals"] #mealDays, [data-view="meals"] #lunchManager, [data-view="meals"] #mealRecommendation { background: #fff !important; }
+
+/* ================= 코칭 정보: 눌러서 고르기 ================= */
+.pick-field { margin: 4px 0 14px; }
+.pick-field > span { display: block; margin-bottom: 8px; color: var(--sub); font-size: 13px; font-weight: 700; }
+.pick-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.pick-chips button { padding: 10px 16px; border: 0; border-radius: 999px; background: #f2f4f3; color: var(--ink); font-size: 15px; font-weight: 700; }
+.pick-chips button.on { background: var(--c-work); color: #fff; }
+#coachBoard .badges, .hm-badge-card .badges { display: block !important; width: 100%; }
+#coachBoard .badges .badge-grid, .hm-badge-card .badge-grid { display: grid !important; }

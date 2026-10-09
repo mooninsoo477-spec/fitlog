@@ -98,11 +98,44 @@
       const summary = profile.querySelector('summary strong');
       const small = profile.querySelector('summary small');
       if (summary) summary.textContent = '운동 규칙 · 코칭 정보';
-      if (small) small.textContent = '운동 경력 · 일정 · 부상 · 하체 격주 규칙';
+      if (small) small.textContent = '운동 시간대 · 부상 · 하체 규칙 · AI 모델';
       [...profile.querySelectorAll('.profile-step')].forEach(step => {
         if (/기본 정보|원하는 변화/.test(step.querySelector('strong')?.textContent || '')) hide(step);
       });
       ['#currentAiTargets', '#analyzeMyGoal', '#goalAnalysisNotice'].forEach(selector => hide($(selector)));
+      // 주관식은 숨기고, 운동 일정·부상만 눌러서 고르게 한다(고른 값은 원래 칸에 적혀 그대로 저장된다).
+      ['#ctxName', '#ctxSex', '#ctxBirth', '#ctxHeight', '#ctxWeight', '#ctxGoal', '#ctxDeadline', '#ctxPriority',
+        '#ctxActivityDetail', '#ctxExperience', '#ctxTrainingPreference', '#ctxSleep', '#ctxDiet', '#ctxCustomRules'].forEach(selector => hide($(selector)?.closest('label, .field')));
+      // 칸이 모두 숨겨져 빈 묶음이 된 줄도 숨긴다.
+      [...profile.querySelectorAll('.profile-grid, .context-grid, .field-grid')].forEach(grid => { if ([...grid.children].every(child => child.hidden)) hide(grid); });
+      const chipField = (selector, title, options) => {
+        const input = $(selector);
+        const label = input?.closest('label, .field');
+        if (!input || !label) return;
+        hide(label);
+        const box = document.createElement('div');
+        box.className = 'pick-field';
+        const chosen = () => new Set(input.value.split(/[,·]/).map(item => item.trim()).filter(Boolean));
+        const draw = () => {
+          const set = chosen();
+          box.innerHTML = `<span>${title}</span><div class="pick-chips">${options.map(option => `<button type="button" class="${set.has(option) ? 'on' : ''}" data-pick="${option}">${option}</button>`).join('')}</div>`;
+        };
+        box.addEventListener('click', event => {
+          const chip = event.target.closest('[data-pick]');
+          if (!chip) return;
+          const set = chosen();
+          const value = chip.dataset.pick;
+          if (value === '없음') { set.clear(); set.add('없음'); }
+          else { set.delete('없음'); if (set.has(value)) set.delete(value); else set.add(value); }
+          input.value = [...set].join(', ');
+          draw();
+        });
+        label.after(box);
+        draw();
+      };
+      chipField('#ctxSchedule', '운동하는 시간대', ['평일 아침', '평일 점심', '평일 저녁', '주말 오전', '주말 오후']);
+      chipField('#ctxInjuries', '아프거나 조심할 곳', ['없음', '어깨', '허리', '무릎', '손목', '발목', '목', '팔꿈치']);
+      [...profile.querySelectorAll('.profile-step strong')].forEach(strong => { if (/생활과 운동 조건/.test(strong.textContent)) strong.textContent = '운동 일정 · 부상'; });
     }
     const group = (id, title, nodes) => {
       let box = $(`#${id}`);
