@@ -35,11 +35,19 @@
   };
   const validSync = (config = readSync()) => Boolean(config.url && config.key);
   // 로그인은 항상 FitLog 프로젝트로 한다. 기기에 다른 프로젝트 연결이 남아 있으면 그 키는 쓰지 않는다.
+  // 주소 칸에 https 없이 적거나 대시보드 주소를 적어도 FitLog 프로젝트로 본다.
+  // 저장된 키는 "확실히 다른 Supabase 프로젝트 주소"가 적혀 있을 때만 쓰지 않는다.
+  const projectHost = value => {
+    const text = String(value || '').trim();
+    const match = text.match(/([a-z0-9]{20})\.supabase\.co/i);
+    return match ? `${match[1].toLowerCase()}.supabase.co` : null;
+  };
+  const cleanKey = value => String(value || '').trim().replace(/^["'`]+|["'`]+$/g, '').replace(/\s+/g, '');
   const projectConfig = () => {
     const config = readSync();
-    let sameProject = !config.url;
-    try { sameProject ||= new URL(config.url).host === new URL(PROJECT_URL).host; } catch {}
-    return { url: PROJECT_URL, key: PUBLIC_ANON_KEY || (sameProject ? config.key : '') || '' };
+    const host = projectHost(config.url);
+    const otherProject = host && host !== new URL(PROJECT_URL).host;
+    return { url: PROJECT_URL, key: PUBLIC_ANON_KEY || (otherProject ? '' : cleanKey(config.key)) || '' };
   };
 
   // ---------- 이메일 6자리 코드 로그인 ----------
@@ -661,10 +669,26 @@
     renderAiStatus();
 
     $('#saveSync').onclick = async () => {
-      const next = { url: normalizeProjectUrl($('#syncUrl').value) || PROJECT_URL, key: $('#syncKeyInput').value.trim() };
-      if (!next.key) return setStatus('anon public 키를 입력해 주세요.', 'bad');
-      nativeSetItem.call(localStorage, SYNC_KEY, JSON.stringify(next));
-      setStatus('저장했어요. 이제 이메일로 로그인할 수 있어요.', 'ok');
+      const key = cleanKey($('#syncKeyInput').value);
+      const host = projectHost($('#syncUrl').value);
+      if (!key) return setStatus('anon public 키를 입력해 주세요.', 'bad');
+      // 비밀 키(service_role · sb_secret)는 기기에 저장하면 위험해서 받지 않는다.
+      if (/^sb_secret_/i.test(key) || /service_role/.test((() => { try { return atob(key.split('.')[1] || ''); } catch { return ''; } })())) {
+        return setStatus('이건 비밀 키(secret/service_role)예요. Supabase → Settings → API의 anon public(또는 publishable) 키를 넣어 주세요.', 'bad');
+      }
+      if (!/^eyJ/.test(key) && !/^sb_publishable_/i.test(key)) return setStatus('키 모양이 달라요. eyJ… 또는 sb_publishable_… 로 시작하는 anon public 키를 넣어 주세요.', 'bad');
+      const url = host ? `https://${host}` : PROJECT_URL;
+      setStatus('키를 확인하는 중…');
+      try {
+        const response = await fetch(`${url}/auth/v1/settings`, { headers: { apikey: key } });
+        if (response.status === 401 || response.status === 403) return setStatus('이 키로는 연결되지 않아요. FitLog 프로젝트의 anon public 키인지 확인해 주세요.', 'bad');
+      } catch {
+        return setStatus('인터넷 연결을 확인해 주세요.', 'bad');
+      }
+      nativeSetItem.call(localStorage, SYNC_KEY, JSON.stringify({ url, key }));
+      $('#syncUrl').value = url;
+      setStatus('키를 확인했어요. 이제 위에서 이메일·비밀번호로 로그인하세요.', 'ok');
+      renderAccount();
       if (signedIn()) await syncNow({ reload: true });
     };
     $('#saveAi').onclick = () => {
