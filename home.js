@@ -33,7 +33,7 @@
       <nav class="hm-dates" aria-label="날짜 선택"></nav>
       <section class="hm-panel hm-hero" id="hmHero"></section>
       <section class="hm-panel hm-meals">
-        <div class="hm-panel-head"><div><small class="hm-eyebrow">TODAY'S PLATE</small><h2>오늘의 식탁</h2><p class="hm-sub" id="hmMealSub"></p></div><button type="button" class="hm-link" data-hm-go="meals">기록 ›</button></div>
+        <div class="hm-panel-head"><div><small class="hm-eyebrow">MEALS</small><h2>오늘의 식사</h2><p class="hm-sub" id="hmMealSub"></p></div><button type="button" class="hm-link" data-hm-go="meals">기록 ›</button></div>
         <div id="homeLunchSlot" class="hm-lunch"></div>
         <div class="hm-meal-grid" id="hmMealGrid"></div>
         <div id="hmQuick"></div>
@@ -41,7 +41,7 @@
         <div class="hm-week" id="hmWeekSlot"></div>
       </section>
       <section class="hm-panel hm-workout">
-        <div class="hm-panel-head"><div><small class="hm-eyebrow">TODAY'S SWEAT</small><h2>오늘의 땀</h2><p class="hm-sub" id="hmWorkoutSub"></p></div><button type="button" class="hm-link" data-hm-go="workout">기록 ›</button></div>
+        <div class="hm-panel-head"><div><small class="hm-eyebrow">WORKOUT</small><h2>오늘의 운동</h2><p class="hm-sub" id="hmWorkoutSub"></p></div><button type="button" class="hm-link" data-hm-go="workout">기록 ›</button></div>
         <div id="hmWorkoutSlot"></div>
         <div id="hmWorkoutPast"></div>
       </section>`;

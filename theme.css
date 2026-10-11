@@ -1047,3 +1047,35 @@ body.sheet-open .rest-timer { bottom: calc(100px + env(safe-area-inset-bottom));
 #aiMealPreview .analysis-total b { color: #1e7a5c !important; }
 #aiMealPreview .item-ai .input::placeholder { color: #8a9590; font-weight: 500; font-size: 14px; }
 #aiMealPreview .item-ai .primary { background: #1e5c4a !important; color: #fff !important; border: 0 !important; }
+
+/* ===== v12: 최근 7일 그래프 — 막대와 목표선을 같은 기준으로, 더 또렷하게 ===== */
+.kw-chart2 { position: relative; height: 156px; margin-top: 26px; border-bottom: 1.5px solid #ffffff40; }
+.kw-chart2 .kw-cols { position: absolute; inset: 0 50px 0 0; display: grid; grid-template-columns: repeat(7, 1fr); }
+.kw-chart2 .kw-col { position: relative; display: block; height: 100%; }
+.kw-chart2 .kw-stack { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); width: 20px; max-width: 72%; border-radius: 7px 7px 3px 3px; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden; }
+.kw-chart2 .kw-val { position: absolute; left: 50%; transform: translateX(-50%); margin: 0; white-space: nowrap; font-size: 11px; }
+.kw-chart2 .kw-col.none .kw-val { bottom: 4px !important; }
+.kw-chart2 .kw-col.over .kw-stack { box-shadow: 0 0 0 2px #ff9a7a !important; }
+.kw-chart2 .kw-col.over .kw-val { color: #ffb39a; }
+.kw-chart2 .kw-col.today .kw-stack { opacity: .6; }
+/* 목표 ±10% 범위: 연한 띠 */
+.kw-chart2 .kw-band { position: absolute; left: 0; right: 50px; background: #ffffff14; border-radius: 4px; pointer-events: none; }
+/* 목표선: 노란 실선 + 오른쪽 숫자표 */
+.kw-chart2 .kw-line { position: absolute; left: 0; right: 0; z-index: 2; height: 0; border-top: 2px solid #ffd76a; pointer-events: none; box-shadow: 0 0 6px #ffd76a66 !important; }
+.kw-chart2 .kw-tag { position: absolute; right: 0; z-index: 3; transform: translateY(50%); display: grid; justify-items: center; width: 46px; padding: 3px 0; border-radius: 9px; background: #ffd76a; color: #3b2a12; font-size: 9px; font-weight: 800; line-height: 1.15; pointer-events: none; }
+.kw-chart2 .kw-tag b { font-size: 11px; font-variant-numeric: tabular-nums; }
+.hm-week .kw-days { padding-right: 50px; }
+.kw-legend i.band { background: #ffffff33; box-shadow: none !important; }
+@media (max-width: 380px) {
+  .kw-chart2 .kw-stack { width: 16px; }
+  .kw-chart2 .kw-val { font-size: 10px; }
+}
+
+/* ===== v13: 기록하기 버튼 글자가 하얀 바탕에 묻히지 않게 색을 고정 ===== */
+#sheet .quick button, #sheet .quick button:active, #sheet .quick button:focus, #sheet .quick button:hover { color: #fff !important; -webkit-text-fill-color: #fff; -webkit-appearance: none; appearance: none; opacity: 1 !important; }
+#sheet .quick button span { color: inherit !important; -webkit-text-fill-color: currentColor; font-weight: 800; }
+#sheet .quick button svg { stroke: currentColor !important; }
+#sheet .quick button[data-quick="meals"], #sheet .quick button[data-quick="meals"]:active { background-color: #1e5c4a !important; }
+#sheet .quick button[data-quick="workout"], #sheet .quick button[data-quick="workout"]:active { background-color: #263445 !important; }
+#sheet .quick button[data-quick="more"], #sheet .quick button[data-quick="more"]:active { background-color: #f2b13c !important; color: #3b2a12 !important; -webkit-text-fill-color: #3b2a12; }
+#sheet .quick button:active { transform: scale(.97); filter: brightness(1.08); }
