@@ -641,7 +641,10 @@
   let editingWorkout = null;
 
   function setWorkoutEditMode(info) {
+    const wasEditing = Boolean(editingWorkout);
     editingWorkout = info;
+    // 수정이 끝나거나 취소되면 종목 목록(picker.js)도 비우게 알려준다.
+    if (wasEditing && !info) window.dispatchEvent(new CustomEvent('fitlog:workout-edit-end'));
     const dateRow = $('.workout-date');
     if (dateRow) dateRow.hidden = Boolean(info);
     const save = $('#saveWorkout');
@@ -668,6 +671,8 @@
     if ($('#workoutKcal')) $('#workoutKcal').value = workout.kcal || '';
     setRpe(workout.rpe || null);
     setWorkoutEditMode({ date, id });
+    // 종목 고르기 화면이 있으면 기록한 종목을 "담은 운동"으로 되돌려 눌러서 고칠 수 있게 한다.
+    window.dispatchEvent(new CustomEvent('fitlog:workout-edit', { detail: { date, id, exercises } }));
     renderWorkoutDraft();
     goTo('workout');
     $('#workoutForm')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -3200,7 +3205,7 @@
   }
 
   // 급식표 모듈(lunch.js)처럼 따로 불러오는 기능이 앱의 저장·알림을 쓸 수 있게 열어둔다.
-  window.FitLogCore = { readState, writeState, showToast, dateKey, esc, goTo, workoutExercises, setSummary, renderCoachBoard };
+  window.FitLogCore = { readState, writeState, showToast, dateKey, esc, goTo, workoutExercises, setSummary, renderCoachBoard, setWorkoutEditMode, renderWorkoutDraft };
   window.FitLogAI = {
     enabled: () => aiReady(parse(localStorage.getItem(AI_KEY), {}) || {}),
     context: state => profileContextText(state),

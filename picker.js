@@ -31,6 +31,49 @@
   let cart = [];
   let tab = null;
   let editor = null; // { name, part, type, sets:[{w,r}], minutes, km, intensity, index }
+  let editInfo = null; // 보관함에서 "수정"으로 불러온 기록 { date, id }
+
+  // ---- 하던 기록 보관: 앱이 새로고침되거나 폰이 앱을 정리해도 담은 운동·입력 중인 종목을 되살린다 ----
+  const DRAFT_KEY = 'fitlog:wkDraft';
+  let draftReady = false; // 되살리기 전에는 덮어쓰지 않는다
+  function saveDraft() {
+    if (!draftReady) return;
+    try {
+      const open = editor ? { name: editor.name, type: editor.type, sets: editor.sets, minutes: editor.minutes, km: editor.km, intensity: editor.intensity, minutesAuto: editor.minutesAuto, rpe: editor.rpe, index: editor.index } : null;
+      if (!cart.length && !open && !editInfo) localStorage.removeItem(DRAFT_KEY);
+      else localStorage.setItem(DRAFT_KEY, JSON.stringify({ cart, editor: open, edit: editInfo, date: $('#workoutDate')?.value || null, savedAt: Date.now() }));
+    } catch { /* 저장 공간을 못 쓰면 메모리로만 */ }
+  }
+  function restoreDraft() {
+    draftReady = true;
+    let draft = null;
+    try { draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch {}
+    // 12시간이 지난 기록은 버린다(다음 날 운동에 섞이지 않게).
+    if (!draft || !(Date.now() - draft.savedAt < 12 * 3600 * 1000)) { try { localStorage.removeItem(DRAFT_KEY); } catch {} return; }
+    cart = Array.isArray(draft.cart) ? draft.cart : [];
+    if (draft.edit) { editInfo = draft.edit; core.setWorkoutEditMode?.(draft.edit); }
+    else if (draft.date && $('#workoutDate') && [...($('#workoutDate').options || [])].some(option => option.value === draft.date)) {
+      $('#workoutDate').value = draft.date;
+      $('#workoutDate').dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    renderCart();
+    renderGrid();
+    if (draft.editor?.name) openEditor(draft.editor.name, draft.editor.type, { ...draft.editor, sets: (draft.editor.sets || []).map(set => ({ ...set })) });
+    if (cart.length || draft.editor) showToast('하던 운동 기록을 불러왔어요.');
+  }
+
+  // 저장된 운동 하나를 "담은 운동" 목록 형태로 바꾼다.
+  function cartFromExercise(exercise) {
+    const name = exercise.name;
+    const setList = exercise.setList || [];
+    if (exercise.cardio || !setList.length) {
+      const rpe = +exercise.rpe || null;
+      return { name, type: 'c', sets: [], minutes: +exercise.minutes || 30, minutesAuto: false, rpe: rpe || 7, km: 0, intensity: INTENSITY.reduce((best, item) => Math.abs(item[1] - (rpe || 7)) < Math.abs(best[1] - (rpe || 7)) ? item : best)[0] };
+    }
+    const type = typeOf(name) || (setList.some(set => +set.weight > 0) ? 'w' : 'b');
+    const sets = setList.map(set => ({ w: +set.weight || 0, r: +set.reps || 0 }));
+    return { name, type, sets, minutes: +exercise.minutes || autoMinutes(sets), minutesAuto: !exercise.minutes, rpe: +exercise.rpe || null, km: 0, intensity: '적당히' };
+  }
 
   // ---- 기록에서 종목별 최근 기록·자주 한 운동 찾기 ----
   function lastSession(name) {
@@ -93,6 +136,8 @@
     renderTabs();
     renderGrid();
     renderCart();
+    restoreDraft();
+    restoreTimer();
   }
 
   function renderTabs() {
@@ -131,6 +176,7 @@
   function renderCart() {
     const box = $('#wkCart');
     if (!box) return;
+    saveDraft();
     const save = $('#saveWorkout');
     if (save && !save.textContent.includes('수정')) save.textContent = cart.length ? `운동 저장 · ${cart.length}종목` : '운동 저장';
     if (!cart.length) { box.innerHTML = '<p class="wk-cart-empty">종목을 누르고 무게·횟수를 적어 <b>목록에 담으세요</b>.</p>'; return; }
@@ -226,9 +272,38 @@
       });
     } catch { /* 소리를 못 내는 환경이면 진동·알림만 */ }
   }
+  // 타이머는 "끝나는 시각"을 저장하므로 앱을 잠시 나갔다 오거나 새로고침돼도 그대로 이어진다.
+  const TIMER_KEY = 'fitlog:restTimer';
+  function saveTimer() {
+    try { if (timer) localStorage.setItem(TIMER_KEY, JSON.stringify(timer)); else localStorage.removeItem(TIMER_KEY); } catch {}
+  }
+  function restoreTimer() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(TIMER_KEY) || 'null');
+      if (saved?.end > Date.now()) { timer = saved; tick(); } else localStorage.removeItem(TIMER_KEY);
+    } catch {}
+  }
+  // 앱 밖에 있을 때 휴식이 끝나면 알림으로 알려준다(처음 타이머를 켤 때 한 번만 허락을 묻는다).
+  function askNotify() {
+    try {
+      if (!('Notification' in window) || Notification.permission !== 'default' || localStorage.getItem('fitlog:notifyAsked')) return;
+      localStorage.setItem('fitlog:notifyAsked', '1');
+      Notification.requestPermission();
+    } catch {}
+  }
+  async function notifyDone(name) {
+    try {
+      if (!('Notification' in window) || Notification.permission !== 'granted') return;
+      const options = { body: `${name} · 다음 세트를 시작해요.`, tag: 'fitlog-rest', renotify: true, vibrate: [250, 120, 250, 120, 400], icon: 'icon-192.png?v=2' };
+      const registration = await navigator.serviceWorker?.getRegistration();
+      if (registration) registration.showNotification('휴식 끝!', options); else new Notification('휴식 끝!', options);
+    } catch {}
+  }
   function startRest(name, seconds) {
     try { audio ||= new (window.AudioContext || window.webkitAudioContext)(); audio.resume?.(); } catch {}
+    askNotify();
     timer = { name, total: seconds, end: Date.now() + seconds * 1000 };
+    saveTimer();
     tick();
   }
   function tick() {
@@ -238,13 +313,80 @@
     if (left <= 0) {
       navigator.vibrate?.([250, 120, 250, 120, 400]);
       beep();
+      if (document.hidden) notifyDone(timer.name);
       showToast('휴식 끝! 다음 세트를 시작해요.');
       timer = null;
+      saveTimer();
       renderTimer();
+      drawPip();
       return;
     }
     renderTimer(left);
     tick.handle = setTimeout(tick, 250);
+  }
+
+  // ---- 작은 창(PiP) 타이머: 타이머를 그린 영상을 화면 속 화면으로 띄워 다른 앱 위에서도 보이게 한다 ----
+  let pip = null;
+  const pipSupported = () => {
+    const video = document.createElement('video');
+    return Boolean(document.pictureInPictureEnabled && video.requestPictureInPicture) || typeof video.webkitSetPresentationMode === 'function';
+  };
+  function drawPip() {
+    if (!pip) return;
+    const { ctx, canvas } = pip;
+    const width = canvas.width, height = canvas.height;
+    const left = timer ? Math.max(0, Math.ceil((timer.end - Date.now()) / 1000)) : 0;
+    ctx.fillStyle = timer ? '#16212e' : '#1e5c4a';
+    ctx.fillRect(0, 0, width, height);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffffffb3';
+    ctx.font = '700 26px sans-serif';
+    ctx.fillText(timer ? `휴식 · ${timer.name}`.slice(0, 22) : '휴식 끝!', width / 2, 52);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '800 112px sans-serif';
+    ctx.fillText(timer ? clock(left) : '다음 세트', width / 2, timer ? 172 : 160);
+    if (timer) {
+      ctx.fillStyle = '#ffffff26';
+      ctx.fillRect(40, 208, width - 80, 14);
+      ctx.fillStyle = '#2fbf8f';
+      ctx.fillRect(40, 208, (width - 80) * Math.min(1, 1 - left / timer.total), 14);
+    }
+  }
+  async function openPip() {
+    try {
+      if (!pip) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 480;
+        canvas.height = 270;
+        const video = document.createElement('video');
+        video.muted = true;
+        video.playsInline = true;
+        video.setAttribute('playsinline', '');
+        video.className = 'pip-video';
+        document.body.append(video);
+        pip = { canvas, ctx: canvas.getContext('2d'), video };
+        drawPip();
+        video.srcObject = canvas.captureStream(4);
+        video.addEventListener('leavepictureinpicture', closePip);
+        video.addEventListener('webkitpresentationmodechanged', () => { if (video.webkitPresentationMode !== 'picture-in-picture') closePip(); });
+        pip.interval = setInterval(drawPip, 250);
+      }
+      await pip.video.play();
+      if (document.pictureInPictureEnabled && pip.video.requestPictureInPicture) await pip.video.requestPictureInPicture();
+      else pip.video.webkitSetPresentationMode('picture-in-picture');
+    } catch {
+      closePip();
+      showToast('이 폰 브라우저에서는 작은 창 타이머를 열 수 없어요.');
+    }
+  }
+  function closePip() {
+    if (!pip) return;
+    const { video, interval } = pip;
+    pip = null;
+    clearInterval(interval);
+    try { if (document.pictureInPictureElement === video) document.exitPictureInPicture(); } catch {}
+    video.srcObject?.getTracks?.().forEach(track => track.stop());
+    video.remove();
   }
   function renderTimer(left = 0) {
     let bar = $('#restTimer');
@@ -257,13 +399,14 @@
       document.body.append(bar);
       bar.addEventListener('click', event => {
         const adj = event.target.closest('[data-rest-adj]');
-        if (adj && timer) { timer.end += +adj.dataset.restAdj * 1000; timer.total = Math.max(5, timer.total + +adj.dataset.restAdj); tick(); return; }
-        if (event.target.closest('[data-rest-skip]')) { timer = null; renderTimer(); }
+        if (adj && timer) { timer.end += +adj.dataset.restAdj * 1000; timer.total = Math.max(5, timer.total + +adj.dataset.restAdj); saveTimer(); tick(); return; }
+        if (event.target.closest('[data-rest-pip]')) { openPip(); return; }
+        if (event.target.closest('[data-rest-skip]')) { timer = null; saveTimer(); renderTimer(); drawPip(); }
       });
     }
     bar.innerHTML = `<div class="rest-progress"><i style="width:${Math.min(100, (1 - left / timer.total) * 100)}%"></i></div>
       <div class="rest-row"><div><small>휴식 · ${esc(timer.name)}</small><b>${clock(left)}</b></div>
-      <span><button type="button" data-rest-adj="-15">−15초</button><button type="button" data-rest-adj="15">＋15초</button><button type="button" class="skip" data-rest-skip>건너뛰기</button></span></div>`;
+      <span>${pipSupported() ? `<button type="button" class="pip ${pip ? 'on' : ''}" data-rest-pip aria-label="작은 창으로 띄우기"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><rect x="12" y="11" width="7" height="6" rx="1" fill="currentColor" stroke="none"/></svg></button>` : ''}<button type="button" data-rest-adj="-15">−15</button><button type="button" data-rest-adj="15">＋15</button><button type="button" class="skip" data-rest-skip>건너뛰기</button></span></div>`;
   }
   document.addEventListener('visibilitychange', () => { if (!document.hidden && timer) tick(); });
 
@@ -274,6 +417,7 @@
     const lastText = last ? `지난번 ${last.date.slice(5).replace('-', '/')} · ${editor.type === 'c' ? `${last.exercise.minutes || 0}분` : core.setSummary?.(last.exercise) || ''}` : '처음 기록하는 종목이에요';
     const totalVolume = editor.type === 'w' ? editor.sets.reduce((sum, set) => sum + set.w * set.r, 0) : 0;
     sheet.setAttribute('aria-label', `${editor.name} 기록`);
+    saveDraft();
     sheet.innerHTML = `
       <header class="wk-sheet-head"><button type="button" class="wk-icon" data-wk-close aria-label="닫기">←</button><button type="button" class="wk-icon star ${fav ? 'on' : ''}" data-wk-fav aria-label="즐겨찾기">${fav ? '★' : '☆'}</button>
         <span>${editor.part === '기타' ? '유산소·기타' : editor.part === '복근' ? '복근·코어' : editor.part}</span><h2>${esc(editor.name)}</h2><p>${esc(lastText)}</p></header>
@@ -300,9 +444,10 @@
 
   function onEditorInput(event) {
     const field = event.target.dataset.wkField;
-    if (field) { editor[field] = Math.max(0, +String(event.target.value).replace(',', '.') || 0); if (field === 'minutes') editor.minutesAuto = false; return; }
+    if (field) { editor[field] = Math.max(0, +String(event.target.value).replace(',', '.') || 0); if (field === 'minutes') editor.minutesAuto = false; saveDraft(); return; }
     const index = event.target.dataset.wkSetInput;
     if (index != null) editor.sets[+index][event.target.dataset.k] = Math.max(0, +String(event.target.value).replace(',', '.') || 0);
+    saveDraft();
   }
 
   function onEditorClick(event) {
@@ -365,6 +510,7 @@
     if (sheet) sheet.hidden = true;
     document.body.classList.remove('sheet-open');
     editor = null;
+    saveDraft();
   }
 
   // ---- 최종 저장: 담은 운동을 기존 입력칸으로 옮겨 기존 저장 로직을 그대로 쓴다 ----
@@ -384,12 +530,14 @@
       document.querySelector(`[data-rpe="${rpe}"]`)?.click();
     }
     const saved = cart.map(item => ({ ...item }));
-    const date = $('#workoutDate')?.value || core.dateKey(new Date());
-    // 저장이 끝나 입력칸이 비워지면, 방금 저장한 기록에 종목별 시간·강도를 붙이고 담은 목록을 비운다.
+    const edit = editInfo;
+    const date = edit?.date || $('#workoutDate')?.value || core.dateKey(new Date());
+    // 저장이 끝나 입력칸이 비워지면, 방금 저장(또는 수정)한 기록에 종목별 시간·강도를 붙이고 담은 목록을 비운다.
     setTimeout(() => {
       if ($('#workoutNote').value.trim()) return;
       const state = readState();
-      const workout = (state.logs?.[date]?.workouts || []).at(-1);
+      const list = state.logs?.[date]?.workouts || [];
+      const workout = edit ? list.find(item => item.id === edit.id) : list.at(-1);
       if (workout?.exercises?.length) {
         const used = new Set();
         saved.forEach(item => {
@@ -407,6 +555,26 @@
       renderGrid();
     }, 150);
   }
+
+  // 보관함에서 "수정"을 누르면 기록한 종목을 담은 운동으로 되돌려, 종목을 눌러 세트를 고칠 수 있게 한다.
+  window.addEventListener('fitlog:workout-edit', event => {
+    const { date, id, exercises } = event.detail || {};
+    if (!$('#wkPicker') || !exercises?.length) return;
+    editInfo = { date, id };
+    cart = exercises.map(cartFromExercise);
+    const note = $('#workoutNote');
+    if (note) note.value = '';
+    if (editor) closeEditor();
+    renderCart();
+    renderGrid();
+    setTimeout(() => $('#wkCart')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 350);
+  });
+  window.addEventListener('fitlog:workout-edit-end', () => {
+    editInfo = null;
+    cart = [];
+    renderCart();
+    renderGrid();
+  });
 
   install();
   window.addEventListener('fitlog:state-updated', () => { if ($('#wkPicker') && !editor) { renderTabs(); renderGrid(); } });

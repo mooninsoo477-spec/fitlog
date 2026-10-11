@@ -1091,3 +1091,10 @@ body.sheet-open .rest-timer { bottom: calc(100px + env(safe-area-inset-bottom));
 /* AI 주간 계획 설명: 연파랑 바탕 + 흰 글씨 → 어두운 반투명 바탕 + 밝은 글씨 */
 #planCard .plan-principle { background: #ffffff12 !important; color: #ffffffe0 !important; border-left: 3px solid #8fe3c4; font-size: 13px; }
 #planCard .plan-rule-note { background: #ff9a7a1f !important; color: #ffcbb8 !important; }
+
+/* ===== v15: 휴식 타이머 작은 창 버튼 ===== */
+.rest-row button.pip { display: grid; place-items: center; width: 40px; padding: 8px 0; }
+.rest-row button.pip svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; }
+.rest-row button.pip.on { background: #2fbf8f55; }
+.pip-video { position: fixed; left: 0; bottom: 0; width: 2px; height: 2px; opacity: 0; pointer-events: none; }
+@media (max-width: 380px) { .rest-row button { padding: 10px 8px; font-size: 12px; } .rest-row b { font-size: 30px; } }

@@ -1,4 +1,4 @@
-const CACHE = 'fitlog-shell-20261011-4';
+const CACHE = 'fitlog-shell-20261011-5';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon.png?v=2', './icon-192.png?v=2'];
 
 self.addEventListener('install', event => {
@@ -15,4 +15,13 @@ self.addEventListener('fetch', event => {
     if (response.ok) caches.open(CACHE).then(cache => cache.put(event.request, response.clone()));
     return response;
   }).catch(() => caches.match(event.request).then(cached => cached || caches.match('./index.html'))));
+});
+
+// 휴식 타이머 알림을 누르면 열려 있는 FitLog 창으로 돌아간다.
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+    const client = list.find(item => 'focus' in item);
+    return client ? client.focus() : self.clients.openWindow('./#workout');
+  }));
 });
