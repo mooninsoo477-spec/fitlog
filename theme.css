@@ -1002,3 +1002,48 @@ body.sheet-open .rest-timer { bottom: calc(100px + env(safe-area-inset-bottom));
   .hm-panel-head h2 { font-size: 23px !important; }
   .kw-stack { width: 18px; }
 }
+
+/* ===== v11: 하얀 화면에서 잘 안 보이던 부분 정리 ===== */
+/* 홈 배지 카드: 전역 "그라데이션 끄기" 규칙에 배경이 지워져 흰 글씨가 안 보이던 문제 */
+#homeDash > .hm-badge-card.hm-panel { background-color: #2e2d66 !important; background-image: linear-gradient(135deg, #2b2f6a, #4a2f6e) !important; color: #fff; box-shadow: 0 10px 24px -14px #2b2f6a; }
+.hm-badge-card .badges-head b { font-size: 18px; }
+.hm-badge-card .badges-head span { opacity: .9; }
+
+/* 배지: 못 딴 것도 흐리지 않게, 진행도 막대로 보여준다 */
+.badge-item { opacity: 1 !important; background: #ffffff0f !important; }
+.badge-item:not(.on) > i { background: transparent !important; color: #ffffffa6 !important; outline: 2px dashed #ffffff40; outline-offset: -2px; }
+.badge-item:not(.on) b { color: #ffffffd9; }
+.badge-item small { opacity: 1 !important; color: #ffffffb3; font-weight: 700; }
+.badge-item.on { background: #ffffff1f !important; }
+.badge-item.on small { color: #fff; }
+.badge-bar { width: 72%; height: 5px; margin-top: 3px; border-radius: 99px; background: #ffffff24; overflow: hidden; }
+.badge-item .badge-bar i { display: block !important; width: var(--p) !important; height: 100% !important; border-radius: 99px; background: var(--c) !important; box-shadow: none !important; outline: 0 !important; }
+
+/* 날짜 줄: 양옆 날짜가 배경에 묻히지 않게 */
+.hm-date.side { color: #7d8783 !important; }
+
+/* 홈 끼니 카드: 아이콘이 '아침/저녁' 글자와 겹치지 않게 아이콘을 흐름 안에 둔다 */
+.hm-meal { justify-content: flex-start !important; }
+.hm-meal-icon { position: static !important; width: 42px !important; height: 42px !important; margin-bottom: auto; flex: none; }
+.hm-meal-name { margin-top: 10px; }
+
+/* 오늘의 땀 시작 안내: 남색 위 회색 글씨가 안 보이던 문제 */
+.hm-workout #planHero ol { color: #ffffffcc !important; }
+.hm-workout #planHero ol li { color: inherit !important; }
+
+/* 식사 분석 결과(수정 화면): 흰 바탕 위 흰 칸·작은 회색 글씨를 또렷하게 */
+#aiMealPreview.show { border: 2px solid #2fbf8f !important; }
+#aiMealPreview .analysis-head span { color: #1e7a5c; font-size: 13px; font-weight: 800; }
+#aiMealPreview .analysis-head strong { font-size: 20px; color: #10231c; }
+#aiMealPreview .analysis-head small { color: #5b6661; font-size: 12px; }
+#aiMealPreview .analysis-item { background: #e8f5ee !important; border: 0 !important; border-radius: 18px; padding: 14px; }
+#aiMealPreview .analysis-item > label span, #aiMealPreview .nutrition-edit span, #aiMealPreview .portion-row span { color: #2d4a3f !important; font-size: 13px !important; font-weight: 700; }
+#aiMealPreview .analysis-item .input, #aiMealPreview .nutrition-edit input, #aiMealPreview .item-ai .input { background: #fff !important; border: 1.5px solid #b9d9c8 !important; color: #10231c !important; font-size: 16px !important; font-weight: 700; }
+#aiMealPreview .analysis-item .input:focus, #aiMealPreview .nutrition-edit input:focus { border-color: #2fbf8f !important; outline: 0; }
+#aiMealPreview .nutrition-edit input { height: 44px; padding: 0 4px !important; }
+#aiMealPreview .portion-row strong { font-size: 22px; color: #10231c; }
+#aiMealPreview .portion-stepper button { background: #1e5c4a !important; color: #fff !important; }
+#aiMealPreview .analysis-total { margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: #fff; color: #2d4a3f; font-size: 13px; }
+#aiMealPreview .analysis-total b { color: #1e7a5c !important; }
+#aiMealPreview .item-ai .input::placeholder { color: #8a9590; font-weight: 500; font-size: 14px; }
+#aiMealPreview .item-ai .primary { background: #1e5c4a !important; color: #fff !important; border: 0 !important; }

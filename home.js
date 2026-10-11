@@ -326,7 +326,12 @@
   function badgesMarkup(state, weekStart, title = '이번 주 배지') {
     const list = weekBadges(state, weekStart);
     const earned = list.filter(item => item.earned).length;
-    return `<div class="badges"><div class="badges-head"><b>${title}</b><span>${earned}/${list.length}개 획득</span></div><div class="badge-grid">${list.map(item => `<div class="badge-item ${item.earned ? 'on' : ''}" style="--c:${item.color}"><i><svg viewBox="0 0 24 24" aria-hidden="true">${BADGE_ICON[item.id]}</svg></i><b>${item.name}</b><small>${item.detail}</small></div>`).join('')}</div></div>`;
+    return `<div class="badges"><div class="badges-head"><b>${title}</b><span>${earned}/${list.length}개 획득</span></div><div class="badge-grid">${list.map(item => {
+      // "3/5회"처럼 진행도가 있으면 아직 못 딴 배지 밑에 막대로 보여준다.
+      const [done, need] = (item.detail.match(/(\d+)\/(\d+)/) || []).slice(1).map(Number);
+      const bar = !item.earned && need ? `<span class="badge-bar"><i style="--p:${Math.min(100, Math.round(done / need * 100))}%"></i></span>` : '';
+      return `<div class="badge-item ${item.earned ? 'on' : ''}" style="--c:${item.color}"><i><svg viewBox="0 0 24 24" aria-hidden="true">${BADGE_ICON[item.id]}</svg></i><b>${item.name}</b><small>${item.detail}</small>${bar}</div>`;
+    }).join('')}</div></div>`;
   }
   // 일요일엔 이번 주, 월요일엔 지난주 결과를 홈 맨 위에 축하 카드로 보여준다(닫으면 그 주는 안 뜸).
   function renderBadgeCard(state) {
