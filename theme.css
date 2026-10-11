@@ -1079,3 +1079,15 @@ body.sheet-open .rest-timer { bottom: calc(100px + env(safe-area-inset-bottom));
 #sheet .quick button[data-quick="workout"], #sheet .quick button[data-quick="workout"]:active { background-color: #263445 !important; }
 #sheet .quick button[data-quick="more"], #sheet .quick button[data-quick="more"]:active { background-color: #f2b13c !important; color: #3b2a12 !important; -webkit-text-fill-color: #3b2a12; }
 #sheet .quick button:active { transform: scale(.97); filter: brightness(1.08); }
+
+/* ===== v14: 흰 칸 안의 글자 / 운동 계획 설명 상자 ===== */
+/* 흰 입력칸은 항상 진한 글씨 (어두운 카드의 글씨색을 물려받아 하얗게 되던 문제) */
+:where(.input, .select, .textarea) { color: #10231c; caret-color: #1e5c4a; }
+.meal-ai .textarea, #aiMealText { color: #10231c !important; -webkit-text-fill-color: #10231c; font-size: 16px; }
+.textarea::placeholder, .input::placeholder { color: #8a9590; -webkit-text-fill-color: #8a9590; }
+/* 어두운 운동 카드 안의 입력칸은 기존처럼 흰 글씨 유지 */
+#workoutForm .input, #workoutForm .textarea, .wk-manual .textarea { -webkit-text-fill-color: #fff; caret-color: #fff; }
+#workoutForm .input::placeholder, #workoutForm .textarea::placeholder { -webkit-text-fill-color: #ffffff73; }
+/* AI 주간 계획 설명: 연파랑 바탕 + 흰 글씨 → 어두운 반투명 바탕 + 밝은 글씨 */
+#planCard .plan-principle { background: #ffffff12 !important; color: #ffffffe0 !important; border-left: 3px solid #8fe3c4; font-size: 13px; }
+#planCard .plan-rule-note { background: #ff9a7a1f !important; color: #ffcbb8 !important; }
