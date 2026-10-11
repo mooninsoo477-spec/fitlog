@@ -2926,26 +2926,31 @@
     const diff = average == null ? null : Math.round((average - target) / target * 100);
     const proteinHit = past.filter(row => row.protein >= proteinGoal * 0.9).length;
     const onTarget = past.filter(row => Math.abs(row.kcal - target) <= target * 0.1).length;
-    const max = Math.max(target * 1.25, Math.min(Math.max(...rows.map(row => row.kcal)), target * 1.6));
-    const pct = value => (value / max * 100).toFixed(1);
+    // 막대·목표선·목표 범위를 모두 같은 높이(plot) 기준으로 그린다. 위쪽은 숫자 자리로 조금 남긴다.
+    const max = Math.max(target * 1.3, Math.min(Math.max(...rows.map(row => row.kcal)) * 1.12, target * 1.7));
+    const pct = value => Math.min(100, value / max * 100).toFixed(1);
     box.innerHTML = `
       <div class="kw-head"><span>최근 7일</span>${average == null ? '<b>기록이 쌓이면 보여드려요</b>' : `<b>평균 ${average.toLocaleString()}kcal</b><em class="${Math.abs(diff) <= 10 ? 'ok' : diff > 0 ? 'over' : 'under'}">목표 ${diff > 0 ? '+' : ''}${diff}%</em>`}</div>
       ${past.length ? `<div class="kw-score"><span><b>${onTarget}</b>/${past.length}일 목표 칼로리 ±10%</span><span><b>${proteinHit}</b>/${past.length}일 단백질 달성</span></div>` : ''}
-      <div class="kw-chart" style="--target:${pct(target)}%" role="img" aria-label="최근 7일 섭취 ${rows.map(row => `${shortDate(row.date)} ${row.kcal}kcal`).join(', ')}">
-        <i class="kw-goal"><span>목표 ${target.toLocaleString()}</span></i>
+      <div class="kw-chart2" role="img" aria-label="최근 7일 섭취 ${rows.map(row => `${shortDate(row.date)} ${row.kcal}kcal`).join(', ')}, 목표 ${target}kcal">
+        <i class="kw-band" style="bottom:${pct(target * 0.9)}%;height:${(pct(target * 1.1) - pct(target * 0.9)).toFixed(1)}%"></i>
+        <i class="kw-line" style="bottom:${pct(target)}%"></i>
+        <span class="kw-tag" style="bottom:${pct(target)}%">목표<b>${target.toLocaleString()}</b></span>
+        <div class="kw-cols">
         ${rows.map(row => {
           const height = row.kcal ? Math.min(100, Math.max(4, row.kcal / max * 100)) : 0;
           const scale = row.known ? row.kcal / row.known : 0;
           const seg = key => row.known ? (row.parts[key] * scale / row.kcal * 100).toFixed(1) : 0;
           const tone = !row.kcal ? 'none' : row.kcal > target * 1.1 ? 'over' : row.kcal < target * 0.8 && row.date !== today ? 'under' : 'ok';
           return `<div class="kw-col ${tone}${row.date === today ? ' today' : ''}">
-            <span class="kw-val">${row.kcal ? (row.kcal >= 1000 ? `${(row.kcal / 1000).toFixed(1)}k` : row.kcal) : row.fasted ? '단식' : '–'}</span>
+            <span class="kw-val" style="bottom:calc(${height}% + 5px)">${row.kcal ? (row.kcal >= 1000 ? `${(row.kcal / 1000).toFixed(1)}k` : row.kcal) : row.fasted ? '단식' : '–'}</span>
             <div class="kw-stack" style="height:${height}%">${row.known ? `<i class="f" style="height:${seg('f')}%"></i><i class="p" style="height:${seg('p')}%"></i><i class="c" style="height:${seg('c')}%"></i>` : '<i class="x" style="height:100%"></i>'}</div>
           </div>`;
         }).join('')}
+        </div>
       </div>
       <div class="kw-days">${rows.map(row => `<span${row.date === today ? ' class="today"' : ''}>${row.date === today ? '오늘' : weekdayName(row.date)}</span>`).join('')}</div>
-      <div class="kw-legend"><span><i class="c"></i>탄수</span><span><i class="p"></i>단백질</span><span><i class="f"></i>지방</span><span><i class="over"></i>목표 10%↑</span></div>`;
+      <div class="kw-legend"><span><i class="c"></i>탄수</span><span><i class="p"></i>단백질</span><span><i class="f"></i>지방</span><span><i class="band"></i>목표 ±10%</span><span><i class="over"></i>초과</span></div>`;
   }
 
   // ---- 운동 기록: 날짜 선택 + 그날 기록한 운동을 폼 아래에 쌓아 보여주기 ----
