@@ -8,7 +8,7 @@
   const PROJECT_URL = 'https://woyrhbvvizsjgxtlaclg.supabase.co';
   // Supabase → Project Settings → API의 anon public 키. 공개용 키라 앱에 넣어도 안전하다(데이터는 RLS가 지킨다).
   // 비어 있으면 이 기기에 저장된 기존 연결 키를 쓴다.
-  const PUBLIC_ANON_KEY = '';
+  const PUBLIC_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndveXJoYnZ2aXpzamd4dGxhY2xnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkxODE2MjMsImV4cCI6MjEwNDc1NzYyM30.xDSK8l6uwgaKVeu5IWHAlMYd62EHEIqT19L0coSmDE0';
   const AI_PREF_FIELDS = ['functionName', 'model', 'coachModel'];
   const nativeSetItem = Storage.prototype.setItem;
   let syncing = false;
@@ -262,6 +262,27 @@
     return result;
   }
 
+  // 급식표: 한쪽 기기의 lunch가 통째로 덮어쓰지 않게 날짜별로 합친다.
+  // "모두 지우기"는 clearedAt으로 남겨, 지운 뒤에 올린 급식표만 살린다.
+  function mergeLunch(a, b) {
+    if (!a || !b) return a || b || undefined;
+    const time = value => (value ? Date.parse(value) || 0 : 0);
+    const cleared = Math.max(time(a.clearedAt), time(b.clearedAt));
+    const alive = side => time(side.uploadedAt) > cleared;
+    const [older, newer] = time(a.uploadedAt) > time(b.uploadedAt) ? [b, a] : [a, b];
+    const days = { ...(alive(older) ? older.days || {} : {}), ...(alive(newer) ? newer.days || {} : {}) };
+    const guides = { ...(older.guides || {}) };
+    Object.entries(newer.guides || {}).forEach(([date, guide]) => {
+      const other = guides[date];
+      guides[date] = other?.loggedAt && !guide?.loggedAt ? other : guide;
+    });
+    const merged = { ...older, ...newer, days, guides };
+    if (newer.share == null && older.share != null) merged.share = older.share;
+    if (cleared) merged.clearedAt = new Date(cleared).toISOString();
+    if (!alive(newer)) { delete merged.fileName; delete merged.uploadedAt; }
+    return merged;
+  }
+
   function mergeStates(localRaw, cloudRaw) {
     const local = normalizeBackup(localRaw);
     const cloud = normalizeBackup(cloudRaw);
@@ -292,6 +313,8 @@
       inbody: [...inbodyMap.values()],
       deletedIds: deleted
     };
+    const lunch = mergeLunch(local.lunch, cloud.lunch);
+    if (lunch) merged.lunch = lunch; else delete merged.lunch;
     const newestAi = [local.settings?.ai, cloud.settings?.ai]
       .filter(Boolean)
       .sort((a, b) => Date.parse(b.updatedAt || 0) - Date.parse(a.updatedAt || 0))[0];

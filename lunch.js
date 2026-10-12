@@ -1046,7 +1046,8 @@
       if (event.target.closest('[data-lunch-clear]')) {
         if (!confirm('등록한 급식표를 모두 지울까요? 이미 기록한 식단은 그대로 남아요.')) return;
         const state = readState();
-        delete state.lunch;
+        // 다른 기기에도 '지웠다'가 전해지도록 지운 시각을 남긴다.
+        state.lunch = { clearedAt: new Date().toISOString(), ...(state.lunch?.share ? { share: state.lunch.share } : {}) };
         writeState(state);
         render();
         showToast('급식표를 지웠어요.');
