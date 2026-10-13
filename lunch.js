@@ -526,7 +526,7 @@
     const target = lunchTarget(state);
     const targetChanged = saved && (saved.target?.kcal !== target.kcal || saved.target?.protein !== target.protein) && !saved.edited;
     if (saved && (saved.loggedAt || (saved.signature === signature(entry) && !targetChanged))) return saved;
-    const guide = { ...localGuide(entry, state), signature: signature(entry) };
+    const guide = { ...localGuide(entry, state), signature: signature(entry), updatedAt: new Date().toISOString() };
     state.lunch.guides ||= {};
     state.lunch.guides[date] = guide;
     // 2주 넘은 가이드는 정리한다.
@@ -550,7 +550,10 @@
     try {
       const guide = await aiGuide(entry, readState());
       const next = readState();
-      next.lunch.guides[date] = { ...guide, signature: signature(entry), aiTriedAt: saved.aiTriedAt };
+      // AI 계산 중에 직접 +/−로 고쳤거나 기록했으면 그 값을 덮어쓰지 않는다.
+      const current = next.lunch?.guides?.[date];
+      if (!current || current.edited || current.loggedAt) return;
+      next.lunch.guides[date] = { ...guide, signature: signature(entry), aiTriedAt: saved.aiTriedAt, updatedAt: new Date().toISOString() };
       writeState(next);
       if (force) showToast('AI가 급식 양을 다시 계산했어요.');
     } catch (error) {
@@ -958,6 +961,7 @@
         if (!item) return;
         item.portion = Math.min(2, Math.max(0, item.portion + 0.25 * +step.dataset.lunchStep));
         guide.edited = true;
+        guide.updatedAt = new Date().toISOString();
         writeState(state);
         renderHomeCard();
         renderMealDays();
@@ -984,6 +988,7 @@
           carbs: Math.round(item.carbs * item.portion * 10) / 10, fat: Math.round(item.fat * item.portion * 10) / 10, src: 'lunch'
         }));
         guide.loggedAt = new Date().toISOString();
+        guide.updatedAt = guide.loggedAt;
         writeState(state);
         relogDate = null;
         window.dispatchEvent(new CustomEvent('fitlog:state-updated'));

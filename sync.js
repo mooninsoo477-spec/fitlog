@@ -271,11 +271,11 @@
     const alive = side => time(side.uploadedAt) > cleared;
     const [older, newer] = time(a.uploadedAt) > time(b.uploadedAt) ? [b, a] : [a, b];
     const days = { ...(alive(older) ? older.days || {} : {}), ...(alive(newer) ? newer.days || {} : {}) };
+    // 날짜별 점심 안내는 마지막으로 고친(+/−, 기록, AI) 쪽을 따른다.
+    const rank = guide => [time(guide?.updatedAt), guide?.loggedAt ? 1 : 0, guide?.edited ? 1 : 0];
+    const later = (x, y) => { const [p, q] = [rank(x), rank(y)]; for (let i = 0; i < p.length; i++) if (p[i] !== q[i]) return p[i] > q[i] ? x : y; return y; };
     const guides = { ...(older.guides || {}) };
-    Object.entries(newer.guides || {}).forEach(([date, guide]) => {
-      const other = guides[date];
-      guides[date] = other?.loggedAt && !guide?.loggedAt ? other : guide;
-    });
+    Object.entries(newer.guides || {}).forEach(([date, guide]) => { guides[date] = guides[date] ? later(guides[date], guide) : guide; });
     const merged = { ...older, ...newer, days, guides };
     if (newer.share == null && older.share != null) merged.share = older.share;
     if (cleared) merged.clearedAt = new Date(cleared).toISOString();
