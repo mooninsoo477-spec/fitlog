@@ -11,13 +11,13 @@
 
   // [이름, 종류] 종류: w=무게×횟수, b=횟수만(맨몸), c=시간(유산소·기타)
   const CATALOG = {
-    가슴: [['벤치프레스', 'w'], ['인클라인 벤치프레스', 'w'], ['디클라인 벤치프레스', 'w'], ['덤벨 벤치프레스', 'w'], ['인클라인 덤벨 프레스', 'w'], ['스미스 벤치프레스', 'w'], ['클로즈그립 벤치프레스', 'w'], ['체스트 프레스 머신', 'w'], ['인클라인 체스트 프레스 머신', 'w'], ['덤벨 플라이', 'w'], ['인클라인 덤벨 플라이', 'w'], ['펙덱 플라이', 'w'], ['케이블 크로스오버', 'w'], ['딥스', 'b'], ['푸시업', 'b']],
-    등: [['랫풀다운', 'w'], ['클로즈그립 랫풀다운', 'w'], ['언더그립 랫풀다운', 'w'], ['풀업', 'b'], ['친업', 'b'], ['어시스트 풀업 머신', 'w'], ['바벨로우', 'w'], ['펜들레이 로우', 'w'], ['덤벨로우', 'w'], ['원암 덤벨로우', 'w'], ['시티드 케이블 로우', 'w'], ['티바로우', 'w'], ['머신 로우', 'w'], ['하이 로우 머신', 'w'], ['암 풀다운', 'w'], ['데드리프트', 'w'], ['랙풀', 'w'], ['바벨 슈러그', 'w'], ['백 익스텐션', 'b']],
-    어깨: [['오버헤드 프레스', 'w'], ['덤벨 숄더프레스', 'w'], ['머신 숄더프레스', 'w'], ['스미스 숄더프레스', 'w'], ['아놀드 프레스', 'w'], ['사이드 레터럴 레이즈', 'w'], ['케이블 레터럴 레이즈', 'w'], ['머신 레터럴 레이즈', 'w'], ['프론트 레이즈', 'w'], ['벤트오버 리어 레이즈', 'w'], ['리어 델트 머신', 'w'], ['페이스 풀', 'w']],
-    팔: [['바벨 컬', 'w'], ['이지바 컬', 'w'], ['덤벨 컬', 'w'], ['해머 컬', 'w'], ['프리처 컬', 'w'], ['케이블 컬', 'w'], ['컨센트레이션 컬', 'w'], ['리버스 컬', 'w'], ['케이블 푸시다운', 'w'], ['로프 푸시다운', 'w'], ['트라이셉스 익스텐션', 'w'], ['라잉 트라이셉스 익스텐션', 'w'], ['스컬 크러셔', 'w'], ['덤벨 킥백', 'w']],
-    하체: [['스쿼트', 'w'], ['프론트 스쿼트', 'w'], ['스미스 스쿼트', 'w'], ['고블릿 스쿼트', 'w'], ['핵 스쿼트', 'w'], ['레그 프레스', 'w'], ['루마니안 데드리프트', 'w'], ['런지', 'w'], ['워킹 런지', 'w'], ['불가리안 스플릿 스쿼트', 'w'], ['스텝업', 'w'], ['레그 익스텐션', 'w'], ['레그 컬', 'w'], ['시티드 레그 컬', 'w'], ['힙 쓰러스트', 'w'], ['글루트 킥백 머신', 'w'], ['힙 어브덕션 머신', 'w'], ['어덕션 머신', 'w'], ['카프 레이즈', 'w'], ['시티드 카프 레이즈', 'w']],
-    복근: [['플랭크', 'c'], ['사이드 플랭크', 'c'], ['크런치', 'b'], ['케이블 크런치', 'w'], ['레그 레이즈', 'b'], ['행잉 레그 레이즈', 'b'], ['러시안 트위스트', 'b'], ['AB 롤아웃', 'b'], ['싯업', 'b']],
-    기타: [['러닝', 'c'], ['트레드밀 걷기', 'c'], ['인클라인 걷기', 'c'], ['걷기', 'c'], ['축구', 'c'], ['풋살', 'c'], ['수영', 'c'], ['사이클', 'c'], ['실내 사이클', 'c'], ['스텝밀(천국의 계단)', 'c'], ['일립티컬', 'c'], ['로잉 머신', 'c'], ['인터벌(HIIT)', 'c'], ['줄넘기', 'c'], ['등산', 'c'], ['배드민턴', 'c'], ['테니스', 'c'], ['농구', 'c'], ['클라이밍', 'c'], ['복싱', 'c'], ['요가', 'c'], ['필라테스', 'c']]
+    가슴: [['벤치프레스', 'w'], ['인클라인 벤치프레스', 'w'], ['디클라인 벤치프레스', 'w'], ['덤벨 벤치프레스', 'w'], ['인클라인 덤벨 프레스', 'w'], ['스미스 벤치프레스', 'w'], ['클로즈그립 벤치프레스', 'w'], ['체스트 프레스 머신', 'w'], ['인클라인 체스트 프레스 머신', 'w'], ['덤벨 플라이', 'w'], ['인클라인 덤벨 플라이', 'w'], ['펙덱 플라이', 'w'], ['케이블 크로스오버', 'w'], ['딥스', 'b'], ['푸시업', 'b'], ['머신 플라이', 'w'], ['케이블 플라이', 'w'], ['로우 투 하이 케이블 플라이', 'w'], ['하이 투 로우 케이블 플라이', 'w'], ['해머 스트렝스 체스트 프레스', 'w'], ['디클라인 체스트 프레스 머신', 'w'], ['스미스 인클라인 벤치프레스', 'w'], ['덤벨 풀오버', 'w'], ['인클라인 푸시업', 'b'], ['디클라인 푸시업', 'b']],
+    등: [['랫풀다운', 'w'], ['클로즈그립 랫풀다운', 'w'], ['언더그립 랫풀다운', 'w'], ['풀업', 'b'], ['친업', 'b'], ['어시스트 풀업 머신', 'w'], ['바벨로우', 'w'], ['펜들레이 로우', 'w'], ['덤벨로우', 'w'], ['원암 덤벨로우', 'w'], ['시티드 케이블 로우', 'w'], ['티바로우', 'w'], ['머신 로우', 'w'], ['하이 로우 머신', 'w'], ['암 풀다운', 'w'], ['데드리프트', 'w'], ['랙풀', 'w'], ['바벨 슈러그', 'w'], ['백 익스텐션', 'b'], ['원암 케이블 로우', 'w'], ['케이블 풀오버', 'w'], ['와이드그립 시티드 로우', 'w'], ['인클라인 덤벨로우', 'w'], ['스미스 로우', 'w'], ['T바 로우 머신', 'w'], ['원암 랫풀다운', 'w'], ['인버티드 로우', 'b'], ['덤벨 슈러그', 'w'], ['하이퍼 익스텐션', 'b']],
+    어깨: [['오버헤드 프레스', 'w'], ['덤벨 숄더프레스', 'w'], ['머신 숄더프레스', 'w'], ['스미스 숄더프레스', 'w'], ['아놀드 프레스', 'w'], ['사이드 레터럴 레이즈', 'w'], ['케이블 레터럴 레이즈', 'w'], ['머신 레터럴 레이즈', 'w'], ['프론트 레이즈', 'w'], ['벤트오버 리어 레이즈', 'w'], ['리어 델트 머신', 'w'], ['페이스 풀', 'w'], ['랜드마인 프레스', 'w'], ['비하인드넥 프레스', 'w'], ['덤벨 프론트 레이즈', 'w'], ['케이블 프론트 레이즈', 'w'], ['업라이트 로우', 'w'], ['케이블 리어 델트 플라이', 'w'], ['Y 레이즈', 'w'], ['해머 숄더프레스 머신', 'w']],
+    팔: [['바벨 컬', 'w'], ['이지바 컬', 'w'], ['덤벨 컬', 'w'], ['해머 컬', 'w'], ['프리처 컬', 'w'], ['케이블 컬', 'w'], ['컨센트레이션 컬', 'w'], ['리버스 컬', 'w'], ['케이블 푸시다운', 'w'], ['로프 푸시다운', 'w'], ['트라이셉스 익스텐션', 'w'], ['라잉 트라이셉스 익스텐션', 'w'], ['스컬 크러셔', 'w'], ['덤벨 킥백', 'w'], ['인클라인 덤벨 컬', 'w'], ['스파이더 컬', 'w'], ['케이블 해머 컬', 'w'], ['베이즈 컬', 'w'], ['오버헤드 케이블 익스텐션', 'w'], ['덤벨 오버헤드 익스텐션', 'w'], ['원암 케이블 푸시다운', 'w'], ['벤치 딥스', 'b'], ['클로즈그립 푸시업', 'b'], ['리스트 컬', 'w']],
+    하체: [['스쿼트', 'w'], ['프론트 스쿼트', 'w'], ['스미스 스쿼트', 'w'], ['고블릿 스쿼트', 'w'], ['핵 스쿼트', 'w'], ['레그 프레스', 'w'], ['루마니안 데드리프트', 'w'], ['런지', 'w'], ['워킹 런지', 'w'], ['불가리안 스플릿 스쿼트', 'w'], ['스텝업', 'w'], ['레그 익스텐션', 'w'], ['레그 컬', 'w'], ['시티드 레그 컬', 'w'], ['힙 쓰러스트', 'w'], ['글루트 킥백 머신', 'w'], ['힙 어브덕션 머신', 'w'], ['어덕션 머신', 'w'], ['카프 레이즈', 'w'], ['시티드 카프 레이즈', 'w'], ['스모 데드리프트', 'w'], ['굿모닝', 'w'], ['펜듈럼 스쿼트', 'w'], ['브이 스쿼트', 'w'], ['벨트 스쿼트', 'w'], ['싱글 레그 프레스', 'w'], ['리버스 런지', 'w'], ['사이드 런지', 'w'], ['스티프 레그 데드리프트', 'w'], ['노르딕 햄스트링 컬', 'b'], ['케틀벨 스윙', 'w'], ['박스 점프', 'b'], ['맨몸 스쿼트', 'b'], ['레그 프레스 카프 레이즈', 'w']],
+    복근: [['플랭크', 'c'], ['사이드 플랭크', 'c'], ['크런치', 'b'], ['케이블 크런치', 'w'], ['레그 레이즈', 'b'], ['행잉 레그 레이즈', 'b'], ['러시안 트위스트', 'b'], ['AB 롤아웃', 'b'], ['싯업', 'b'], ['데드버그', 'b'], ['버드독', 'b'], ['바이시클 크런치', 'b'], ['마운틴 클라이머', 'b'], ['행잉 니 레이즈', 'b'], ['할로우 홀드', 'c'], ['팔로프 프레스', 'w'], ['디클라인 싯업', 'b'], ['우드찹', 'w']],
+    기타: [['러닝', 'c'], ['트레드밀 걷기', 'c'], ['인클라인 걷기', 'c'], ['걷기', 'c'], ['축구', 'c'], ['풋살', 'c'], ['수영', 'c'], ['사이클', 'c'], ['실내 사이클', 'c'], ['스텝밀(천국의 계단)', 'c'], ['일립티컬', 'c'], ['로잉 머신', 'c'], ['인터벌(HIIT)', 'c'], ['줄넘기', 'c'], ['등산', 'c'], ['배드민턴', 'c'], ['테니스', 'c'], ['농구', 'c'], ['클라이밍', 'c'], ['복싱', 'c'], ['요가', 'c'], ['필라테스', 'c'], ['조깅', 'c'], ['버피', 'b'], ['배틀로프', 'c'], ['계단 오르기', 'c'], ['스피닝', 'c'], ['에어로빅', 'c'], ['탁구', 'c'], ['골프', 'c'], ['스트레칭', 'c'], ['폼롤러', 'c'], ['스키·보드', 'c'], ['자전거(야외)', 'c']]
   };
 
   const PARTS = Object.keys(CATALOG);
@@ -180,8 +180,22 @@
     const save = $('#saveWorkout');
     if (save && !save.textContent.includes('수정')) save.textContent = cart.length ? `운동 저장 · ${cart.length}종목` : '운동 저장';
     if (!cart.length) { box.innerHTML = '<p class="wk-cart-empty">종목을 누르고 무게·횟수를 적어 <b>목록에 담으세요</b>.</p>'; return; }
+    // 담은 운동은 세트를 칩으로 크게 보여준다(누르면 그 종목을 다시 고칠 수 있다).
+    const setChips = item => item.type === 'c'
+      ? `<span class="wk-chip">${item.minutes}분</span>${item.km ? `<span class="wk-chip">${item.km}km</span>` : ''}<span class="wk-chip soft">${esc(item.intensity || '')}</span>`
+      : item.sets.reduce((groups, set) => {
+        // 같은 무게·횟수가 이어지면 "50kg × 10회 · 4세트"처럼 한 칩으로 묶는다.
+        const last = groups.at(-1);
+        if (last && last.w === set.w && last.r === set.r) last.n++; else groups.push({ ...set, n: 1 });
+        return groups;
+      }, []).map(set => `<span class="wk-chip">${item.type === 'w' ? `${set.w}<small>kg</small> × ` : ''}${set.r}<small>회</small>${set.n > 1 ? `<i>${set.n}세트</i>` : ''}</span>`).join('');
+    const meta = item => {
+      if (item.type === 'c') return item.plan ? '계획에서 담음' : '';
+      const volume = item.type === 'w' ? item.sets.reduce((sum, set) => sum + set.w * set.r, 0) : 0;
+      return [`${item.sets.length}세트`, volume ? `${volume.toLocaleString()}kg` : '', `${item.minutes}분`, item.rpe ? `RPE ${item.rpe}` : '', item.plan ? '계획에서 담음 · 눌러서 실제 기록으로 고치기' : ''].filter(Boolean).join(' · ');
+    };
     box.innerHTML = `<div class="wk-cart-head"><h3>담은 운동 ${cart.length}개</h3><button type="button" class="link" data-wk-clear>모두 비우기</button></div>
-      ${cart.map((item, index) => `<article class="wk-cart-item"><button type="button" class="wk-cart-main" data-wk-edit="${index}"><b>${esc(item.name)}</b><small>${esc(cartSummary(item))}</small></button><button type="button" class="wk-cart-del" data-wk-remove="${index}" aria-label="${esc(item.name)} 빼기">×</button></article>`).join('')}`;
+      ${cart.map((item, index) => `<article class="wk-cart-item ${item.plan ? 'from-plan' : ''}"><button type="button" class="wk-cart-main" data-wk-edit="${index}"><span class="wk-cart-name"><b>${esc(item.name)}</b><em>수정</em></span><span class="wk-chips-row">${setChips(item)}</span>${meta(item) ? `<small>${esc(meta(item))}</small>` : ''}</button><button type="button" class="wk-cart-del" data-wk-remove="${index}" aria-label="${esc(item.name)} 빼기">×</button></article>`).join('')}`;
   }
 
   function onPickerClick(event) {
@@ -397,6 +411,7 @@
       bar.className = 'rest-timer';
       bar.setAttribute('role', 'timer');
       document.body.append(bar);
+      makeDraggable(bar);
       bar.addEventListener('click', event => {
         const adj = event.target.closest('[data-rest-adj]');
         if (adj && timer) { timer.end += +adj.dataset.restAdj * 1000; timer.total = Math.max(5, timer.total + +adj.dataset.restAdj); saveTimer(); tick(); return; }
@@ -404,11 +419,56 @@
         if (event.target.closest('[data-rest-skip]')) { timer = null; saveTimer(); renderTimer(); drawPip(); }
       });
     }
-    bar.innerHTML = `<div class="rest-progress"><i style="width:${Math.min(100, (1 - left / timer.total) * 100)}%"></i></div>
+    bar.innerHTML = `<i class="rest-grip" aria-hidden="true"></i><div class="rest-progress"><i style="width:${Math.min(100, (1 - left / timer.total) * 100)}%"></i></div>
       <div class="rest-row"><div><small>휴식 · ${esc(timer.name)}</small><b>${clock(left)}</b></div>
       <span>${pipSupported() ? `<button type="button" class="pip ${pip ? 'on' : ''}" data-rest-pip aria-label="작은 창으로 띄우기"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><rect x="12" y="11" width="7" height="6" rx="1" fill="currentColor" stroke="none"/></svg></button>` : ''}<button type="button" data-rest-adj="-15">−15</button><button type="button" data-rest-adj="15">＋15</button><button type="button" class="skip" data-rest-skip>건너뛰기</button></span></div>`;
   }
   document.addEventListener('visibilitychange', () => { if (!document.hidden && timer) tick(); });
+
+  // 타이머 창을 잡고 끌어서 옮긴다(버튼 말고 빈 곳을 잡기). 옮긴 위치는 기억한다.
+  const POS_KEY = 'fitlog:restTimerPos';
+  function placeBar(bar, x, y) {
+    const width = bar.offsetWidth, height = bar.offsetHeight;
+    const left = Math.min(Math.max(8, x), window.innerWidth - width - 8);
+    const top = Math.min(Math.max(8, y), window.innerHeight - height - 8);
+    Object.assign(bar.style, { left: `${left}px`, top: `${top}px`, bottom: 'auto', transform: 'none' });
+    return { x: left, y: top };
+  }
+  function makeDraggable(bar) {
+    try {
+      const saved = JSON.parse(localStorage.getItem(POS_KEY) || 'null');
+      if (saved) requestAnimationFrame(() => placeBar(bar, saved.x, saved.y));
+    } catch {}
+    let drag = null;
+    bar.addEventListener('pointerdown', event => {
+      if (event.target.closest('button')) return;
+      const rect = bar.getBoundingClientRect();
+      drag = { dx: event.clientX - rect.left, dy: event.clientY - rect.top, moved: false };
+      bar.setPointerCapture?.(event.pointerId);
+      bar.classList.add('dragging');
+    });
+    bar.addEventListener('pointermove', event => {
+      if (!drag) return;
+      drag.moved = true;
+      drag.pos = placeBar(bar, event.clientX - drag.dx, event.clientY - drag.dy);
+      event.preventDefault();
+    });
+    const end = () => {
+      if (!drag) return;
+      bar.classList.remove('dragging');
+      if (drag.pos) try { localStorage.setItem(POS_KEY, JSON.stringify(drag.pos)); } catch {}
+      drag = null;
+    };
+    bar.addEventListener('pointerup', end);
+    bar.addEventListener('pointercancel', end);
+    // 두 번 탭하면 원래 자리(아래 가운데)로 돌아간다.
+    bar.addEventListener('dblclick', event => {
+      if (event.target.closest('button')) return;
+      Object.assign(bar.style, { left: '', top: '', bottom: '', transform: '' });
+      try { localStorage.removeItem(POS_KEY); } catch {}
+    });
+  }
+  window.addEventListener('resize', () => { const bar = $('#restTimer'); if (bar?.style.top) placeBar(bar, parseFloat(bar.style.left), parseFloat(bar.style.top)); });
 
   function renderEditor() {
     const sheet = $('#wkSheet');
@@ -496,6 +556,7 @@
       if (editor.type !== 'c' && !editor.sets.some(set => set.r > 0)) { showToast('횟수를 1회 이상 적어주세요.'); return; }
       const sets = editor.sets.filter(set => set.r > 0);
       const minutes = editor.type !== 'c' && editor.minutesAuto ? autoMinutes(sets) : editor.minutes;
+      // 계획에서 담은 종목도 한 번 열어 고치면 실제 기록으로 본다.
       const item = { name: editor.name, type: editor.type, sets, minutes, minutesAuto: editor.minutesAuto, rpe: editor.type === 'c' ? INTENSITY.find(([label]) => label === editor.intensity)?.[1] : editor.rpe, km: editor.km, intensity: editor.intensity };
       if (editor.index != null) cart[editor.index] = item; else cart.push(item);
       closeEditor();
@@ -569,6 +630,38 @@
     renderGrid();
     setTimeout(() => $('#wkCart')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 350);
   });
+  // "이 계획으로 기록": 계획의 종목·무게·세트를 담은 운동으로 넣는다(이미 담은 종목은 그대로 둔다).
+  window.addEventListener('fitlog:plan-prefill', event => {
+    const handoff = event.detail;
+    const day = handoff?.day;
+    if (!$('#wkPicker') || !day) return;
+    const firstNumber = value => parseInt(String(value || '').match(/\d+/)?.[0], 10) || 0;
+    const items = (day.exercises || []).map(exercise => {
+      const name = exercise.name;
+      const sets = Math.max(1, Math.round(+exercise.sets || 3));
+      const type = typeOf(name) || (+exercise.weight > 0 ? 'w' : /초|분/.test(exercise.reps) ? 'c' : 'w');
+      if (type === 'c') {
+        const amount = firstNumber(exercise.reps);
+        const minutes = /초/.test(exercise.reps) ? Math.max(1, Math.ceil(amount * sets / 60)) : amount || 10;
+        return { name, type, sets: [], minutes, minutesAuto: false, rpe: 7, km: 0, intensity: '적당히', plan: true };
+      }
+      const reps = firstNumber(exercise.reps) || 10;
+      const list = Array.from({ length: sets }, () => ({ w: type === 'w' ? +exercise.weight || 0 : 0, r: reps }));
+      return { name, type, sets: list, minutes: autoMinutes(list), minutesAuto: true, rpe: null, km: 0, intensity: '적당히', plan: true };
+    });
+    const cardio = String(day.cardio || '').match(/([가-힣a-zA-Z()· ]+?)\s*(\d+)\s*분/);
+    if (cardio) items.push({ name: cardio[1].trim(), type: 'c', sets: [], minutes: +cardio[2], minutesAuto: false, rpe: day.focus === '축구' ? 8 : 7, km: 0, intensity: day.focus === '축구' ? '격하게' : '적당히', plan: true });
+    if (!items.length) return;
+    const have = new Set(cart.map(item => key(item.name)));
+    cart.push(...items.filter(item => !have.has(key(item.name))));
+    const note = $('#workoutNote');
+    if (note) note.value = '';
+    if (editor) closeEditor();
+    handoff.handled = true;
+    renderCart();
+    renderGrid();
+  });
+
   window.addEventListener('fitlog:workout-edit-end', () => {
     editInfo = null;
     cart = [];

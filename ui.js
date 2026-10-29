@@ -56,6 +56,8 @@
     if (header) header.innerHTML = '<div><h1>리포트</h1></div>';
     hide($('#bodyComment'));
     hide(headingOf(report, '운동량 흐름'));
+    // 새 리포트(report.js)가 탭으로 배치를 맡은 뒤에는 건드리지 않는다.
+    if ($('#rpTabs')) return;
     // 핵심(코칭 보드)만 펼쳐 두고, 자세한 카드는 눌러서 여는 묶음으로 접는다.
     let anchor = $('#coachBoard');
     if (!anchor) return;

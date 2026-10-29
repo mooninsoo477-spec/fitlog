@@ -153,7 +153,11 @@
   const CONDITIONS = { 1: ['😫', '나쁨'], 2: ['😕', '별로'], 3: ['🙂', '보통'], 4: ['😊', '좋음'], 5: ['🔥', '최고'] };
   const CARDIO_METS = [[/축구|풋살/, 7], [/러닝|달리기|조깅|run/i, 8.3], [/걷기|산책|walk/i, 3.5], [/사이클|자전거|스피닝|bike/i, 7], [/수영|swim/i, 7], [/줄넘기/, 11], [/등산|하이킹/, 6.5], [/인터벌|hiit|서킷/i, 8], [/계단|스텝밀|천국의/, 8], [/로잉|rowing/i, 7]];
   const BODY_PARTS = [
-    ['코어', /플랭크|크런치|복근|레그\s*레이즈|싯업|윗몸|러시안|행잉|ab\s*롤|코어/i],
+    ['코어', /플랭크|크런치|복근|레그\s*레이즈|니\s*레이즈|싯업|윗몸|러시안|행잉|ab\s*롤|코어|데드버그|버드독|마운틴|할로우|팔로프|우드찹/i],
+    // 이름에 다른 부위 단어가 섞인 종목은 먼저 바로잡는다(업라이트 '로우'는 어깨, 벤치 '딥스'는 팔).
+    ['어깨', /업라이트|Y\s*레이즈|랜드마인/i],
+    ['팔', /벤치\s*딥스|클로즈그립\s*푸시업/],
+    ['하체', /케틀벨\s*스윙|박스\s*점프|스모\s*데드/],
     ['하체', /스쿼트|레그|런지|힙|카프|글루트|핵|스텝업|루마니안|굿모닝|어덕션|앱덕션|하체/],
     ['가슴', /벤치|체스트|인클라인|디클라인|푸쉬업|푸시업|팔굽|딥스|플라이|펙덱|크로스오버|가슴/],
     ['등', /로우|풀다운|풀업|턱걸이|랫|데드|친업|풀오버|하이퍼|백\s*익스|슈러그|랙풀|등/],
@@ -1737,6 +1741,16 @@
   }
 
   function prefillWorkout(day) {
+    const handoff = { day, handled: false };
+    window.dispatchEvent(new CustomEvent('fitlog:plan-prefill', { detail: handoff }));
+    if (handoff.handled) {
+      prefilledPlanDate = day.date;
+      renderWorkoutDraft();
+      if (location.hash !== '#workout') goTo('workout');
+      setTimeout(() => $('#wkCart')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120);
+      showToast('계획 종목을 담아뒀어요. 실제로 한 무게·횟수만 고쳐서 저장하세요.');
+      return;
+    }
     const cardioMatch = String(day.cardio || '').match(/([가-힣a-zA-Z ]+?)\s*(\d+)\s*분/);
     const lines = (day.exercises || []).map(exercise => {
       const reps = parseInt(exercise.reps, 10) || 0;
@@ -1927,6 +1941,7 @@
     const saved = state.profile?.soccerWeeks?.[weekStart];
     if (typeof saved === 'boolean') return { soccer: saved, source: '직접 선택' };
     if (soccerLoggedInWeek(state, weekStart)) return { soccer: true, source: '축구 기록' };
+    if (soccerDates(state, weekStart).length) return { soccer: true, source: '축구 요일' };
     return { soccer: legDoneInWeek(state, addDays(weekStart, -7)), source: '격주 추정' };
   }
 
@@ -1986,6 +2001,11 @@
         `주간 운동 목표 ${state.profile?.workoutGoal || 5}회, 강도 ${state.profile?.trainingIntensity || '중간'}, 운동 가능 일정 ${info.schedule || '정보 없음'}, 부상·주의 ${info.injuries || '없음'}, 선호 ${info.trainingPreference || '정보 없음'}.`,
         `최근 14일 기록(체크인·식단·운동·메모):\n${recentLogText(state, 14)}`,
         rulesPrompt(state, weekStart),
+        // 리포트의 '다음 주 할 일'에서 [계획에 반영]을 누른 항목(2주 동안 유효)
+        (() => {
+          const focus = (state.profile?.planFocus || []).filter(item => Date.now() - Date.parse(item.at) < 14 * 86400000);
+          return focus.length ? `사용자가 리포트에서 고른 이번 계획의 중점(반드시 반영한다):\n- ${focus.map(item => item.text).join('\n- ')}` : '';
+        })(),
         (() => {
           const goal = +(state.profile?.workoutGoal || 5);
           const doneBefore = weekDates(weekStart).filter(date => date < dates[0] && liftDay(state, date)).length;
@@ -2181,6 +2201,37 @@
       ${new Date().getDay() === 0 && isCurrent ? '<button class="ghost full" data-plan-action="next">다음 주 계획 미리 받기</button>' : ''}`;
   }
 
+  // 계획의 축구 날은 축구로 고정하고, 밀려난 근력 운동은 남은 휴식일(축구 전날은 피함)로 옮긴다.
+  // 축구 날에서 빠진 날은 근력 분할로 채운다.
+  function applySoccerToPlan(state) {
+    const plan = currentPlan(state);
+    if (!plan?.days?.length) return false;
+    const today = dateKey(new Date());
+    const play = new Set(soccerWeek(state, plan.weekStart).soccer ? soccerDates(state, plan.weekStart) : []);
+    const ordered = [...plan.days].sort((a, b) => a.date.localeCompare(b.date));
+    const displaced = [];
+    let changed = false;
+    ordered.forEach(day => {
+      if (day.date < today) return;
+      if (play.has(day.date) && day.focus !== '축구') {
+        if (!day.rest && day.exercises?.length) displaced.push({ focus: day.focus, exercises: day.exercises });
+        Object.assign(day, { rest: false, focus: '축구', exercises: [], cardio: '축구 90분', tip: '축구가 하체·유산소 훈련을 대신해요. 끝나고 단백질과 수분을 충분히 챙겨요.' });
+        changed = true;
+      } else if (!play.has(day.date) && day.focus === '축구') {
+        const { pick } = splitFor(state, plan.days, { ...day, rest: true });
+        Object.assign(day, { rest: false, focus: pick.focus, exercises: pick.exercises, cardio: '없음', tip: '축구 날에서 빠져 근력 운동일로 바꿨어요.' });
+        changed = true;
+      }
+    });
+    displaced.forEach(item => {
+      const free = ordered.find(day => day.date >= today && day.rest && !play.has(day.date) && !play.has(addDays(day.date, 1)))
+        || ordered.find(day => day.date >= today && day.rest && !play.has(day.date));
+      if (free) Object.assign(free, { rest: false, focus: item.focus, exercises: item.exercises, cardio: '없음', tip: '축구 날과 겹쳐 이날로 옮겼어요.' });
+    });
+    if (changed) plan.updatedAt = new Date().toISOString();
+    return changed;
+  }
+
   function installPlanActions() {
     if (document.body.dataset.planActions) return;
     document.body.dataset.planActions = 'true';
@@ -2194,8 +2245,13 @@
         if (list.has(soccerDay.dataset.soccerDay)) list.delete(soccerDay.dataset.soccerDay); else list.add(soccerDay.dataset.soccerDay);
         next.profile.soccerDays = { ...(next.profile.soccerDays || {}), [week]: [...list].sort() };
         next.profile.soccerUsualDays = [...list].map(date => new Date(`${date}T12:00:00`).getDay());
+        // 축구 날을 고르면 그 주는 축구 주. 모두 빼면 직접 정한 값만 남긴다.
+        if (list.size && next.profile.soccerWeeks?.[week] === false) delete next.profile.soccerWeeks[week];
+        const moved = applySoccerToPlan(next);
         writeState(next);
         renderPlanCard();
+        window.dispatchEvent(new CustomEvent('fitlog:state-updated'));
+        if (moved) showToast('계획의 축구 날을 바꿨어요.');
         return;
       }
       const soccerButton = event.target.closest('[data-soccer]');
@@ -2203,7 +2259,9 @@
         const next = readState();
         next.profile ||= {};
         next.profile.soccerWeeks = { ...(next.profile.soccerWeeks || {}), [soccerButton.dataset.soccer]: soccerButton.dataset.value === '1' };
+        applySoccerToPlan(next);
         writeState(next);
+        window.dispatchEvent(new CustomEvent('fitlog:state-updated'));
         renderPlanCard();
         showToast(soccerButton.dataset.value === '1' ? '축구 주로 표시했어요. 하체 근력운동은 빼고 짜요.' : '축구 없는 주로 표시했어요. 하체를 1회 넣어 짜요.');
         return;
@@ -3205,7 +3263,7 @@
   }
 
   // 급식표 모듈(lunch.js)처럼 따로 불러오는 기능이 앱의 저장·알림을 쓸 수 있게 열어둔다.
-  window.FitLogCore = { readState, writeState, showToast, dateKey, esc, goTo, workoutExercises, setSummary, renderCoachBoard, setWorkoutEditMode, renderWorkoutDraft };
+  window.FitLogCore = { readState, writeState, showToast, dateKey, esc, goTo, workoutExercises, setSummary, renderCoachBoard, setWorkoutEditMode, renderWorkoutDraft, exercisePart };
   window.FitLogAI = {
     enabled: () => aiReady(parse(localStorage.getItem(AI_KEY), {}) || {}),
     context: state => profileContextText(state),
