@@ -1,0 +1,121 @@
+/* 운동 화면: 리포트와 같은 디자인(밝은 바탕 · 흰 카드 · 작은 색 라벨 + 굵은 제목 · 연한 색 칸).
+   예전 어두운 운동 화면 규칙(theme.css)을 [data-view="workout"]로 범위를 좁혀 덮어쓴다. */
+[data-view="workout"] { --wk-ink: #10231c; --wk-sub: #5b6661; --wk-navy: #263445; --wk-soft: #eef2f7; --wk-tile: #f4f6f9; --wk-line: #e3e8ee; --wk-mint: #2fbf8f; }
+
+/* 맨 위 요약: 리포트 점수 카드처럼 진한 남색 */
+[data-view="workout"] .content > header.top { background: #1f2a3a !important; border-radius: 24px !important; padding: 20px 18px !important; }
+
+/* 카드 공통 */
+[data-view="workout"] #planCard,
+[data-view="workout"] #workoutForm,
+[data-view="workout"] #dayWorkouts { background: #fff !important; color: var(--wk-ink) !important; border: 0 !important; border-radius: 24px !important; padding: 20px 18px !important; box-shadow: none !important; }
+.wk-form-head { margin-bottom: 14px; }
+[data-view="workout"] .rx-head small { color: var(--wk-navy); }
+
+/* ---- AI 주간 계획 ---- */
+[data-view="workout"] #planCard .plan-head { align-items: flex-start; margin-bottom: 14px; }
+[data-view="workout"] #planCard .plan-eyebrow { display: block; color: var(--wk-navy) !important; font-size: 12px; font-weight: 800; letter-spacing: .3px; }
+[data-view="workout"] #planCard .plan-head strong { display: block; margin-top: 2px; color: var(--wk-ink) !important; font-size: 21px; font-weight: 800; letter-spacing: -.4px; }
+[data-view="workout"] #planCard strong, [data-view="workout"] #planCard h2, [data-view="workout"] #planCard h3 { color: var(--wk-ink) !important; }
+[data-view="workout"] #planCard small, [data-view="workout"] #planCard p, [data-view="workout"] #planCard .plan-rule, [data-view="workout"] #planCard .plan-note { color: var(--wk-sub) !important; }
+[data-view="workout"] #planCard .link { padding: 8px 12px; border-radius: 12px; background: var(--wk-soft) !important; color: var(--wk-navy) !important; font-size: 14px; font-weight: 800; text-decoration: none; }
+[data-view="workout"] #planCard .soccer-row { background: var(--wk-soft) !important; color: var(--wk-ink) !important; border-radius: 16px !important; }
+[data-view="workout"] #planCard .soccer-row span { color: var(--wk-ink) !important; font-weight: 800; }
+[data-view="workout"] #planCard .soccer-row span small { color: var(--wk-sub) !important; }
+[data-view="workout"] #planCard .soccer-row button { background: #fff !important; color: var(--wk-sub) !important; border: 0 !important; font-weight: 800; }
+[data-view="workout"] #planCard .soccer-row button.on { background: var(--wk-mint) !important; color: #fff !important; }
+[data-view="workout"] #planCard .soccer-days small { color: var(--wk-sub) !important; font-weight: 700; }
+[data-view="workout"] #planCard .soccer-days button { background: var(--wk-tile) !important; color: var(--wk-ink) !important; border: 0 !important; font-weight: 800; }
+[data-view="workout"] #planCard .soccer-days button.on { background: var(--wk-mint) !important; color: #fff !important; }
+[data-view="workout"] #planCard .plan-principle { background: var(--wk-soft) !important; color: #2d3a35 !important; border-left: 3px solid var(--wk-mint); }
+[data-view="workout"] #planCard .plan-alert, [data-view="workout"] #planCard .plan-rule-note { background: #fff0ea !important; color: #a4492f !important; border: 0 !important; }
+[data-view="workout"] #planCard .plan-alert button { background: #fff !important; color: #a4492f !important; }
+
+/* 요일 칸 */
+[data-view="workout"] #planCard .plan-day { background: var(--wk-tile) !important; border: 2px solid transparent !important; }
+[data-view="workout"] #planCard .plan-day span, [data-view="workout"] #planCard .plan-day small { color: var(--wk-sub) !important; font-weight: 700; }
+[data-view="workout"] #planCard .plan-day b { background: #fff !important; color: var(--wk-ink) !important; }
+[data-view="workout"] #planCard .plan-day.done b { background: var(--wk-navy) !important; color: #fff !important; }
+[data-view="workout"] #planCard .plan-day.missed b { background: #ff9a7a !important; color: #fff !important; }
+[data-view="workout"] #planCard .plan-day.rest { opacity: .75; }
+[data-view="workout"] #planCard .plan-day.is-today b { box-shadow: 0 0 0 3px #ffd76a !important; }
+[data-view="workout"] #planCard .plan-day.selected { background: #fff !important; border-color: var(--wk-navy) !important; }
+[data-view="workout"] #planCard .plan-day.selected span, [data-view="workout"] #planCard .plan-day.selected small { color: var(--wk-ink) !important; }
+
+/* 그날 계획 */
+[data-view="workout"] #planCard .plan-detail { background: var(--wk-tile) !important; color: var(--wk-ink) !important; border: 0 !important; border-radius: 18px !important; }
+[data-view="workout"] #planCard .plan-detail-head strong { color: var(--wk-ink) !important; font-size: 17px; }
+[data-view="workout"] #planCard .plan-exercises li { border-color: var(--wk-line) !important; color: var(--wk-ink); }
+[data-view="workout"] #planCard .plan-exercises b { color: var(--wk-sub) !important; }
+[data-view="workout"] #planCard .primary { background: var(--wk-navy) !important; color: #fff !important; min-height: 52px; border-radius: 16px; font-size: 16px; font-weight: 800; }
+[data-view="workout"] #planCard .ghost { background: var(--wk-soft) !important; color: var(--wk-navy) !important; border: 0 !important; }
+
+/* ---- 운동 담기 ---- */
+[data-view="workout"] #workoutForm .workout-date span,
+[data-view="workout"] #workoutForm .field > span,
+[data-view="workout"] #workoutForm .field-row > span,
+[data-view="workout"] #workoutForm label > span,
+[data-view="workout"] #workoutForm .wk-finish-head small { color: var(--wk-sub) !important; }
+[data-view="workout"] #workoutForm .workout-date .select { background: var(--wk-tile) !important; color: var(--wk-ink) !important; -webkit-text-fill-color: var(--wk-ink); border: 0 !important; font-weight: 700; }
+[data-view="workout"] .wk-tabs button { background: var(--wk-tile) !important; color: var(--wk-sub) !important; }
+[data-view="workout"] .wk-tabs button.on { background: var(--wk-navy) !important; color: #fff !important; }
+[data-view="workout"] .wk-tile { background: var(--wk-tile) !important; color: var(--wk-ink) !important; }
+[data-view="workout"] .wk-tile b { color: var(--wk-ink) !important; }
+[data-view="workout"] .wk-tile small { color: var(--wk-sub) !important; }
+[data-view="workout"] .wk-tile.in { background: #e5f4ec !important; box-shadow: inset 0 0 0 2px var(--wk-mint) !important; }
+[data-view="workout"] .wk-tile i { background: var(--wk-mint) !important; color: #fff !important; }
+[data-view="workout"] .wk-empty { color: var(--wk-sub) !important; }
+[data-view="workout"] .wk-custom .input { background: var(--wk-tile) !important; border: 0 !important; color: var(--wk-ink) !important; -webkit-text-fill-color: var(--wk-ink); }
+[data-view="workout"] .wk-custom .input::placeholder { color: #8a9590; -webkit-text-fill-color: #8a9590; }
+[data-view="workout"] .wk-custom-add { background: var(--wk-navy) !important; color: #fff !important; }
+
+/* 담은 운동: 연한 남색 칸 + 흰 카드 */
+[data-view="workout"] .wk-cart { background: var(--wk-soft) !important; color: var(--wk-ink) !important; border-radius: 20px; }
+[data-view="workout"] .wk-cart-empty { color: var(--wk-sub) !important; }
+[data-view="workout"] .wk-cart-empty b { color: var(--wk-ink) !important; }
+[data-view="workout"] .wk-cart-head h3 { color: var(--wk-ink) !important; font-size: 19px; }
+[data-view="workout"] .wk-cart-head .link { color: var(--wk-sub) !important; font-weight: 700; }
+[data-view="workout"] .wk-cart-item { background: #fff !important; }
+[data-view="workout"] .wk-cart-main b { color: var(--wk-ink) !important; }
+[data-view="workout"] .wk-cart-main > small { color: var(--wk-sub) !important; }
+[data-view="workout"] .wk-cart-name em { background: var(--wk-soft); color: var(--wk-navy); }
+[data-view="workout"] .wk-chip { background: var(--wk-soft); color: var(--wk-navy); }
+[data-view="workout"] .wk-chip.soft { background: var(--wk-tile); color: var(--wk-sub); }
+[data-view="workout"] .wk-chip i { background: var(--wk-navy); color: #fff; }
+[data-view="workout"] .wk-cart-item.from-plan { box-shadow: inset 4px 0 0 #ffd76a !important; }
+[data-view="workout"] .wk-cart-item.from-plan .wk-cart-name em { background: #ffd76a; color: #3b2a12; }
+[data-view="workout"] .wk-cart-del { color: #9aa29e !important; }
+
+/* 글로 적기 · 마무리 */
+[data-view="workout"] .wk-manual { border-top-color: var(--wk-line) !important; }
+[data-view="workout"] .wk-manual summary { color: var(--wk-sub) !important; }
+[data-view="workout"] .wk-manual .textarea, [data-view="workout"] .wk-manual .routine-chips button, [data-view="workout"] .wk-manual .exercise-chips button { background: var(--wk-tile) !important; color: var(--wk-ink) !important; -webkit-text-fill-color: var(--wk-ink); border: 0 !important; }
+[data-view="workout"] .wk-finish-head { margin-top: 20px; }
+[data-view="workout"] .wk-finish-head h3 { color: var(--wk-ink) !important; font-size: 19px; }
+[data-view="workout"] #workoutForm .input, [data-view="workout"] #workoutForm .textarea { background: var(--wk-tile) !important; border: 0 !important; color: var(--wk-ink) !important; -webkit-text-fill-color: var(--wk-ink); caret-color: var(--wk-navy); }
+[data-view="workout"] #workoutForm .input::placeholder, [data-view="workout"] #workoutForm .textarea::placeholder { color: #8a9590; -webkit-text-fill-color: #8a9590; }
+[data-view="workout"] #workoutForm .kcal-input-wrap b { color: var(--wk-sub) !important; }
+[data-view="workout"] #workoutForm .rpe-chips button { background: var(--wk-tile) !important; color: var(--wk-ink) !important; border: 0 !important; font-weight: 800; }
+[data-view="workout"] #workoutForm .rpe-chips button.on { background: var(--wk-navy) !important; color: #fff !important; }
+[data-view="workout"] #workoutForm .parsed { background: var(--wk-tile) !important; color: var(--wk-sub) !important; }
+[data-view="workout"] #workoutForm .parsed li { color: var(--wk-ink) !important; }
+[data-view="workout"] #workoutForm .notice { color: #1e7a5c !important; }
+[data-view="workout"] #workoutForm #saveWorkout { min-height: 58px; border-radius: 18px; background: var(--wk-navy) !important; color: #fff !important; font-size: 17px; font-weight: 800; }
+[data-view="workout"] #workoutForm .edit-banner { background: #fff4dc !important; color: #6b4a0e !important; border-radius: 14px; }
+
+/* ---- 오늘 기록 ---- */
+[data-view="workout"] #dayWorkouts .dw-head { align-items: flex-end; margin-bottom: 10px; }
+[data-view="workout"] #dayWorkouts .dw-head strong { font-size: 21px !important; font-weight: 800; letter-spacing: -.4px; color: var(--wk-ink); }
+[data-view="workout"] #dayWorkouts .dw-head strong::before { content: "오늘 한 운동"; display: block; margin-bottom: 2px; color: var(--wk-navy); font-size: 12px; font-weight: 800; letter-spacing: .3px; }
+[data-view="workout"] #dayWorkouts .dw-head span { color: var(--wk-sub) !important; }
+[data-view="workout"] #dayWorkouts .dw-item { border-top-color: var(--wk-line) !important; }
+[data-view="workout"] #dayWorkouts .dw-title .link { border-radius: 10px; background: var(--wk-soft); color: var(--wk-navy) !important; }
+[data-view="workout"] #dayWorkouts .dw-title .link.danger { background: #fff0ea; color: #c4572f !important; }
+[data-view="workout"] #dayWorkouts .dw-item li { background: var(--wk-tile) !important; }
+[data-view="workout"] #dayWorkouts .dw-empty { padding: 14px; border-radius: 14px; background: var(--wk-tile); color: var(--wk-sub) !important; font-size: 14px !important; }
+[data-view="workout"] .soccer-check > div { gap: 8px; }
+[data-view="workout"] .soccer-check b { min-width: 0; }
+[data-view="workout"] .soccer-check span { flex: none; }
+[data-view="workout"] .soccer-check button { white-space: nowrap; padding: 9px 12px; }
+[data-view="workout"] .wk-chip small { color: var(--wk-sub) !important; opacity: 1; }
+[data-view="workout"] #dayWorkouts:has(.dw-empty)::before { content: "오늘 한 운동"; display: block; margin-bottom: 10px; color: var(--wk-navy); font-size: 12px; font-weight: 800; letter-spacing: .3px; }

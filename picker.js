@@ -119,6 +119,13 @@
       <section class="wk-cart" id="wkCart"></section>`;
     const dateRow = form.querySelector('.workout-date');
     if (dateRow) dateRow.after(picker); else form.prepend(picker);
+    // 리포트 카드처럼 작은 색 라벨 + 굵은 제목
+    if (!form.querySelector('.wk-form-head')) {
+      const head = document.createElement('div');
+      head.className = 'rx-head wk-form-head';
+      head.innerHTML = '<small>운동 기록</small><h3>오늘 한 운동 담기</h3>';
+      (dateRow || picker).before(head);
+    }
     // 예전 방식(글로 적기)은 접어서 아래에 둔다.
     const manual = document.createElement('details');
     manual.className = 'wk-manual';

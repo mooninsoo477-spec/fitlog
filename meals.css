@@ -1,0 +1,66 @@
+/* 식사 화면: 리포트·운동과 같은 디자인(밝은 바탕 · 흰 카드 · 작은 초록 라벨 + 굵은 제목 · 연한 초록 칸).
+   예전 초록 바탕 화면 규칙(theme.css)을 [data-view="meals"]로 범위를 좁혀 덮어쓴다. */
+[data-view="meals"] { --ml-ink: #10231c; --ml-sub: #5b6661; --ml-green: #1e5c4a; --ml-mint: #2fbf8f; --ml-soft: #e5f4ec; --ml-tile: #f2f7f4; --ml-line: #e2ebe6; }
+body:has([data-view="meals"].active), body:has([data-view="meals"].active) .app { background: var(--bg) !important; }
+
+/* 맨 위 요약: 진한 초록 카드 */
+[data-view="meals"] .content > header.top { background: #17463a !important; border-radius: 24px !important; padding: 20px 18px !important; }
+
+/* 카드 공통 */
+[data-view="meals"] #aiMealComposer,
+[data-view="meals"] #mealDays,
+[data-view="meals"] #lunchManager,
+[data-view="meals"] #mealRecommendation { background: #fff !important; color: var(--ml-ink) !important; border: 0 !important; border-radius: 24px !important; padding: 20px 18px !important; box-shadow: none !important; }
+.ml-form-head { margin-bottom: 14px; }
+[data-view="meals"] .rx-head small { color: #1e7a5c; }
+
+/* ---- 먹은 것 기록하기 ---- */
+[data-view="meals"] #mealsQuick .qf { margin: 0 0 16px; color: var(--ml-ink); }
+[data-view="meals"] #mealsQuick .qf-head b { color: var(--ml-ink); }
+[data-view="meals"] #mealsQuick .qf-head small { color: var(--ml-sub); opacity: 1; }
+[data-view="meals"] #mealsQuick .qf-chips button { background: var(--ml-tile) !important; color: var(--ml-ink) !important; box-shadow: inset 0 0 0 1.5px var(--ml-line) !important; }
+[data-view="meals"] #mealsQuick .qf-chips small { color: var(--ml-sub); opacity: 1; }
+[data-view="meals"] #aiMealComposer .meal-type-tabs span { background: var(--ml-tile) !important; border: 2px solid transparent !important; color: var(--ml-ink) !important; font-weight: 800; }
+[data-view="meals"] #aiMealComposer .meal-type-tabs input:checked + span { background: var(--ml-green) !important; border-color: var(--ml-green) !important; color: #fff !important; }
+[data-view="meals"] #aiMealComposer .place-chips span { background: var(--ml-tile) !important; border: 0 !important; color: var(--ml-sub) !important; font-weight: 800; }
+[data-view="meals"] #aiMealComposer .place-chips input:checked + span { background: var(--ml-green) !important; color: #fff !important; }
+[data-view="meals"] #aiMealComposer .field > span { color: var(--ml-sub) !important; font-size: 14px; font-weight: 800; }
+[data-view="meals"] #aiMealComposer #aiMealText { background: var(--ml-tile) !important; border: 2px solid transparent !important; border-radius: 16px !important; color: var(--ml-ink) !important; -webkit-text-fill-color: var(--ml-ink); }
+[data-view="meals"] #aiMealComposer #aiMealText:focus { border-color: var(--ml-mint) !important; background: #fff !important; }
+[data-view="meals"] #aiMealComposer .photo-picker { background: #fff !important; border: 2px dashed #bfdccd !important; color: var(--ml-ink) !important; }
+[data-view="meals"] #aiMealComposer .photo-picker strong { color: var(--ml-ink) !important; }
+[data-view="meals"] #aiMealComposer .photo-picker small { color: var(--ml-sub) !important; }
+[data-view="meals"] #aiMealComposer #analyzeMeal { background: var(--ml-green) !important; color: #fff !important; }
+[data-view="meals"] #aiMealComposer .ai-notice { color: var(--ml-sub) !important; }
+
+/* ---- 최근 5일 기록 ---- */
+[data-view="meals"] #mealDays .meal-days-head strong { display: block; color: var(--ml-ink); font-size: 21px; font-weight: 800; letter-spacing: -.4px; }
+[data-view="meals"] #mealDays .meal-days-head strong::before { content: "식사 기록"; display: block; margin-bottom: 2px; color: #1e7a5c; font-size: 12px; font-weight: 800; letter-spacing: .3px; }
+[data-view="meals"] #mealDays .meal-days-head small { display: block; margin-top: 4px; color: var(--ml-sub); font-size: 13px; }
+[data-view="meals"] #mealDays .meal-day-chips button { background: var(--ml-tile) !important; border: 2px solid transparent !important; color: var(--ml-ink) !important; border-radius: 14px !important; }
+[data-view="meals"] #mealDays .meal-day-chips button.on { background: var(--ml-green) !important; border-color: var(--ml-green) !important; color: #fff !important; }
+[data-view="meals"] #mealDays .meal-day-chips button.on * { color: #fff !important; }
+[data-view="meals"] #mealDays .meal-day-summary { margin: 12px 0 4px; padding: 12px 14px; border-radius: 14px; background: var(--ml-soft); color: var(--ml-green); font-size: 14px; font-weight: 700; }
+[data-view="meals"] #mealDays .meal-day-summary b { font-size: 17px; }
+[data-view="meals"] #mealDays .meal-day-group { margin-top: 14px; }
+[data-view="meals"] #mealDays .meal-day-group h4 { padding-bottom: 6px; font-size: 15px; font-weight: 800; color: var(--ml-ink); }
+[data-view="meals"] #mealDays .meal-day-item { gap: 6px; margin-top: 6px; padding: 12px; border: 0; border-radius: 14px; background: var(--ml-tile); }
+[data-view="meals"] #mealDays .meal-day-item b { font-size: 16px; font-weight: 800; }
+[data-view="meals"] #mealDays .meal-day-item small { font-size: 13px; color: var(--ml-sub); }
+[data-view="meals"] #mealDays .meal-day-item .link { padding: 7px 10px; border-radius: 10px; background: #fff; color: var(--ml-green) !important; font-size: 13px; font-weight: 800; }
+[data-view="meals"] #mealDays .meal-day-item .link.danger { color: #c4572f !important; }
+[data-view="meals"] #mealDays .meal-day-empty { padding: 14px; border-radius: 14px; background: var(--ml-tile); font-size: 14px; }
+[data-view="meals"] #mealDays .meal-add { margin-top: 12px; min-height: 50px; border: 2px dashed #bfdccd !important; border-radius: 16px !important; background: #fff !important; color: var(--ml-green) !important; font-size: 15px; font-weight: 800; }
+[data-view="meals"] #mealDays .meal-lunch { border: 0 !important; border-radius: 16px !important; background: #fff4dc !important; }
+
+/* ---- 급식표 ---- */
+[data-view="meals"] #lunchManager .lunch-head strong { display: block; color: var(--ml-ink); font-size: 21px; font-weight: 800; letter-spacing: -.4px; }
+[data-view="meals"] #lunchManager .lunch-head strong::before { content: "급식"; display: block; margin-bottom: 2px; color: #1e7a5c; font-size: 12px; font-weight: 800; letter-spacing: .3px; }
+[data-view="meals"] #lunchManager .lunch-head small { display: block; margin-top: 4px; color: var(--ml-sub); font-size: 13px; line-height: 1.5; }
+[data-view="meals"] #lunchManager .lunch-upload { min-height: 52px; border-radius: 16px !important; background: var(--ml-green) !important; color: #fff !important; font-weight: 800; }
+[data-view="meals"] #lunchManager .lunch-status { padding: 12px 14px; border-radius: 14px; background: var(--ml-soft); color: var(--ml-green); }
+[data-view="meals"] #lunchManager .lunch-share > span { color: var(--ml-sub); font-weight: 800; }
+[data-view="meals"] #lunchManager .select { background: var(--ml-tile) !important; border: 0 !important; color: var(--ml-ink) !important; }
+[data-view="meals"] #lunchManager .lunch-help { color: var(--ml-sub); font-size: 13px; line-height: 1.5; }
+[data-view="meals"] #mealsQuick .qf-head { flex-wrap: wrap; row-gap: 2px; }
+[data-view="meals"] #mealsQuick .qf-head b { white-space: nowrap; font-size: 15px; }

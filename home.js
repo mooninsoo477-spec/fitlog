@@ -265,7 +265,7 @@
     const composer = $('#aiMealComposer');
     if (!composer) return;
     let box = $('#mealsQuick');
-    if (!box) { box = document.createElement('div'); box.id = 'mealsQuick'; composer.prepend(box); }
+    if (!box) { box = document.createElement('div'); box.id = 'mealsQuick'; const head = composer.querySelector('.ml-form-head'); if (head) head.after(box); else composer.prepend(box); }
     box.innerHTML = quickFoodsMarkup(state, '누르면 위에서 고른 끼니로 바로 기록돼요');
   }
 

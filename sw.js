@@ -1,4 +1,4 @@
-const CACHE = 'fitlog-shell-20261029-4';
+const CACHE = 'fitlog-shell-20261029-8';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon.png?v=2', './icon-192.png?v=2'];
 
 self.addEventListener('install', event => {

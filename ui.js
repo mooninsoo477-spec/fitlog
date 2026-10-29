@@ -45,6 +45,17 @@
     const order = [...manual, ...['#aiMealComposer', '#aiMealPreview', '#mealDays', '#mealRecommendation', '#lunchManager'].map(id => $(id))].filter(Boolean);
     let anchor = header;
     order.forEach(node => { anchor.after(node); anchor = node; });
+    // 리포트 카드처럼 작은 색 라벨 + 굵은 제목
+    const composer = $('#aiMealComposer');
+    if (composer) {
+      let head = composer.querySelector('.ml-form-head');
+      if (!head) {
+        head = document.createElement('div');
+        head.className = 'rx-head ml-form-head';
+        head.innerHTML = '<small>식사 기록</small><h3>먹은 것 기록하기</h3>';
+      }
+      if (composer.firstElementChild !== head) composer.prepend(head);
+    }
     hideSection(meals, '남은 끼니 추천');
     hide($('#mealAdvice'));
   }
